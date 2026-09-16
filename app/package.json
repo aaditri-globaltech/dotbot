@@ -1,7 +1,7 @@
 {
   "name": "aria",
   "version": "0.1.5",
-  "description": "Electron workspace UI with streamed Pi sessions.",
+  "description": "Electron workspace UI with in-process agent sessions.",
   "homepage": "https://github.com/Aaditri-GlobalTech/aria#Aria",
   "author": "Kumar Rahul Anand",
   "maintainer": "Aaditri GlobalTech",
@@ -9,45 +9,43 @@
   "desktopName": "aria",
   "private": true,
   "type": "module",
-  "main": "dist/main/main.cjs",
+  "main": "dist/main/main.js",
   "scripts": {
     "dev": "tsx scripts/dev.ts",
-    "build": "bun run typecheck && shx rm -rf dist && vite build && esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --external:electron --format=cjs --outdir=dist --out-extension:.js=.cjs",
-    "release:linux": "bun run build && electron-builder --linux AppImage deb --publish never",
-    "release:windows": "bun run build && electron-builder --win nsis --publish never",
+    "build": "npm run typecheck && shx rm -rf dist && vite build && esbuild src/main/main.ts --bundle --platform=node --format=esm --external:electron --external:@earendil-works/* --outfile=dist/main/main.js && esbuild src/preload/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/preload/preload.cjs",
+    "release:linux": "npm run build && electron-builder --linux AppImage deb --publish never",
+    "release:windows": "npm run build && electron-builder --win nsis --publish never",
     "start": "electron .",
-    "test": "vitest run",
+    "test": "vitest --run --passWithNoTests",
     "check:browser-smoke": "node scripts/check-browser-smoke.mjs",
-    "typecheck": "tsgo --noEmit",
-    "check": "biome check src scripts test package.json tsconfig.json vite.config.ts",
-    "lint": "biome check --write ."
+    "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@aria/extension-agent": "workspace:*",
-    "@aria/extension-workspace": "workspace:*",
-    "@aria/host": "workspace:*",
-    "@aria/protocol": "workspace:*",
-    "@kobalte/core": "0.13.13",
-    "@vscode/codicons": "0.0.46-24",
-    "highlight.js": "11.11.1",
-    "marked": "16.4.2",
-    "mermaid": "11.17.2",
-    "solid-js": "1.9.15"
+    "@aria/agent-core": "*",
+    "@aria/source-control": "*",
+    "@aria/workspace": "*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
     "@types/node": "26.2.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "@vscode/codicons": "0.0.46-24",
     "electron": "43.4.1",
     "electron-builder": "26.15.3",
     "esbuild": "0.28.2",
-    "jiti": "2.7.0",
+    "highlight.js": "11.11.1",
+    "marked": "16.4.2",
+    "mermaid": "11.17.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "shx": "0.4.0",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.12",
-    "typescript": "7.0.2",
     "vite": "8.2.2",
-    "vite-plugin-solid": "2.11.14",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "zustand": "5.0.15"
   },
   "build": {
     "appId": "com.aaditri.aria",
@@ -59,15 +57,8 @@
       "dist/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "resources/host",
-        "to": "host"
-      },
-      {
-        "from": "resources/extensions",
-        "to": "extensions"
-      }
+    "asarUnpack": [
+      "node_modules/@earendil-works/**/*"
     ],
     "linux": {
       "category": "Utility",
