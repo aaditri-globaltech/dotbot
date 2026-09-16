@@ -1,12 +1,14 @@
-import { join } from "node:path";
-import type { AgentManagerEvent, AgentSession } from "@aria/extension-agent";
-import type { ExplorerEntry, GitStatus } from "@aria/extension-workspace";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { type AgentManagerEvent, AgentSessionManager } from "@aria/agent-core";
 import {
-  createElectronHostClient,
-  type ElectronHostClient,
-} from "@aria/host/examples/electron";
-import type { JsonValue, RuntimeEvent } from "@aria/protocol";
-import { isJsonValue } from "@aria/protocol";
+  type GitStatus,
+  gitCommit,
+  gitStage,
+  gitStatus,
+  gitUnstage,
+} from "@aria/source-control";
+import { readDirectory } from "@aria/workspace";
 import {
   app,
   BrowserWindow,
@@ -17,84 +19,24 @@ import {
   Tray,
 } from "electron";
 
-const directory = typeof __dirname === "undefined" ? process.cwd() : __dirname;
+const directory = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
-let host: ElectronHostClient | undefined;
 let isQuitting = false;
-let quitAfterHostStop = false;
-let quitPromise: Promise<void> | undefined;
 
-/** Forward Agent manager events only while a renderer window is available. */
-function sendManagerEvent(event: AgentManagerEvent) {
+const sessions = new AgentSessionManager({ onEvent: sendEvent });
+
+/** Forward manager events only while a renderer window is available. */
+function sendEvent(event: AgentManagerEvent) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send("agent:event", event);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isAgentManagerEvent(value: unknown): value is AgentManagerEvent {
-  if (!isRecord(value) || typeof value.type !== "string") return false;
-  switch (value.type) {
-    case "sessions":
-      return Array.isArray(value.sessions);
-    case "session_update":
-      return isRecord(value.session);
-    case "session_event":
-      return typeof value.sessionId === "string" && isRecord(value.event);
-    case "session_history":
-      return typeof value.sessionId === "string" && Array.isArray(value.items);
-    case "feedback_request":
-      return typeof value.sessionId === "string" && isRecord(value.request);
-    default:
-      return false;
-  }
-}
-
-type ProcessWithResourcesPath = NodeJS.Process & {
-  resourcesPath?: string;
-};
-
-function hostExtensionSources(): string[] {
-  const configured = process.env.ARIA_HOST_EXTENSION_SOURCES;
-  if (configured !== undefined) {
-    return configured
-      .split(process.platform === "win32" ? ";" : ":")
-      .filter(Boolean);
-  }
-
-  const resourcesPath = (process as ProcessWithResourcesPath).resourcesPath;
-  if (!resourcesPath) return [];
-  return [
-    join(resourcesPath, "extensions", "agent.cjs"),
-    join(resourcesPath, "extensions", "workspace.cjs"),
-  ];
-}
-
-function handleRuntimeEvent(event: RuntimeEvent) {
-  if (
-    event.type !== "extension_event" ||
-    event.event.source !== "agent" ||
-    event.event.type !== "agent.manager"
-  ) {
-    return;
-  }
-  if (isAgentManagerEvent(event.event.payload)) {
-    sendManagerEvent(event.event.payload);
-  }
-}
-
-function jsonPayload(value: unknown): JsonValue {
-  if (!isJsonValue(value)) throw new Error("Payload must be a JSON value");
-  return value;
-}
-
-function requireHost(): ElectronHostClient {
-  if (!host) throw new Error("Extension host is not ready");
-  return host;
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 /** Embedded PNG keeps the tray icon visible on Linux Electron builds. */
@@ -180,7 +122,6 @@ function createWindow() {
   }
 }
 
-// Electron remains the adapter for the existing renderer-facing channels.
 ipcMain.on("window:minimize", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize();
 });
@@ -197,36 +138,26 @@ ipcMain.on("window:close", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close();
 });
 
-ipcMain.handle("agent:list", () =>
-  requireHost().request<AgentSession[]>("agent.list"),
+ipcMain.handle("agent:list", () => sessions.list());
+ipcMain.handle("agent:create", (_event, cwd: unknown) => sessions.create(cwd));
+ipcMain.handle("agent:open", (_event, id: unknown) => sessions.open(id));
+ipcMain.handle("agent:close", (_event, id: unknown) => {
+  sessions.close(id);
+});
+ipcMain.handle("agent:prompt", (_event, value: unknown) =>
+  sessions.prompt(value),
 );
-
-ipcMain.handle("agent:create", (_event, cwd: unknown) =>
-  requireHost().request<AgentSession>("agent.create", jsonPayload({ cwd })),
+ipcMain.handle("agent:abort", (_event, id: unknown) => {
+  sessions.abort(id);
+});
+ipcMain.handle("agent:command", (_event, value: unknown) =>
+  sessions.command(value),
 );
-ipcMain.handle("agent:open", (_event, id: unknown) =>
-  requireHost().request<AgentSession>(
-    "agent.open",
-    jsonPayload({ sessionId: id }),
-  ),
-);
-ipcMain.handle("agent:close", async (_event, id: unknown) => {
-  await requireHost().request("agent.close", jsonPayload({ sessionId: id }));
-});
-ipcMain.handle("agent:prompt", async (_event, value: unknown) => {
-  await requireHost().request("agent.prompt", jsonPayload(value));
-});
-ipcMain.handle("agent:abort", async (_event, id: unknown) => {
-  await requireHost().request("agent.abort", jsonPayload({ sessionId: id }));
-});
-ipcMain.handle("agent:command", async (_event, value: unknown) => {
-  await requireHost().request("agent.command", jsonPayload(value));
-});
-ipcMain.handle("agent:respond", async (_event, value: unknown) => {
-  await requireHost().request("agent.respond", jsonPayload(value));
+ipcMain.handle("agent:respond", (_event, value: unknown) => {
+  sessions.respond(value);
 });
 
-// Workspace picking and native window/tray lifecycle remain Electron-only.
+// Workspace picking uses the native dialog; Explorer and Git stay in packages.
 ipcMain.handle("workspace:pick", async () => {
   const result = await dialog.showOpenDialog({
     title: "Open workspace",
@@ -235,79 +166,45 @@ ipcMain.handle("workspace:pick", async () => {
   return result.canceled ? undefined : result.filePaths[0];
 });
 
-ipcMain.handle("workspace:read-directory", (_event, value: unknown) =>
-  requireHost().request<ExplorerEntry[]>(
-    "workspace.readDirectory",
-    jsonPayload(value),
-  ),
+ipcMain.handle("workspace:read-directory", (_event, value: unknown) => {
+  const input = asRecord(value);
+  return readDirectory(input?.cwd, input?.path);
+});
+
+ipcMain.handle(
+  "workspace:git-status",
+  (_event, cwd: unknown): Promise<GitStatus> => gitStatus(cwd),
 );
 
-ipcMain.handle("workspace:git-status", (_event, cwd: unknown) =>
-  requireHost().request<GitStatus>("workspace.gitStatus", jsonPayload({ cwd })),
-);
-
-ipcMain.handle("workspace:git-stage", async (_event, value: unknown) => {
-  await requireHost().request("workspace.gitStage", jsonPayload(value));
+ipcMain.handle("workspace:git-stage", (_event, value: unknown) => {
+  const input = asRecord(value);
+  return gitStage(input?.cwd, input?.path);
 });
 
-ipcMain.handle("workspace:git-unstage", async (_event, value: unknown) => {
-  await requireHost().request("workspace.gitUnstage", jsonPayload(value));
+ipcMain.handle("workspace:git-unstage", (_event, value: unknown) => {
+  const input = asRecord(value);
+  return gitUnstage(input?.cwd, input?.path);
 });
 
-ipcMain.handle("workspace:git-commit", async (_event, value: unknown) => {
-  await requireHost().request("workspace.gitCommit", jsonPayload(value));
+ipcMain.handle("workspace:git-commit", (_event, value: unknown) => {
+  const input = asRecord(value);
+  return gitCommit(input?.cwd, input?.message);
 });
 
-app.on("before-quit", (event) => {
-  if (quitAfterHostStop) return;
-  event.preventDefault();
+app.on("before-quit", () => {
   isQuitting = true;
-  if (quitPromise) return;
-
-  const currentHost = host;
-  if (!currentHost) {
-    quitAfterHostStop = true;
-    app.quit();
-    return;
-  }
-
-  quitPromise = currentHost
-    .stop()
-    .catch((error) => {
-      console.error("Failed to shut down extension host:", error);
-    })
-    .finally(() => {
-      quitAfterHostStop = true;
-      app.quit();
-    });
+  // Agent sessions run in-process, so shutdown only needs to dispose them.
+  sessions.stopAll();
 });
 
 void app
   .whenReady()
-  .then(async () => {
-    if (isQuitting) return;
-    host = createElectronHostClient(app, {
-      onEvent: handleRuntimeEvent,
-      hostSourcePath: process.env.ARIA_HOST_SOURCE_PATH,
-      hostRuntime: process.env.ARIA_HOST_RUNTIME,
-      hostCwd: process.env.ARIA_HOST_CWD,
-      extensionSources: hostExtensionSources(),
-    });
-    try {
-      await requireHost().start();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(message);
-      dialog.showErrorBox("Extension host failed to start", message);
-      app.exit(1);
-      return;
-    }
-
+  .then(() => {
     createTray();
     createWindow();
     app.on("activate", showMainWindow);
   })
-  .catch((error) => {
+  .catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Aria failed to start:", message);
     app.exit(1);

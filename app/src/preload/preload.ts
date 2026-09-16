@@ -5,13 +5,15 @@ import type {
   AgentCommand,
   AgentFeedbackResponse,
   AgentManagerEvent,
-  AgentSession,
+  AgentSessionSummary,
   AgentStreamingBehavior,
-} from "@aria/extension-agent";
-import type { ExplorerEntry, GitStatus } from "@aria/extension-workspace";
+} from "@aria/agent-core";
+import type { GitStatus } from "@aria/source-control";
+import type { ExplorerEntry } from "@aria/workspace";
 import { contextBridge, ipcRenderer } from "electron";
+import type { AriaApi } from "../renderer/api";
 
-contextBridge.exposeInMainWorld("aria", {
+const api: AriaApi = {
   ping: () => "pong",
   window: {
     close: () => ipcRenderer.send("window:close"),
@@ -26,11 +28,15 @@ contextBridge.exposeInMainWorld("aria", {
   },
   // IPC channels are wrapped instead of exposing ipcRenderer directly.
   agent: {
-    list: () => ipcRenderer.invoke("agent:list") as Promise<AgentSession[]>,
+    list: () =>
+      ipcRenderer.invoke("agent:list") as Promise<AgentSessionSummary[]>,
     create: (cwd: string) =>
-      ipcRenderer.invoke("agent:create", cwd) as Promise<AgentSession>,
+      ipcRenderer.invoke("agent:create", cwd) as Promise<AgentSessionSummary>,
     open: (sessionId: string) =>
-      ipcRenderer.invoke("agent:open", sessionId) as Promise<AgentSession>,
+      ipcRenderer.invoke(
+        "agent:open",
+        sessionId,
+      ) as Promise<AgentSessionSummary>,
     close: (sessionId: string) => ipcRenderer.invoke("agent:close", sessionId),
     prompt: (
       sessionId: string,
@@ -79,4 +85,6 @@ contextBridge.exposeInMainWorld("aria", {
         message,
       }) as Promise<void>,
   },
-});
+};
+
+contextBridge.exposeInMainWorld("aria", api);
