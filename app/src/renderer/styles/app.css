@@ -1545,6 +1545,20 @@ body.is-row-resizing {
   white-space: pre-wrap;
 }
 
+.agent-error-notice {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid rgb(244 135 113 / 35%);
+  border-radius: 4px;
+  background: rgb(244 135 113 / 10%);
+  color: #f48771;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .agent-tool-call {
   align-self: flex-start;
   width: 95%;

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { type UIEvent, useCallback, useEffect, useRef, useState } from "react";
 
 /** Minimum scroll metrics required by the auto-follow helpers. */
 export type ScrollMetrics = Pick<
@@ -34,108 +34,122 @@ export function scrollToBottom(element: ScrollMetrics): void {
  * starts a newly selected session at the bottom again.
  */
 export function useAutoScroll<T extends ScrollMetrics>(
-  content: () => unknown,
-  resetKey?: () => unknown,
+  _content: unknown,
+  resetKey?: unknown,
 ) {
-  let element: T | undefined;
-  const [isFollowing, setIsFollowing] = createSignal(true);
-  let previousKey: unknown;
-  let hasPreviousKey = false;
-  let scrollFrame: number | undefined;
-  let microtaskScheduled = false;
-  let mutationObserver: MutationObserver | undefined;
-  let resizeObserver: ResizeObserver | undefined;
-  let resizeTargets = new Set<Element>();
-  let previousMetrics: ScrollMetrics | undefined;
-  let contentChangePending = false;
-  let resetPending = false;
-  let userScrollIntentUntil = 0;
-  let interactionElement: HTMLElement | undefined;
-  let disposed = false;
+  const elementRef = useRef<T | null>(null);
+  const [isFollowing, setIsFollowing] = useState(true);
+  const followingRef = useRef(true);
+  const previousKeyRef = useRef<unknown>(undefined);
+  const hasPreviousKeyRef = useRef(false);
+  const scrollFrameRef = useRef<number | undefined>(undefined);
+  const microtaskScheduledRef = useRef(false);
+  const mutationObserverRef = useRef<MutationObserver | undefined>(undefined);
+  const resizeObserverRef = useRef<ResizeObserver | undefined>(undefined);
+  const resizeTargetsRef = useRef(new Set<Element>());
+  const previousMetricsRef = useRef<ScrollMetrics | undefined>(undefined);
+  const contentChangePendingRef = useRef(false);
+  const resetPendingRef = useRef(false);
+  const userScrollIntentUntilRef = useRef(0);
+  const interactionElementRef = useRef<HTMLElement | undefined>(undefined);
+  const disposedRef = useRef(false);
 
-  const rememberMetrics = (target: ScrollMetrics) => {
-    previousMetrics = {
+  const setFollowing = useCallback((value: boolean) => {
+    followingRef.current = value;
+    setIsFollowing(value);
+  }, []);
+
+  const rememberMetrics = useCallback((target: ScrollMetrics) => {
+    previousMetricsRef.current = {
       clientHeight: target.clientHeight,
       scrollHeight: target.scrollHeight,
       scrollTop: target.scrollTop,
     };
-  };
+  }, []);
 
-  const markUserScrollIntent = () => {
-    userScrollIntentUntil = Date.now() + USER_SCROLL_INTENT_MS;
-  };
+  const markUserScrollIntent = useCallback(() => {
+    userScrollIntentUntilRef.current = Date.now() + USER_SCROLL_INTENT_MS;
+  }, []);
 
-  const markKeyboardScrollIntent = (event: KeyboardEvent) => {
+  const markKeyboardScrollIntent = useCallback((event: KeyboardEvent) => {
     if (
       ["ArrowDown", "ArrowUp", "End", "Home", "PageDown", "PageUp"].includes(
         event.key,
       ) ||
       event.key === " "
     ) {
-      markUserScrollIntent();
+      userScrollIntentUntilRef.current = Date.now() + USER_SCROLL_INTENT_MS;
     }
-  };
+  }, []);
 
-  const detachInteractionListeners = () => {
-    if (!interactionElement) return;
-    interactionElement.removeEventListener("wheel", markUserScrollIntent);
-    interactionElement.removeEventListener("touchmove", markUserScrollIntent);
-    interactionElement.removeEventListener("keydown", markKeyboardScrollIntent);
-    interactionElement = undefined;
-  };
+  const detachInteractionListeners = useCallback(() => {
+    const element = interactionElementRef.current;
+    if (!element) return;
+    element.removeEventListener("wheel", markUserScrollIntent);
+    element.removeEventListener("touchmove", markUserScrollIntent);
+    element.removeEventListener("keydown", markKeyboardScrollIntent);
+    interactionElementRef.current = undefined;
+  }, [markKeyboardScrollIntent, markUserScrollIntent]);
 
-  const scheduleScroll = () => {
-    if (scrollFrame !== undefined || microtaskScheduled) return;
-
-    if (typeof requestAnimationFrame === "function") {
-      scrollFrame = requestAnimationFrame(() => {
-        scrollFrame = undefined;
-        if (!disposed) {
-          if (isFollowing() && element) scrollToBottom(element);
-          if (element) rememberMetrics(element);
-          contentChangePending = false;
-          resetPending = false;
-        }
-      });
-    } else {
-      microtaskScheduled = true;
-      queueMicrotask(() => {
-        microtaskScheduled = false;
-        if (!disposed) {
-          if (isFollowing() && element) scrollToBottom(element);
-          if (element) rememberMetrics(element);
-          contentChangePending = false;
-          resetPending = false;
-        }
-      });
-    }
-  };
-
-  const onScroll = (event: Event) => {
-    const target = event.currentTarget as T | null;
-    if (!target) return;
-
-    if (resetPending) {
-      rememberMetrics(target);
+  const scheduleScroll = useCallback(() => {
+    if (scrollFrameRef.current !== undefined || microtaskScheduledRef.current) {
       return;
     }
 
-    const recentUserScroll = Date.now() <= userScrollIntentUntil;
-    const contentChanged =
-      previousMetrics !== undefined &&
-      Math.abs(target.scrollTop - previousMetrics.scrollTop) <= 1 &&
-      (target.clientHeight !== previousMetrics.clientHeight ||
-        target.scrollHeight !== previousMetrics.scrollHeight);
-    const layoutScroll =
-      isFollowing() &&
-      !recentUserScroll &&
-      (contentChangePending || contentChanged);
-    if (layoutScroll) scheduleScroll();
-    else setIsFollowing(isAtBottom(target));
-    rememberMetrics(target);
-  };
+    const settle = () => {
+      if (disposedRef.current) return;
+      if (followingRef.current && elementRef.current) {
+        scrollToBottom(elementRef.current);
+      }
+      if (elementRef.current) rememberMetrics(elementRef.current);
+      contentChangePendingRef.current = false;
+      resetPendingRef.current = false;
+    };
 
-  const refreshResizeTargets = (target: T) => {
+    if (typeof requestAnimationFrame === "function") {
+      scrollFrameRef.current = requestAnimationFrame(() => {
+        scrollFrameRef.current = undefined;
+        settle();
+      });
+    } else {
+      microtaskScheduledRef.current = true;
+      queueMicrotask(() => {
+        microtaskScheduledRef.current = false;
+        settle();
+      });
+    }
+  }, [rememberMetrics]);
+
+  const onScroll = useCallback(
+    (event: UIEvent<T>) => {
+      const target = event.currentTarget;
+      if (!target) return;
+
+      if (resetPendingRef.current) {
+        rememberMetrics(target);
+        return;
+      }
+
+      const recentUserScroll = Date.now() <= userScrollIntentUntilRef.current;
+      const previousMetrics = previousMetricsRef.current;
+      const contentChanged =
+        previousMetrics !== undefined &&
+        Math.abs(target.scrollTop - previousMetrics.scrollTop) <= 1 &&
+        (target.clientHeight !== previousMetrics.clientHeight ||
+          target.scrollHeight !== previousMetrics.scrollHeight);
+      const layoutScroll =
+        followingRef.current &&
+        !recentUserScroll &&
+        (contentChangePendingRef.current || contentChanged);
+      if (layoutScroll) scheduleScroll();
+      else setFollowing(isAtBottom(target));
+      rememberMetrics(target);
+    },
+    [scheduleScroll, rememberMetrics, setFollowing],
+  );
+
+  const refreshResizeTargets = useCallback((target: T) => {
+    const resizeObserver = resizeObserverRef.current;
     if (
       !resizeObserver ||
       typeof Element === "undefined" ||
@@ -148,91 +162,68 @@ export function useAutoScroll<T extends ScrollMetrics>(
       target,
       ...Array.from(target.children),
     ]);
-    for (const previousTarget of resizeTargets) {
+    for (const previousTarget of resizeTargetsRef.current) {
       if (!nextTargets.has(previousTarget)) {
         resizeObserver.unobserve(previousTarget);
       }
     }
     for (const nextTarget of nextTargets) {
-      if (!resizeTargets.has(nextTarget)) resizeObserver.observe(nextTarget);
+      if (!resizeTargetsRef.current.has(nextTarget)) {
+        resizeObserver.observe(nextTarget);
+      }
     }
-    resizeTargets = nextTargets;
-  };
+    resizeTargetsRef.current = nextTargets;
+  }, []);
 
-  createEffect(() => {
-    const key = resetKey?.();
-    if (!hasPreviousKey || !Object.is(key, previousKey)) {
-      setIsFollowing(true);
-      resetPending = true;
-      previousKey = key;
-      hasPreviousKey = true;
-    }
-    content();
-    contentChangePending = true;
-    scheduleScroll();
-  });
-
-  onCleanup(() => {
-    disposed = true;
-    mutationObserver?.disconnect();
-    resizeObserver?.disconnect();
-    detachInteractionListeners();
-    if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame);
-  });
-
-  const jumpToBottom = () => {
-    resetPending = false;
-    setIsFollowing(true);
-    if (element) {
-      scrollToBottom(element);
-      rememberMetrics(element);
-    }
-  };
-
-  return {
-    isFollowing,
-    jumpToBottom,
-    onScroll,
-    setElement: (value: T) => {
-      element = value;
-      rememberMetrics(value);
-      mutationObserver?.disconnect();
-      mutationObserver = undefined;
-      resizeObserver?.disconnect();
-      resizeObserver = undefined;
-      resizeTargets.clear();
+  const setElement = useCallback(
+    (value: T | null) => {
+      elementRef.current = value;
+      if (value) rememberMetrics(value);
+      mutationObserverRef.current?.disconnect();
+      mutationObserverRef.current = undefined;
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = undefined;
+      resizeTargetsRef.current.clear();
       detachInteractionListeners();
 
       if (
+        value &&
         typeof ResizeObserver !== "undefined" &&
         typeof Element !== "undefined" &&
         value instanceof Element
       ) {
-        resizeObserver = new ResizeObserver(() => {
-          contentChangePending = true;
+        const observer = new ResizeObserver(() => {
+          contentChangePendingRef.current = true;
           scheduleScroll();
         });
+        resizeObserverRef.current = observer;
         refreshResizeTargets(value);
       }
       if (
+        value &&
         typeof MutationObserver !== "undefined" &&
         typeof Element !== "undefined" &&
         value instanceof Element
       ) {
-        mutationObserver = new MutationObserver(() => {
-          contentChangePending = true;
+        const observer = new MutationObserver(() => {
+          contentChangePendingRef.current = true;
           refreshResizeTargets(value);
           scheduleScroll();
         });
-        mutationObserver.observe(value, {
+        mutationObserverRef.current = observer;
+        observer.observe(value, {
           attributes: true,
           characterData: true,
           childList: true,
           subtree: true,
         });
       }
-      if (typeof HTMLElement !== "undefined" && value instanceof HTMLElement) {
-        interactionElement = value;
+      if (
+        value &&
+        typeof HTMLElement !== "undefined" &&
+        value instanceof HTMLElement
+      ) {
+        interactionElementRef.current = value;
         value.addEventListener("wheel", markUserScrollIntent, {
           passive: true,
         });
@@ -243,5 +234,58 @@ export function useAutoScroll<T extends ScrollMetrics>(
       }
       scheduleScroll();
     },
+    [
+      detachInteractionListeners,
+      markKeyboardScrollIntent,
+      markUserScrollIntent,
+      refreshResizeTargets,
+      rememberMetrics,
+      scheduleScroll,
+    ],
+  );
+
+  // Runs after every render: a new session resets follow mode, and streamed
+  // content schedules another bottom scroll.
+  useEffect(() => {
+    if (
+      !hasPreviousKeyRef.current ||
+      !Object.is(resetKey, previousKeyRef.current)
+    ) {
+      setFollowing(true);
+      resetPendingRef.current = true;
+      previousKeyRef.current = resetKey;
+      hasPreviousKeyRef.current = true;
+    }
+    contentChangePendingRef.current = true;
+    scheduleScroll();
+  });
+
+  useEffect(
+    () => () => {
+      disposedRef.current = true;
+      mutationObserverRef.current?.disconnect();
+      resizeObserverRef.current?.disconnect();
+      detachInteractionListeners();
+      if (scrollFrameRef.current !== undefined) {
+        cancelAnimationFrame(scrollFrameRef.current);
+      }
+    },
+    [detachInteractionListeners],
+  );
+
+  const jumpToBottom = useCallback(() => {
+    resetPendingRef.current = false;
+    setFollowing(true);
+    if (elementRef.current) {
+      scrollToBottom(elementRef.current);
+      rememberMetrics(elementRef.current);
+    }
+  }, [rememberMetrics, setFollowing]);
+
+  return {
+    isFollowing,
+    jumpToBottom,
+    onScroll,
+    setElement,
   };
 }

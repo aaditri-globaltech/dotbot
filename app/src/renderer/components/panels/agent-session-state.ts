@@ -1,18 +1,25 @@
 /**
- * Reduce Pi's raw RPC stream into stable chat items and control selections.
- * The maps below preserve identity while message, thinking, and tool events
- * arrive in separate chunks.
+ * Reduce the agent's streamed session events into stable chat items and control
+ * selections. The maps below preserve identity while message, thinking, and
+ * tool events arrive in separate chunks.
  */
 
 import type {
   AgentChatItem,
+  AgentErrorNotice,
   AgentEvent,
   AgentModel,
+  AgentSessionState,
   AgentThinkingBlock,
   AgentThinkingLevel,
   AgentToolCall,
-} from "@aria/extension-agent";
-import { compactAgentHistory } from "@aria/extension-agent";
+} from "@aria/agent-core";
+import {
+  asRecord,
+  formatValue,
+  textFromContent,
+  toolResultText,
+} from "@aria/agent-core/text";
 
 /** All renderer state associated with one selected session. */
 export type SessionClientState = {
@@ -24,14 +31,13 @@ export type SessionClientState = {
   draft: string;
   assistantCounter: number;
   thinkingCounter: number;
-  toolCounter: number;
   currentAssistantId?: string;
   currentAssistantHasText: boolean;
   thinkingIds: Map<string, string>;
   toolAliases: Map<string, string>;
 };
 
-/** Create an empty state before the first Pi history response arrives. */
+/** Create an empty state before the first history response arrives. */
 export function createSessionClientState(): SessionClientState {
   return {
     messages: [],
@@ -42,108 +48,64 @@ export function createSessionClientState(): SessionClientState {
     draft: "",
     assistantCounter: 0,
     thinkingCounter: 0,
-    toolCounter: 0,
     currentAssistantHasText: false,
     thinkingIds: new Map(),
     toolAliases: new Map(),
   };
 }
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function isToolCall(item: AgentChatItem): item is AgentToolCall {
+export function isToolCall(item: AgentChatItem): item is AgentToolCall {
   return "kind" in item && item.kind === "tool";
 }
 
-function isThinking(item: AgentChatItem): item is AgentThinkingBlock {
+export function isThinking(item: AgentChatItem): item is AgentThinkingBlock {
   return "kind" in item && item.kind === "thinking";
 }
 
-function isThinkingLevel(value: unknown): value is AgentThinkingLevel {
-  return (
-    value === "off" ||
-    value === "minimal" ||
-    value === "low" ||
-    value === "medium" ||
-    value === "high" ||
-    value === "xhigh" ||
-    value === "max"
-  );
+export function isErrorNotice(item: AgentChatItem): item is AgentErrorNotice {
+  return "kind" in item && item.kind === "error";
 }
 
-function asModel(value: unknown): AgentModel | undefined {
-  const model = asRecord(value);
-  if (typeof model?.provider !== "string" || typeof model.id !== "string") {
-    return undefined;
-  }
-  return {
-    provider: model.provider,
-    id: model.id,
-    name: typeof model.name === "string" ? model.name : undefined,
-  };
-}
-
-/** Use the same provider/id key for select values and RPC updates. */
+/** Use the same provider/id key for select values and SDK updates. */
 export function modelKey(model: AgentModel) {
   return `${model.provider}/${model.id}`;
 }
 
-function formatValue(value: unknown) {
-  if (typeof value === "string") return value;
-  if (value === undefined) return "";
-  try {
-    return JSON.stringify(value, null, 2) ?? "";
-  } catch {
-    return String(value);
-  }
+/** Apply the manager's model and thinking selections. */
+export function applySessionState(
+  state: SessionClientState,
+  sessionState: AgentSessionState,
+): SessionClientState {
+  return {
+    ...state,
+    models: sessionState.models,
+    selectedModel: sessionState.selectedModel,
+    thinkingLevel: sessionState.thinkingLevel,
+    thinkingLevels: sessionState.thinkingLevels,
+  };
 }
 
-function textFromContent(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-
-  return content
-    .map((block) => {
-      const record = asRecord(block);
-      return record?.type === "text" && typeof record.text === "string"
-        ? record.text
-        : "";
-    })
-    .join("");
-}
-
-/** Prefer streamed text, falling back to diff details used by edit tools. */
-function toolResultText(result: unknown) {
-  const record = asRecord(result);
-  const diff = asRecord(record?.details)?.diff;
-  return typeof diff === "string" ? diff : textFromContent(record?.content);
-}
-
-function textFromMessage(message: unknown) {
-  return textFromContent(asRecord(message)?.content);
-}
-
-function toolName(value: unknown) {
-  const record = asRecord(value);
-  return typeof record?.name === "string" ? record.name : "Tool";
-}
-
-/** Apply one Pi event immutably so Solid can refresh the selected session. */
+/** Apply one agent event immutably so React can refresh the selected session. */
 export function applySessionEvent(
   state: SessionClientState,
   event: AgentEvent,
 ): SessionClientState {
+  // Session failures are shown inline in the transcript.
+  if (event.type === "error") {
+    const notice: AgentErrorNotice = {
+      kind: "error",
+      id: crypto.randomUUID(),
+      text: event.message,
+    };
+    return { ...state, messages: [...state.messages, notice] };
+  }
+
   // Clone maps because their contents are mutated while the outer state stays immutable.
   const next: SessionClientState = {
     ...state,
     thinkingIds: new Map(state.thinkingIds),
     toolAliases: new Map(state.toolAliases),
   };
-  const record = event as Record<string, unknown>;
 
   const setMessages = (
     update: (messages: AgentChatItem[]) => AgentChatItem[],
@@ -225,11 +187,11 @@ export function applySessionEvent(
     return id;
   };
 
-  const toolIdFor = (contentIndex: unknown) =>
-    `tool-${next.currentAssistantId ?? `assistant-${next.assistantCounter}`}-${String(contentIndex ?? 0)}`;
+  const toolIdFor = (contentIndex: number) =>
+    `tool-${next.currentAssistantId ?? `assistant-${next.assistantCounter}`}-${contentIndex}`;
 
-  const thinkingIdFor = (contentIndex: unknown) => {
-    const key = String(contentIndex ?? 0);
+  const thinkingIdFor = (contentIndex: number) => {
+    const key = String(contentIndex);
     const existing = next.thinkingIds.get(key);
     if (existing) return existing;
     next.thinkingCounter += 1;
@@ -239,60 +201,11 @@ export function applySessionEvent(
   };
 
   // Tool-call IDs in message events do not always match execution IDs, so keep aliases.
-  const toolIdForExecution = (toolCallId: unknown) => {
-    if (typeof toolCallId === "string") {
-      return next.toolAliases.get(toolCallId) ?? toolCallId;
-    }
-    next.toolCounter += 1;
-    return `tool-execution-${next.toolCounter}`;
-  };
-
-  if (event.type === "response") {
-    // Responses update control state; streamed message events are handled below.
-    if (record.command === "get_messages" && record.success === true) {
-      next.messages = compactAgentHistory(asRecord(record.data)?.messages);
-      return next;
-    }
-    if (record.success === false) return next;
-
-    if (record.command === "set_model") {
-      const model = asModel(record.data);
-      if (model) next.selectedModel = modelKey(model);
-      return next;
-    }
-
-    if (record.command === "get_state") {
-      const data = asRecord(record.data);
-      const model = asModel(data?.model);
-      if (model) next.selectedModel = modelKey(model);
-      if (isThinkingLevel(data?.thinkingLevel)) {
-        next.thinkingLevel = data.thinkingLevel;
-      }
-      return next;
-    }
-
-    if (record.command === "get_available_models") {
-      const data = asRecord(record.data);
-      next.models = Array.isArray(data?.models)
-        ? data.models.flatMap((model) => {
-            const parsed = asModel(model);
-            return parsed ? [parsed] : [];
-          })
-        : [];
-      return next;
-    }
-
-    if (record.command === "get_available_thinking_levels") {
-      const data = asRecord(record.data);
-      next.thinkingLevels = Array.isArray(data?.levels)
-        ? data.levels.filter(isThinkingLevel)
-        : [];
-    }
-    return next;
-  }
+  const toolIdForExecution = (toolCallId: string) =>
+    next.toolAliases.get(toolCallId) ?? toolCallId;
 
   if (event.type === "message_start") {
-    if (asRecord(record.message)?.role === "assistant") {
+    if (event.message.role === "assistant") {
       next.currentAssistantId = `assistant-${next.assistantCounter + 1}`;
       next.assistantCounter += 1;
       next.currentAssistantHasText = false;
@@ -303,16 +216,16 @@ export function applySessionEvent(
 
   if (event.type === "message_update") {
     // One assistant message can contain text, thinking, and tool-call deltas.
-    const update = asRecord(record.assistantMessageEvent);
-    if (!update) return next;
+    const update = event.assistantMessageEvent;
 
-    if (update.type === "text_delta" && typeof update.delta === "string") {
+    if (update.type === "text_delta") {
       const id = beginAssistant();
       next.currentAssistantHasText = true;
+      const delta = update.delta;
       setMessages((messages) =>
         messages.map((message) =>
           message.id === id && !isToolCall(message)
-            ? { ...message, text: message.text + update.delta }
+            ? { ...message, text: message.text + delta }
             : message,
         ),
       );
@@ -325,10 +238,7 @@ export function applySessionEvent(
       update.type === "thinking_end"
     ) {
       const id = thinkingIdFor(update.contentIndex);
-      if (
-        update.type === "thinking_delta" &&
-        typeof update.delta === "string"
-      ) {
+      if (update.type === "thinking_delta") {
         const current = next.messages.find(
           (message) => isThinking(message) && message.id === id,
         );
@@ -336,10 +246,7 @@ export function applySessionEvent(
           text: `${current && isThinking(current) ? current.text : ""}${update.delta}`,
           status: "streaming",
         });
-      } else if (
-        update.type === "thinking_end" &&
-        typeof update.content === "string"
-      ) {
+      } else if (update.type === "thinking_end") {
         updateThinking(id, { text: update.content, status: "done" });
       } else {
         updateThinking(id, { status: "streaming" });
@@ -356,26 +263,20 @@ export function applySessionEvent(
     }
 
     const id = toolIdFor(update.contentIndex);
-    // Pi nests the partial tool call inside the assistant message content.
-    const partial = asRecord(update.partial);
-    const contentIndex =
-      typeof update.contentIndex === "number" ? update.contentIndex : undefined;
-    const partialContent =
-      contentIndex !== undefined && Array.isArray(partial?.content)
-        ? partial.content[contentIndex]
-        : undefined;
+    // The agent nests the partial tool call inside the assistant message content.
+    const partialContent = update.partial.content[update.contentIndex];
     const partialContentRecord = asRecord(partialContent);
     const partialToolCall =
       partialContentRecord?.type === "toolCall"
         ? partialContentRecord
         : undefined;
-    const toolCall = asRecord(update.toolCall);
+    const toolCall =
+      update.type === "toolcall_end" ? update.toolCall : undefined;
     const displayName =
-      typeof toolCall?.name === "string"
-        ? toolCall.name
-        : typeof partialToolCall?.name === "string"
-          ? partialToolCall.name
-          : toolName(toolCall ?? partialToolCall);
+      toolCall?.name ??
+      (typeof partialToolCall?.name === "string"
+        ? partialToolCall.name
+        : "Tool");
     const partialArguments =
       partialToolCall && "arguments" in partialToolCall
         ? formatValue(partialToolCall.arguments)
@@ -387,25 +288,20 @@ export function applySessionEvent(
         : {}),
     });
 
-    if (
-      update.type === "toolcall_delta" &&
-      typeof update.delta === "string" &&
-      partialArguments === undefined
-    ) {
+    if (update.type === "toolcall_delta" && partialArguments === undefined) {
+      const delta = update.delta;
       setMessages((messages) =>
         messages.map((message) =>
           isToolCall(message) && message.id === id
-            ? { ...message, arguments: message.arguments + update.delta }
+            ? { ...message, arguments: message.arguments + delta }
             : message,
         ),
       );
     }
 
     if (update.type === "toolcall_end") {
-      if (typeof toolCall?.id === "string") {
-        next.toolAliases.set(toolCall.id, id);
-      }
-      const argumentsText = formatValue(toolCall?.arguments);
+      next.toolAliases.set(update.toolCall.id, id);
+      const argumentsText = formatValue(update.toolCall.arguments);
       updateTool(id, {
         name: displayName,
         status: "running",
@@ -416,9 +312,8 @@ export function applySessionEvent(
   }
 
   if (event.type === "message_end") {
-    const message = asRecord(record.message);
-    if (message?.role !== "assistant") return next;
-    const text = textFromMessage(message);
+    if (event.message.role !== "assistant") return next;
+    const text = textFromContent(event.message.content);
     if (text && !next.currentAssistantHasText) {
       const id = beginAssistant();
       next.currentAssistantHasText = true;
@@ -445,27 +340,24 @@ export function applySessionEvent(
   }
 
   if (event.type === "tool_execution_start") {
-    const id = toolIdForExecution(record.toolCallId);
-    if (typeof record.toolCallId === "string") {
-      next.toolAliases.set(record.toolCallId, id);
-    }
+    const id = toolIdForExecution(event.toolCallId);
+    next.toolAliases.set(event.toolCallId, id);
     updateTool(id, {
-      name: typeof record.toolName === "string" ? record.toolName : "Tool",
-      arguments: formatValue(record.args),
+      name: event.toolName,
+      arguments: formatValue(event.args),
       status: "running",
     });
     return next;
   }
 
   if (event.type === "tool_execution_update") {
-    const id = toolIdForExecution(record.toolCallId);
-    const partialResult = asRecord(record.partialResult);
-    const output = toolResultText(partialResult);
+    const id = toolIdForExecution(event.toolCallId);
+    const output = toolResultText(event.partialResult);
     updateTool(id, {
       status: "running",
-      ...(typeof record.toolName === "string" ? { name: record.toolName } : {}),
-      ...(record.args !== undefined
-        ? { arguments: formatValue(record.args) }
+      name: event.toolName,
+      ...(event.args !== undefined
+        ? { arguments: formatValue(event.args) }
         : {}),
       ...(output ? { output } : {}),
     });
@@ -473,11 +365,10 @@ export function applySessionEvent(
   }
 
   if (event.type === "tool_execution_end") {
-    const id = toolIdForExecution(record.toolCallId);
-    const result = asRecord(record.result);
+    const id = toolIdForExecution(event.toolCallId);
     updateTool(id, {
-      output: toolResultText(result),
-      status: record.isError === true ? "error" : "done",
+      output: toolResultText(event.result),
+      status: event.isError ? "error" : "done",
     });
   }
 

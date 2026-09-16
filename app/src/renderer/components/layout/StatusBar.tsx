@@ -1,38 +1,36 @@
-import type { AgentSession } from "@aria/extension-agent";
-import { For, Show } from "solid-js";
+import type { AgentSessionSummary } from "@aria/agent-core";
 
 /** Status-bar shortcuts for sessions that are waiting on user input. */
 export type StatusBarProps = {
-  waitingSessions: AgentSession[];
+  waitingSessions: AgentSessionSummary[];
   onSelectSession: (id: string) => void;
 };
 
 /** Render shortcuts for sessions waiting on feedback. */
 export function StatusBar(props: StatusBarProps) {
   return (
-    <footer class="status-bar">
-      <div class="status-bar-right">
-        <For each={props.waitingSessions}>
-          {(session) => (
-            <button
-              class="status-bar-notification"
-              type="button"
-              on:click={() => props.onSelectSession(session.id)}
-              title={`Feedback needed: ${session.name ?? session.title}`}
-            >
-              <span
-                class="codicon codicon-comment-discussion"
-                aria-hidden="true"
-              />
-              <span class="status-bar-notification-label">
-                {session.name ?? session.title}
-              </span>
-            </button>
-          )}
-        </For>
-        <Show when={props.waitingSessions.length === 0}>
-          <span class="status-bar-idle">Aria</span>
-        </Show>
+    <footer className="status-bar">
+      <div className="status-bar-right">
+        {props.waitingSessions.map((session) => (
+          <button
+            key={session.id}
+            className="status-bar-notification"
+            type="button"
+            onClick={() => props.onSelectSession(session.id)}
+            title={`Feedback needed: ${session.name ?? session.title}`}
+          >
+            <span
+              className="codicon codicon-comment-discussion"
+              aria-hidden="true"
+            />
+            <span className="status-bar-notification-label">
+              {session.name ?? session.title}
+            </span>
+          </button>
+        ))}
+        {props.waitingSessions.length === 0 && (
+          <span className="status-bar-idle">Aria</span>
+        )}
       </div>
     </footer>
   );

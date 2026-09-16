@@ -18,9 +18,9 @@ const iconClass = (
 /** Toolbar for toggling the three resizable workbench regions. */
 export function ViewActions(props: ViewActionsProps) {
   return (
-    <div class="layout-actions">
+    <div className="layout-actions">
       <button
-        class="layout-action"
+        className="layout-action"
         type="button"
         aria-label={
           props.primarySidebarCollapsed
@@ -28,10 +28,10 @@ export function ViewActions(props: ViewActionsProps) {
             : "Collapse Primary Side Bar"
         }
         aria-pressed={!props.primarySidebarCollapsed}
-        on:click={props.onTogglePrimarySidebar}
+        onClick={props.onTogglePrimarySidebar}
       >
         <span
-          class={iconClass(
+          className={iconClass(
             props.primarySidebarCollapsed,
             "codicon-layout-sidebar-left",
             "codicon-layout-sidebar-left-off",
@@ -40,14 +40,14 @@ export function ViewActions(props: ViewActionsProps) {
         />
       </button>
       <button
-        class="layout-action"
+        className="layout-action"
         type="button"
         aria-label={props.panelCollapsed ? "Expand Panel" : "Collapse Panel"}
         aria-pressed={!props.panelCollapsed}
-        on:click={props.onTogglePanel}
+        onClick={props.onTogglePanel}
       >
         <span
-          class={iconClass(
+          className={iconClass(
             props.panelCollapsed,
             "codicon-layout-panel",
             "codicon-layout-panel-off",
@@ -56,7 +56,7 @@ export function ViewActions(props: ViewActionsProps) {
         />
       </button>
       <button
-        class="layout-action"
+        className="layout-action"
         type="button"
         aria-label={
           props.secondarySidebarCollapsed
@@ -64,10 +64,10 @@ export function ViewActions(props: ViewActionsProps) {
             : "Collapse Secondary Side Bar"
         }
         aria-pressed={!props.secondarySidebarCollapsed}
-        on:click={props.onToggleSecondarySidebar}
+        onClick={props.onToggleSecondarySidebar}
       >
         <span
-          class={iconClass(
+          className={iconClass(
             props.secondarySidebarCollapsed,
             "codicon-layout-sidebar-right",
             "codicon-layout-sidebar-right-off",

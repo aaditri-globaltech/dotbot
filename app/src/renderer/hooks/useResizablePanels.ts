@@ -1,5 +1,12 @@
 /** Keep panel dimensions, collapse state, and pointer lifecycle in one hook. */
-import { createSignal, onCleanup } from "solid-js";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from "../keybindings";
 
 // These values preserve a usable view while allowing panels to collapse fully.
@@ -20,34 +27,33 @@ export type PanelResizeTarget = "left" | "right" | "bottom";
 
 type ResizeAxis = "column" | "row";
 
+type ActiveResize = {
+  move: (event: PointerEvent) => void;
+  stop: () => void;
+};
+
 /** Track panel sizes and provide pointer/keyboard resize handlers. */
 export function useResizablePanels() {
-  const [leftPanelWidth, setLeftPanelWidth] = createSignal(240);
-  const [rightPanelWidth, setRightPanelWidth] = createSignal(280);
-  const [expandedPanelHeight, setExpandedPanelHeight] = createSignal(200);
-  const [leftCollapsed, setLeftCollapsed] = createSignal(false);
-  const [rightCollapsed, setRightCollapsed] = createSignal(false);
-  const [panelCollapsed, setPanelCollapsed] = createSignal(true);
-  let layout: HTMLDivElement | undefined;
-  let activeResize:
-    | {
-        move: (event: PointerEvent) => void;
-        stop: () => void;
-      }
-    | undefined;
+  const [leftPanelWidth, setLeftPanelWidth] = useState(240);
+  const [rightPanelWidth, setRightPanelWidth] = useState(280);
+  const [expandedPanelHeight, setExpandedPanelHeight] = useState(200);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [panelCollapsed, setPanelCollapsed] = useState(true);
+  const layoutRef = useRef<HTMLDivElement | null>(null);
+  const activeResizeRef = useRef<ActiveResize | undefined>(undefined);
 
-  const leftWidth = () =>
-    leftCollapsed() ? COLLAPSED_SIDE_WIDTH : leftPanelWidth();
-  const rightWidth = () =>
-    rightCollapsed() ? COLLAPSED_SIDE_WIDTH : rightPanelWidth();
-  const panelHeight = () =>
-    panelCollapsed() ? COLLAPSED_PANEL_HEIGHT : expandedPanelHeight();
+  const leftWidth = leftCollapsed ? COLLAPSED_SIDE_WIDTH : leftPanelWidth;
+  const rightWidth = rightCollapsed ? COLLAPSED_SIDE_WIDTH : rightPanelWidth;
+  const panelHeight = panelCollapsed
+    ? COLLAPSED_PANEL_HEIGHT
+    : expandedPanelHeight;
 
   const setPanelSize = (target: PanelResizeTarget, size: number) => {
+    const layout = layoutRef.current;
     if (!layout) return;
 
     // Clamp each panel against the minimum space reserved for its neighbors.
-
     const bounds = layout.getBoundingClientRect();
 
     if (target === "bottom") {
@@ -63,7 +69,7 @@ export function useResizablePanels() {
     }
 
     const availableWidth = bounds.width - MIN_VIEW_WIDTH;
-    const otherWidth = target === "left" ? rightWidth() : leftWidth();
+    const otherWidth = target === "left" ? rightWidth : leftWidth;
     const maxWidth = Math.max(MIN_SIDE_WIDTH, availableWidth - otherWidth);
     const nextWidth = Math.min(Math.max(size, MIN_SIDE_WIDTH), maxWidth);
 
@@ -81,6 +87,7 @@ export function useResizablePanels() {
     clientX: number,
     clientY: number,
   ) => {
+    const layout = layoutRef.current;
     if (!layout) return;
 
     const bounds = layout.getBoundingClientRect();
@@ -94,11 +101,11 @@ export function useResizablePanels() {
     );
   };
 
-  const stopResize = () => {
+  const stopResize = useCallback(() => {
+    const activeResize = activeResizeRef.current;
     if (!activeResize) return;
 
     // Pointer listeners live on document so dragging remains active outside the grip.
-
     document.removeEventListener("pointermove", activeResize.move);
     document.removeEventListener("pointerup", activeResize.stop);
     document.removeEventListener("pointercancel", activeResize.stop);
@@ -107,10 +114,13 @@ export function useResizablePanels() {
       "is-column-resizing",
       "is-row-resizing",
     );
-    activeResize = undefined;
-  };
+    activeResizeRef.current = undefined;
+  }, []);
 
-  const startResize = (target: PanelResizeTarget, event: PointerEvent) => {
+  const startResize = (
+    target: PanelResizeTarget,
+    event: ReactPointerEvent<HTMLElement>,
+  ) => {
     event.preventDefault();
 
     // Only one drag may own the document listeners at a time.
@@ -123,7 +133,7 @@ export function useResizablePanels() {
     const axis: ResizeAxis = target === "bottom" ? "row" : "column";
     const move = (moveEvent: PointerEvent) =>
       resizeFromPointer(target, moveEvent.clientX, moveEvent.clientY);
-    activeResize = { move, stop: stopResize };
+    activeResizeRef.current = { move, stop: stopResize };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", stopResize);
     document.addEventListener("pointercancel", stopResize);
@@ -131,28 +141,31 @@ export function useResizablePanels() {
     resizeFromPointer(target, event.clientX, event.clientY);
   };
 
-  const handleKeyDown = (target: PanelResizeTarget, event: KeyboardEvent) => {
+  const handleKeyDown = (
+    target: PanelResizeTarget,
+    event: ReactKeyboardEvent<HTMLElement>,
+  ) => {
     const isBottom = target === "bottom";
     const bindings = isBottom
       ? DEFAULT_APP_KEYBINDINGS.resizePanel.vertical
       : DEFAULT_APP_KEYBINDINGS.resizePanel.horizontal;
-    const increase = matchesKey(event, bindings.increase);
-    const decrease = matchesKey(event, bindings.decrease);
+    const increase = matchesKey(event.nativeEvent, bindings.increase);
+    const decrease = matchesKey(event.nativeEvent, bindings.decrease);
     if (!increase && !decrease) return;
 
     event.preventDefault();
 
     const direction = increase ? 1 : -1;
     if (isBottom) {
-      setPanelSize(target, panelHeight() + direction * 16);
+      setPanelSize(target, panelHeight + direction * 16);
       return;
     }
 
     setPanelSize(
       target,
       target === "left"
-        ? leftWidth() + direction * 16
-        : rightWidth() - direction * 16,
+        ? leftWidth + direction * 16
+        : rightWidth - direction * 16,
     );
   };
 
@@ -166,8 +179,12 @@ export function useResizablePanels() {
     }
   };
 
+  const setLayout = useCallback((element: HTMLDivElement | null) => {
+    layoutRef.current = element;
+  }, []);
+
   // Prevent a destroyed view from leaving global pointer listeners behind.
-  onCleanup(stopResize);
+  useEffect(() => stopResize, [stopResize]);
 
   return {
     handleKeyDown,
@@ -177,9 +194,7 @@ export function useResizablePanels() {
     panelHeight,
     rightCollapsed,
     rightWidth,
-    setLayout: (element: HTMLDivElement) => {
-      layout = element;
-    },
+    setLayout,
     startResize,
     toggleCollapsed,
   };

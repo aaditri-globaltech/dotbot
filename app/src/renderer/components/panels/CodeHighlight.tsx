@@ -1,15 +1,15 @@
 import hljs from "highlight.js/lib/common";
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { type UIEvent, useEffect, useRef, useState } from "react";
 
 /** Inputs for a plain or syntax-highlighted code block. */
 export type CodeHighlightProps = {
-  code: () => string;
-  language: () => string;
-  className?: string | (() => string);
-  lineNumbers?: boolean | (() => boolean);
-  lineNumberStart?: () => number;
-  onScroll?: (event: Event) => void;
-  setElement?: (element: HTMLElement) => void;
+  code: string;
+  language: string;
+  className?: string;
+  lineNumbers?: boolean;
+  lineNumberStart?: number;
+  onScroll?: (event: UIEvent<HTMLElement>) => void;
+  setElement?: (element: HTMLElement | null) => void;
 };
 
 type HighlightedLine = {
@@ -28,15 +28,6 @@ const htmlEntities: Record<string, string> = {
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => htmlEntities[character]);
-}
-
-/** Map a tool file path to a Highlight.js language alias. */
-export function languageForFile(path: string): string {
-  const filename = path.replaceAll("\\", "/").split("/").pop() ?? "";
-  if (filename.toLowerCase() === "dockerfile") return "dockerfile";
-
-  const extension = filename.split(".").pop()?.toLowerCase();
-  return extension && extension !== filename ? extension : "";
 }
 
 function lineStart(value: number | undefined) {
@@ -78,98 +69,92 @@ function highlightedLines(
     });
 }
 
-/** Highlight only explicitly identified languages; plain text stays plain. */
 /** Render code with optional line numbers and language highlighting. */
 export function CodeHighlight(props: CodeHighlightProps) {
-  const [html, setHtml] = createSignal("");
-  const [lines, setLines] = createSignal<HighlightedLine[]>([]);
-  const className = () =>
-    typeof props.className === "function"
-      ? props.className()
-      : (props.className ?? "agent-code-block");
-  const withLineNumbers = () =>
-    typeof props.lineNumbers === "function"
-      ? props.lineNumbers()
-      : props.lineNumbers === true;
-  let revision = 0;
+  const [html, setHtml] = useState("");
+  const [lines, setLines] = useState<HighlightedLine[]>([]);
+  const revisionRef = useRef(0);
 
-  createEffect(() => {
-    const code = props.code();
-    const language = props.language();
-    const withLineNumbers =
-      typeof props.lineNumbers === "function"
-        ? props.lineNumbers()
-        : props.lineNumbers === true;
-    const start = lineStart(props.lineNumberStart?.());
-    const currentRevision = ++revision;
+  const className = props.className ?? "agent-code-block";
+  const withLineNumbers = props.lineNumbers === true;
+  const start = lineStart(props.lineNumberStart);
+
+  useEffect(() => {
+    const currentRevision = ++revisionRef.current;
     setHtml("");
-    setLines(withLineNumbers ? highlightedLines(code, start) : []);
+    setLines(withLineNumbers ? highlightedLines(props.code, start) : []);
     const timer = setTimeout(() => {
-      if (currentRevision !== revision) return;
+      if (currentRevision !== revisionRef.current) return;
 
       const supportedLanguage =
-        language && hljs.getLanguage(language) ? language : undefined;
+        props.language && hljs.getLanguage(props.language)
+          ? props.language
+          : undefined;
       if (withLineNumbers) {
-        setLines(highlightedLines(code, start, supportedLanguage));
+        setLines(highlightedLines(props.code, start, supportedLanguage));
         return;
       }
       if (!supportedLanguage) return;
       try {
-        setHtml(hljs.highlight(code, { language: supportedLanguage }).value);
+        setHtml(
+          hljs.highlight(props.code, { language: supportedLanguage }).value,
+        );
       } catch {
         setHtml("");
       }
     }, 0);
 
-    onCleanup(() => {
-      revision += 1;
+    return () => {
+      revisionRef.current += 1;
       clearTimeout(timer);
-    });
-  });
+    };
+  }, [props.code, props.language, start, withLineNumbers]);
 
-  const setElement = (element: HTMLElement) => props.setElement?.(element);
+  const hasContent = withLineNumbers ? lines.length > 0 : Boolean(html);
+
+  if (!hasContent) {
+    return (
+      <pre
+        ref={props.setElement}
+        className={className}
+        onScroll={props.onScroll}
+      >
+        <code>{props.code}</code>
+      </pre>
+    );
+  }
+
+  if (withLineNumbers) {
+    return (
+      <div
+        ref={props.setElement}
+        className={`${className} agent-editor-output`}
+        onScroll={props.onScroll}
+      >
+        {lines.map((line) => (
+          <span key={line.number} className="agent-tool-line">
+            <span className="agent-tool-line-number" aria-hidden="true">
+              {line.number}
+            </span>
+            <span className="agent-tool-line-content">
+              {line.html !== undefined ? (
+                <span dangerouslySetInnerHTML={{ __html: line.html }} />
+              ) : (
+                line.text
+              )}
+            </span>
+          </span>
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <Show
-      when={withLineNumbers() ? lines().length > 0 : html()}
-      fallback={
-        <pre ref={setElement} class={className()} on:scroll={props.onScroll}>
-          <code>{props.code()}</code>
-        </pre>
-      }
-    >
-      <Show
-        when={withLineNumbers()}
-        fallback={
-          <div
-            ref={setElement}
-            class={className()}
-            on:scroll={props.onScroll}
-            innerHTML={html()}
-          />
-        }
-      >
-        <div
-          ref={setElement}
-          class={`${className()} agent-editor-output`}
-          on:scroll={props.onScroll}
-        >
-          <For each={lines()}>
-            {(line) => (
-              <span class="agent-tool-line">
-                <span class="agent-tool-line-number" aria-hidden="true">
-                  {line.number}
-                </span>
-                <span class="agent-tool-line-content">
-                  <Show when={line.html !== undefined} fallback={line.text}>
-                    <span innerHTML={line.html ?? ""} />
-                  </Show>
-                </span>
-              </span>
-            )}
-          </For>
-        </div>
-      </Show>
-    </Show>
+    <div
+      ref={props.setElement}
+      className={className}
+      onScroll={props.onScroll}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }

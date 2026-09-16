@@ -1,8 +1,18 @@
 // Deliberately tiny browser entrypoint: this catches bundler/module regressions.
-import { Button } from "@kobalte/core/button";
-import { createSignal } from "solid-js";
-import { render } from "solid-js/web";
+import type { AgentSessionSummary } from "@aria/agent-core";
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
 
-const [count] = createSignal(0);
+const session: AgentSessionSummary = {
+  id: "smoke",
+  cwd: "/tmp",
+  title: "smoke",
+  status: "idle",
+  active: false,
+  unread: false,
+};
 
-console.log(Button, render, count());
+const root = document.getElementById("root");
+if (root) {
+  createRoot(root).render(createElement("pre", null, session.title));
+}

@@ -6,7 +6,7 @@ type PanelHeaderProps = {
 /** Render a panel heading. */
 export function PanelHeader(props: PanelHeaderProps) {
   return (
-    <div class="panel-heading">
+    <div className="panel-heading">
       <h1>{props.title}</h1>
     </div>
   );

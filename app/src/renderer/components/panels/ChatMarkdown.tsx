@@ -1,6 +1,6 @@
 import { marked, Renderer } from "marked";
 import mermaid from "mermaid";
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { useEffect, useRef, useState } from "react";
 import { CodeHighlight } from "./CodeHighlight";
 import { type ChatBlock, parseChatBlocks } from "./chat-markdown";
 
@@ -62,38 +62,36 @@ mermaid.initialize({
 let mermaidId = 0;
 
 function MermaidDiagram(props: { code: string }) {
-  const [svg, setSvg] = createSignal("");
-  let revision = 0;
+  const [svg, setSvg] = useState("");
+  const revisionRef = useRef(0);
 
-  createEffect(() => {
-    const code = props.code;
-    const currentRevision = ++revision;
+  useEffect(() => {
+    const currentRevision = ++revisionRef.current;
     setSvg("");
     void mermaid
-      .render(`aria-mermaid-${++mermaidId}`, code)
+      .render(`aria-mermaid-${++mermaidId}`, props.code)
       .then((result) => {
-        if (currentRevision === revision) setSvg(result.svg);
+        if (currentRevision === revisionRef.current) setSvg(result.svg);
       })
       .catch(() => {
-        if (currentRevision === revision) setSvg("");
+        if (currentRevision === revisionRef.current) setSvg("");
       });
-  });
 
-  onCleanup(() => {
-    revision += 1;
-  });
+    return () => {
+      revisionRef.current += 1;
+    };
+  }, [props.code]);
+
+  if (!svg) {
+    return (
+      <pre className="agent-code-block agent-mermaid-fallback">
+        <code>{props.code}</code>
+      </pre>
+    );
+  }
 
   return (
-    <Show
-      when={svg()}
-      fallback={
-        <pre class="agent-code-block agent-mermaid-fallback">
-          <code>{props.code}</code>
-        </pre>
-      }
-    >
-      <div class="agent-mermaid" innerHTML={svg()} />
-    </Show>
+    <div className="agent-mermaid" dangerouslySetInnerHTML={{ __html: svg }} />
   );
 }
 
@@ -101,8 +99,8 @@ function MermaidDiagram(props: { code: string }) {
 export function MarkdownText(props: { text: string; className?: string }) {
   return (
     <div
-      class={props.className ?? "agent-markdown-text"}
-      innerHTML={renderMarkdown(props.text)}
+      className={props.className ?? "agent-markdown-text"}
+      dangerouslySetInnerHTML={{ __html: renderMarkdown(props.text) }}
     />
   );
 }
@@ -115,17 +113,16 @@ function ChatBlockView(props: { block: ChatBlock }) {
   if (block.kind === "mermaid") {
     return <MermaidDiagram code={block.code} />;
   }
-  return (
-    <CodeHighlight code={() => block.code} language={() => block.language} />
-  );
+  return <CodeHighlight code={block.code} language={block.language} />;
 }
 
 /** Render chat text with fenced code and Mermaid blocks separated. */
 export function ChatMarkdown(props: { text: string }) {
-  const blocks = () => parseChatBlocks(props.text);
   return (
-    <div class="agent-markdown">
-      <For each={blocks()}>{(block) => <ChatBlockView block={block} />}</For>
+    <div className="agent-markdown">
+      {parseChatBlocks(props.text).map((block, index) => (
+        <ChatBlockView key={index} block={block} />
+      ))}
     </div>
   );
 }

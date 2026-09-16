@@ -1,9 +1,8 @@
-import type { AgentSession } from "@aria/extension-agent";
-import { For, Show } from "solid-js";
+import type { AgentSessionSummary } from "@aria/agent-core";
 
 /** Inputs for the session list and workspace groups. */
 export type SessionSidebarProps = {
-  sessions: AgentSession[];
+  sessions: AgentSessionSummary[];
   openTabIds: string[];
   onOpen: (id: string) => void;
   onNew: () => void;
@@ -11,7 +10,7 @@ export type SessionSidebarProps = {
   workspaceCwd?: string;
 };
 
-function statusText(session: AgentSession) {
+function statusText(session: AgentSessionSummary) {
   if (session.status === "waiting") return "Waiting";
   if (session.status === "running") return "Working";
   if (session.status === "starting") return "Starting";
@@ -21,11 +20,11 @@ function statusText(session: AgentSession) {
 
 /** Group sessions by workspace and put the selected workspace first. */
 export function groupSessions(
-  sessions: AgentSession[],
+  sessions: AgentSessionSummary[],
   selectedWorkspace?: string,
   selectedSessionId?: string,
-): Array<[string, AgentSession[]]> {
-  const grouped = new Map<string, AgentSession[]>();
+): Array<[string, AgentSessionSummary[]]> {
+  const grouped = new Map<string, AgentSessionSummary[]>();
   for (const session of sessions) {
     const group = grouped.get(session.cwd) ?? [];
     group.push(session);
@@ -37,10 +36,10 @@ export function groupSessions(
   }
 
   const groups = [...grouped.entries()].map(
-    ([cwd, group]): [string, AgentSession[]] => [
+    ([cwd, group]): [string, AgentSessionSummary[]] => [
       cwd,
       group.sort((a, b) => {
-        const priority = (session: AgentSession) =>
+        const priority = (session: AgentSessionSummary) =>
           session.id === selectedSessionId ? 0 : session.active ? 1 : 2;
         return (
           priority(a) - priority(b) ||
@@ -59,7 +58,7 @@ export function groupSessions(
 
 type SessionGroupProps = {
   cwd: string;
-  sessions: AgentSession[];
+  sessions: AgentSessionSummary[];
   selected: boolean;
   openTabIds: string[];
   onOpen: (id: string) => void;
@@ -67,48 +66,46 @@ type SessionGroupProps = {
 
 function SessionGroup(props: SessionGroupProps) {
   return (
-    <details class="session-cwd-group" open={props.selected}>
+    <details className="session-cwd-group" open={props.selected}>
       <summary title={props.cwd}>
-        <span class="codicon codicon-chevron-down" aria-hidden="true" />
-        <span class="session-cwd-name">
+        <span className="codicon codicon-chevron-down" aria-hidden="true" />
+        <span className="session-cwd-name">
           {props.cwd.split(/[\\/]/).filter(Boolean).pop() ?? props.cwd}
         </span>
-        <span class="session-cwd-count">{props.sessions.length}</span>
+        <span className="session-cwd-count">{props.sessions.length}</span>
       </summary>
-      <div class="session-cwd-items">
-        <Show
-          when={props.sessions.length > 0}
-          fallback={<p class="session-group-empty">No sessions</p>}
-        >
-          <For each={props.sessions}>
-            {(session) => (
-              <button
-                class={`session-entry ${props.openTabIds.includes(session.id) ? "is-open" : ""}`}
-                type="button"
-                on:click={() => props.onOpen(session.id)}
-                title={`${session.title}\n${session.cwd}`}
-              >
-                <span
-                  class={`agent-status-dot agent-status-dot-${session.status}`}
-                />
-                <span class="session-entry-content">
-                  <span class="session-entry-title">
-                    {session.name ?? session.title}
-                  </span>
-                  <span class="session-entry-meta">
-                    {statusText(session)}
-                    <Show when={session.waiting}>
-                      <span class="session-entry-feedback">feedback</span>
-                    </Show>
-                  </span>
+      <div className="session-cwd-items">
+        {props.sessions.length === 0 ? (
+          <p className="session-group-empty">No sessions</p>
+        ) : (
+          props.sessions.map((session) => (
+            <button
+              key={session.id}
+              className={`session-entry ${props.openTabIds.includes(session.id) ? "is-open" : ""}`}
+              type="button"
+              onClick={() => props.onOpen(session.id)}
+              title={`${session.title}\n${session.cwd}`}
+            >
+              <span
+                className={`agent-status-dot agent-status-dot-${session.status}`}
+              />
+              <span className="session-entry-content">
+                <span className="session-entry-title">
+                  {session.name ?? session.title}
                 </span>
-                <Show when={session.unread}>
-                  <span class="session-entry-unread" aria-hidden="true" />
-                </Show>
-              </button>
-            )}
-          </For>
-        </Show>
+                <span className="session-entry-meta">
+                  {statusText(session)}
+                  {session.waiting && (
+                    <span className="session-entry-feedback">feedback</span>
+                  )}
+                </span>
+              </span>
+              {session.unread && (
+                <span className="session-entry-unread" aria-hidden="true" />
+              )}
+            </button>
+          ))
+        )}
       </div>
     </details>
   );
@@ -116,65 +113,61 @@ function SessionGroup(props: SessionGroupProps) {
 
 /** Render workspace-grouped Agent sessions and the new-session action. */
 export function SessionSidebar(props: SessionSidebarProps) {
-  const groups = () =>
-    groupSessions(props.sessions, props.workspaceCwd, props.selectedSessionId);
-  const selectedGroups = () =>
-    groups().filter(([cwd]) => cwd === props.workspaceCwd);
-  const otherGroups = () =>
-    groups().filter(([cwd]) => cwd !== props.workspaceCwd);
+  const groups = groupSessions(
+    props.sessions,
+    props.workspaceCwd,
+    props.selectedSessionId,
+  );
+  const selectedGroups = groups.filter(([cwd]) => cwd === props.workspaceCwd);
+  const otherGroups = groups.filter(([cwd]) => cwd !== props.workspaceCwd);
 
   return (
-    <div class="session-sidebar">
-      <div class="session-sidebar-heading panel-heading">
+    <div className="session-sidebar">
+      <div className="session-sidebar-heading panel-heading">
         <h1>Sessions</h1>
         <button
-          class="session-sidebar-action"
+          className="session-sidebar-action"
           type="button"
           aria-label="New session"
           title="New session in current workspace"
-          on:click={props.onNew}
+          onClick={props.onNew}
         >
-          <span class="codicon codicon-add" aria-hidden="true" />
+          <span className="codicon codicon-add" aria-hidden="true" />
         </button>
       </div>
 
-      <Show
-        when={groups().length > 0}
-        fallback={
-          <p class="session-list-empty">
-            No sessions yet. Open a workspace to start one.
-          </p>
-        }
-      >
-        <div class="session-list">
-          <div class="session-selected-workspace">
-            <For each={selectedGroups()}>
-              {(group) => (
-                <SessionGroup
-                  cwd={group[0]}
-                  sessions={group[1]}
-                  selected
-                  openTabIds={props.openTabIds}
-                  onOpen={props.onOpen}
-                />
-              )}
-            </For>
+      {groups.length === 0 ? (
+        <p className="session-list-empty">
+          No sessions yet. Open a workspace to start one.
+        </p>
+      ) : (
+        <div className="session-list">
+          <div className="session-selected-workspace">
+            {selectedGroups.map(([cwd, sessions]) => (
+              <SessionGroup
+                key={cwd}
+                cwd={cwd}
+                sessions={sessions}
+                selected
+                openTabIds={props.openTabIds}
+                onOpen={props.onOpen}
+              />
+            ))}
           </div>
-          <div class="session-other-workspaces">
-            <For each={otherGroups()}>
-              {(group) => (
-                <SessionGroup
-                  cwd={group[0]}
-                  sessions={group[1]}
-                  selected={false}
-                  openTabIds={props.openTabIds}
-                  onOpen={props.onOpen}
-                />
-              )}
-            </For>
+          <div className="session-other-workspaces">
+            {otherGroups.map(([cwd, sessions]) => (
+              <SessionGroup
+                key={cwd}
+                cwd={cwd}
+                sessions={sessions}
+                selected={false}
+                openTabIds={props.openTabIds}
+                onOpen={props.onOpen}
+              />
+            ))}
           </div>
         </div>
-      </Show>
+      )}
     </div>
   );
 }

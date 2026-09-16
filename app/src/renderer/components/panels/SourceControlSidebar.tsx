@@ -1,5 +1,5 @@
-import type { GitChange, GitStatus } from "@aria/extension-workspace";
-import { createEffect, createSignal, For, Show, untrack } from "solid-js";
+import type { GitChange, GitStatus } from "@aria/source-control";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import {
   DEFAULT_APP_KEYBINDINGS,
@@ -36,34 +36,36 @@ function isStaged(change: GitChange) {
 
 /** Render Git status, staging actions, and the commit form. */
 export function SourceControlSidebar(props: SourceControlSidebarProps) {
-  const [status, setStatus] = createSignal<GitStatus>();
-  const [message, setMessage] = createSignal("");
-  const [loading, setLoading] = createSignal(false);
-  const [error, setError] = createSignal<string>();
+  const [status, setStatus] = useState<GitStatus>();
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>();
 
-  const loadStatus = async (cwd: string) => {
-    setLoading(true);
-    setError(undefined);
-    try {
-      const next = await api.workspace.gitStatus(cwd);
-      if (props.cwd !== cwd) return;
-      setStatus(next);
-    } catch (reason) {
-      if (props.cwd === cwd) {
-        setStatus(undefined);
-        setError(reason instanceof Error ? reason.message : String(reason));
+  const loadStatus = useCallback(
+    async (cwd: string) => {
+      setLoading(true);
+      setError(undefined);
+      try {
+        const next = await api.workspace.gitStatus(cwd);
+        if (props.cwd !== cwd) return;
+        setStatus(next);
+      } catch (reason) {
+        if (props.cwd === cwd) {
+          setStatus(undefined);
+          setError(reason instanceof Error ? reason.message : String(reason));
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [props.cwd],
+  );
 
-  createEffect(() => {
-    const cwd = props.cwd;
+  useEffect(() => {
     setStatus(undefined);
     setError(undefined);
-    if (cwd) untrack(() => void loadStatus(cwd));
-  });
+    if (props.cwd) void loadStatus(props.cwd);
+  }, [props.cwd, loadStatus]);
 
   const refresh = () => {
     if (props.cwd) void loadStatus(props.cwd);
@@ -97,125 +99,122 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
 
   const commit = () => {
     const cwd = props.cwd;
-    if (!cwd || !message().trim()) return;
+    if (!cwd || !message.trim()) return;
     void runAction(async () => {
-      await api.workspace.gitCommit(cwd, message());
+      await api.workspace.gitCommit(cwd, message);
       setMessage("");
     });
   };
 
-  const stagedChanges = () =>
-    status()?.changes.filter((change) => isStaged(change)) ?? [];
-  const unstagedChanges = () =>
-    status()?.changes.filter((change) => !isStaged(change)) ?? [];
+  const stagedChanges =
+    status?.changes.filter((change) => isStaged(change)) ?? [];
+  const unstagedChanges =
+    status?.changes.filter((change) => !isStaged(change)) ?? [];
 
-  const changeList = (changes: GitChange[], staged: boolean) => (
-    <For each={changes}>
-      {(change) => (
-        <div class="scm-change">
-          <span class="scm-change-kind">{changeLabel(change)[0]}</span>
-          <span class="scm-change-name" title={change.path}>
-            {change.path}
-          </span>
-          <button
-            class="sidebar-action scm-change-action"
-            type="button"
-            aria-label={
-              staged ? `Unstage ${change.path}` : `Stage ${change.path}`
-            }
-            title={staged ? "Unstage Changes" : "Stage Changes"}
-            on:click={() =>
-              staged ? unstage(change.path) : stage(change.path)
-            }
-          >
-            <span
-              class={`codicon ${staged ? "codicon-remove" : "codicon-add"}`}
-              aria-hidden="true"
-            />
-          </button>
-        </div>
-      )}
-    </For>
-  );
+  const changeList = (changes: GitChange[], staged: boolean) =>
+    changes.map((change) => (
+      <div key={change.path} className="scm-change">
+        <span className="scm-change-kind">{changeLabel(change)[0]}</span>
+        <span className="scm-change-name" title={change.path}>
+          {change.path}
+        </span>
+        <button
+          className="sidebar-action scm-change-action"
+          type="button"
+          aria-label={
+            staged ? `Unstage ${change.path}` : `Stage ${change.path}`
+          }
+          title={staged ? "Unstage Changes" : "Stage Changes"}
+          onClick={() => (staged ? unstage(change.path) : stage(change.path))}
+        >
+          <span
+            className={`codicon ${staged ? "codicon-remove" : "codicon-add"}`}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+    ));
 
   return (
-    <div class="scm-sidebar">
-      <Show
-        when={props.cwd}
-        fallback={
-          <p class="sidebar-empty">Open a workspace for source control.</p>
-        }
-      >
-        <div class="scm-toolbar">
-          <span class="codicon codicon-git-branch" aria-hidden="true" />
-          <span class="scm-branch" title={status()?.root ?? props.cwd}>
-            {status()?.branch ?? "Git"}
-          </span>
-          <button
-            class="sidebar-action"
-            type="button"
-            aria-label="Refresh Source Control"
-            title="Refresh Source Control"
-            on:click={refresh}
-          >
-            <span class="codicon codicon-refresh" aria-hidden="true" />
-          </button>
-        </div>
-
-        <Show when={error()}>
-          <p class="sidebar-error">{error()}</p>
-        </Show>
-        <Show when={status()?.error}>
-          <p class="sidebar-error">{status()?.error}</p>
-        </Show>
-        <Show when={status()?.root && !status()?.error}>
-          <div class="scm-commit-box">
-            <textarea
-              value={message()}
-              placeholder={`Message (${formatKeybinding(DEFAULT_APP_KEYBINDINGS.commit)} to commit)`}
-              rows="2"
-              disabled={loading()}
-              on:input={(event) => setMessage(event.currentTarget.value)}
-              on:keydown={(event) => {
-                if (matchesKey(event, DEFAULT_APP_KEYBINDINGS.commit)) commit();
-              }}
-            />
+    <div className="scm-sidebar">
+      {!props.cwd ? (
+        <p className="sidebar-empty">Open a workspace for source control.</p>
+      ) : (
+        <>
+          <div className="scm-toolbar">
+            <span className="codicon codicon-git-branch" aria-hidden="true" />
+            <span className="scm-branch" title={status?.root ?? props.cwd}>
+              {status?.branch ?? "Git"}
+            </span>
             <button
-              class="scm-commit-button"
+              className="sidebar-action"
               type="button"
-              disabled={
-                loading() || !message().trim() || stagedChanges().length === 0
-              }
-              on:click={commit}
+              aria-label="Refresh Source Control"
+              title="Refresh Source Control"
+              onClick={refresh}
             >
-              Commit
+              <span className="codicon codicon-refresh" aria-hidden="true" />
             </button>
           </div>
 
-          <section class="scm-group">
-            <h2>
-              Staged Changes <span>{stagedChanges().length}</span>
-            </h2>
-            <Show
-              when={stagedChanges().length > 0}
-              fallback={<p class="scm-empty">No staged changes</p>}
-            >
-              {changeList(stagedChanges(), true)}
-            </Show>
-          </section>
-          <section class="scm-group">
-            <h2>
-              Changes <span>{unstagedChanges().length}</span>
-            </h2>
-            <Show
-              when={unstagedChanges().length > 0}
-              fallback={<p class="scm-empty">No changes</p>}
-            >
-              {changeList(unstagedChanges(), false)}
-            </Show>
-          </section>
-        </Show>
-      </Show>
+          {error && <p className="sidebar-error">{error}</p>}
+          {status?.error && <p className="sidebar-error">{status.error}</p>}
+          {status?.root && !status.error && (
+            <>
+              <div className="scm-commit-box">
+                <textarea
+                  value={message}
+                  placeholder={`Message (${formatKeybinding(DEFAULT_APP_KEYBINDINGS.commit)} to commit)`}
+                  rows={2}
+                  disabled={loading}
+                  onChange={(event) => setMessage(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (
+                      matchesKey(
+                        event.nativeEvent,
+                        DEFAULT_APP_KEYBINDINGS.commit,
+                      )
+                    ) {
+                      commit();
+                    }
+                  }}
+                />
+                <button
+                  className="scm-commit-button"
+                  type="button"
+                  disabled={
+                    loading || !message.trim() || stagedChanges.length === 0
+                  }
+                  onClick={commit}
+                >
+                  Commit
+                </button>
+              </div>
+
+              <section className="scm-group">
+                <h2>
+                  Staged Changes <span>{stagedChanges.length}</span>
+                </h2>
+                {stagedChanges.length > 0 ? (
+                  changeList(stagedChanges, true)
+                ) : (
+                  <p className="scm-empty">No staged changes</p>
+                )}
+              </section>
+              <section className="scm-group">
+                <h2>
+                  Changes <span>{unstagedChanges.length}</span>
+                </h2>
+                {unstagedChanges.length > 0 ? (
+                  changeList(unstagedChanges, false)
+                ) : (
+                  <p className="scm-empty">No changes</p>
+                )}
+              </section>
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -2,10 +2,11 @@ import type {
   AgentCommand,
   AgentFeedbackResponse,
   AgentManagerEvent,
-  AgentSession,
+  AgentSessionSummary,
   AgentStreamingBehavior,
-} from "@aria/extension-agent";
-import type { ExplorerEntry, GitStatus } from "@aria/extension-workspace";
+} from "@aria/agent-core";
+import type { GitStatus } from "@aria/source-control";
+import type { ExplorerEntry } from "@aria/workspace";
 
 /** Renderer-safe API exposed by the isolated Electron preload. */
 export interface AriaApi {
@@ -20,9 +21,9 @@ export interface AriaApi {
   };
   /** Agent session lifecycle, prompts, controls, and streamed events. */
   agent: {
-    list: () => Promise<AgentSession[]>;
-    create: (cwd: string) => Promise<AgentSession>;
-    open: (sessionId: string) => Promise<AgentSession>;
+    list: () => Promise<AgentSessionSummary[]>;
+    create: (cwd: string) => Promise<AgentSessionSummary>;
+    open: (sessionId: string) => Promise<AgentSessionSummary>;
     close: (sessionId: string) => Promise<void>;
     prompt: (
       sessionId: string,
