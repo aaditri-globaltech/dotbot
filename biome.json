@@ -7,14 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": [
-      "**",
-      "!**/dist",
-      "!**/release",
-      "!**/resources/host",
-      "!**/resources/extensions",
-      "!node_modules"
-    ]
+    "includes": ["**", "!**/dist", "!**/release", "!node_modules"]
   },
   "formatter": {
     "enabled": true,
@@ -42,5 +35,23 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "app/src/renderer/components/panels/ChatMarkdown.tsx",
+        "app/src/renderer/components/panels/CodeHighlight.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "security": {
+            "noDangerouslySetInnerHtml": "off"
+          },
+          "suspicious": {
+            "noArrayIndexKey": "off"
+          }
+        }
+      }
+    }
+  ]
 }

@@ -4,8 +4,6 @@ node_modules/
 # output
 dist/
 release/
-app/resources/host/
-app/resources/extensions/
 *.log
 
 # local
