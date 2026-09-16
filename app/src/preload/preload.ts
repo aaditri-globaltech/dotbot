@@ -7,13 +7,13 @@ import type {
   AgentManagerEvent,
   AgentSessionSummary,
   AgentStreamingBehavior,
-} from "@aria/agent-core";
-import type { GitStatus } from "@aria/source-control";
-import type { ExplorerEntry } from "@aria/workspace";
+} from "@dotbot/agent-core";
+import type { GitStatus } from "@dotbot/source-control";
+import type { ExplorerEntry } from "@dotbot/workspace";
 import { contextBridge, ipcRenderer } from "electron";
-import type { AriaApi } from "../renderer/api";
+import type { DotbotApi } from "../renderer/api";
 
-const api: AriaApi = {
+const api: DotbotApi = {
   ping: () => "pong",
   window: {
     close: () => ipcRenderer.send("window:close"),
@@ -87,4 +87,4 @@ const api: AriaApi = {
   },
 };
 
-contextBridge.exposeInMainWorld("aria", api);
+contextBridge.exposeInMainWorld("dotbot", api);

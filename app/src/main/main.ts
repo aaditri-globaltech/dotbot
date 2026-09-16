@@ -1,14 +1,17 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type AgentManagerEvent, AgentSessionManager } from "@aria/agent-core";
+import {
+  type AgentManagerEvent,
+  AgentSessionManager,
+} from "@dotbot/agent-core";
 import {
   type GitStatus,
   gitCommit,
   gitStage,
   gitStatus,
   gitUnstage,
-} from "@aria/source-control";
-import { readDirectory } from "@aria/workspace";
+} from "@dotbot/source-control";
+import { readDirectory } from "@dotbot/workspace";
 import {
   app,
   BrowserWindow,
@@ -71,10 +74,10 @@ function toggleMainWindow() {
 /** Keep the process alive while the window is hidden and expose restore/quit actions. */
 function createTray() {
   tray = new Tray(trayIcon);
-  tray.setToolTip("Aria");
+  tray.setToolTip("Dotbot");
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "Show Aria", click: showMainWindow },
+      { label: "Show Dotbot", click: showMainWindow },
       { type: "separator" },
       { label: "Quit", click: () => app.quit() },
     ]),
@@ -206,7 +209,7 @@ void app
   })
   .catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("Aria failed to start:", message);
+    console.error("Dotbot failed to start:", message);
     app.exit(1);
   });
 

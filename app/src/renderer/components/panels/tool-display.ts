@@ -1,6 +1,6 @@
 /** Pure formatting helpers for tool cards in the agent transcript. */
 
-import type { AgentToolCall } from "@aria/agent-core";
+import type { AgentToolCall } from "@dotbot/agent-core";
 
 function parsedArguments(tool: AgentToolCall) {
   try {

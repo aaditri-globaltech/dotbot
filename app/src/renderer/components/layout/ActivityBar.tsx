@@ -45,12 +45,12 @@ function ActivityItems(props: ActivityBarProps & { items: ActivityItem[] }) {
           key={item.id}
           className={`activity-icon ${props.selected === item.id ? "is-active" : ""}`}
           type="button"
-          aria-label={item.label}
-          aria-pressed={props.selected === item.id}
+          dotbot-label={item.label}
+          dotbot-pressed={props.selected === item.id}
           title={item.label}
           onClick={() => props.onSelect(item.id)}
         >
-          <span className={`codicon ${item.icon}`} aria-hidden="true" />
+          <span className={`codicon ${item.icon}`} dotbot-hidden="true" />
         </button>
       ))}
     </>
@@ -60,7 +60,7 @@ function ActivityItems(props: ActivityBarProps & { items: ActivityItem[] }) {
 /** Render the primary activity-bar navigation. */
 export function ActivityBar(props: ActivityBarProps) {
   return (
-    <nav className="activity-bar" aria-label="Activity Bar">
+    <nav className="activity-bar" dotbot-label="Activity Bar">
       <div className="activity-items">
         <ActivityItems {...props} items={activityItems} />
       </div>

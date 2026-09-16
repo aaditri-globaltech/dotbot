@@ -1,5 +1,5 @@
 /**
- * In-process Pi session manager backing the Aria desktop app.
+ * In-process Pi session manager backing the Dotbot desktop app.
  *
  * Owns one `AgentSession` per workspace session, forwards Pi's streamed events
  * to the renderer, exposes model/thinking controls, and bridges Pi extension
@@ -8,7 +8,8 @@
 
 import { randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { homedir } from "node:os";
+import { basename, join, resolve } from "node:path";
 import {
   type AgentSession,
   type AgentSessionEvent,
@@ -188,6 +189,9 @@ export class AgentSessionManager {
   private modelRuntimePromise?: Promise<ModelRuntime>;
 
   constructor(options: AgentSessionManagerOptions = {}) {
+    // Pi's data (auth, models, sessions) lives in Dotbot's own directory; an
+    // explicit PI_CODING_AGENT_DIR still wins.
+    process.env.PI_CODING_AGENT_DIR ??= join(homedir(), ".dot", "agent");
     this.onEvent = options.onEvent;
     this.createSession = options.createSession ?? createAgentSession;
     this.injectedModelRuntime = options.modelRuntime;

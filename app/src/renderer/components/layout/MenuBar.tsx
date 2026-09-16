@@ -17,13 +17,13 @@ export function MenuBar(props: MenuBarProps) {
 
   return (
     <header className="menu-bar">
-      <span className="codicon codicon-code menu-logo" aria-hidden="true" />
-      <nav aria-label="Menu Bar">
+      <span className="codicon codicon-code menu-logo" dotbot-hidden="true" />
+      <nav dotbot-label="Menu Bar">
         <ul className="menu-items">
           {menuItems.map((item) => (
             <li key={item}>{item}</li>
           ))}
-          <li aria-hidden="true">
+          <li dotbot-hidden="true">
             <span className="codicon codicon-ellipsis" />
           </li>
         </ul>
@@ -33,32 +33,32 @@ export function MenuBar(props: MenuBarProps) {
         <button
           className="window-control"
           type="button"
-          aria-label="Minimize window"
+          dotbot-label="Minimize window"
           onClick={() => api.window.minimize()}
         >
           <span
             className="codicon codicon-chrome-minimize"
-            aria-hidden="true"
+            dotbot-hidden="true"
           />
         </button>
         <button
           className="window-control"
           type="button"
-          aria-label={maximized ? "Restore window" : "Maximize window"}
+          dotbot-label={maximized ? "Restore window" : "Maximize window"}
           onClick={() => api.window.toggleMaximize()}
         >
           <span
             className={`codicon ${maximized ? "codicon-chrome-restore" : "codicon-chrome-maximize"}`}
-            aria-hidden="true"
+            dotbot-hidden="true"
           />
         </button>
         <button
           className="window-control window-control-close"
           type="button"
-          aria-label="Close window"
+          dotbot-label="Close window"
           onClick={() => api.window.close()}
         >
-          <span className="codicon codicon-chrome-close" aria-hidden="true" />
+          <span className="codicon codicon-chrome-close" dotbot-hidden="true" />
         </button>
       </div>
     </header>

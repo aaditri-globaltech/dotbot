@@ -13,13 +13,13 @@ import type {
   AgentThinkingBlock,
   AgentThinkingLevel,
   AgentToolCall,
-} from "@aria/agent-core";
+} from "@dotbot/agent-core";
 import {
   asRecord,
   formatValue,
   textFromContent,
   toolResultText,
-} from "@aria/agent-core/text";
+} from "@dotbot/agent-core/text";
 
 /** All renderer state associated with one selected session. */
 export type SessionClientState = {

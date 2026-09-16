@@ -1,4 +1,4 @@
-import type { GitChange, GitStatus } from "@aria/source-control";
+import type { GitChange, GitStatus } from "@dotbot/source-control";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import {
@@ -121,7 +121,7 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
         <button
           className="sidebar-action scm-change-action"
           type="button"
-          aria-label={
+          dotbot-label={
             staged ? `Unstage ${change.path}` : `Stage ${change.path}`
           }
           title={staged ? "Unstage Changes" : "Stage Changes"}
@@ -129,7 +129,7 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
         >
           <span
             className={`codicon ${staged ? "codicon-remove" : "codicon-add"}`}
-            aria-hidden="true"
+            dotbot-hidden="true"
           />
         </button>
       </div>
@@ -142,18 +142,18 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
       ) : (
         <>
           <div className="scm-toolbar">
-            <span className="codicon codicon-git-branch" aria-hidden="true" />
+            <span className="codicon codicon-git-branch" dotbot-hidden="true" />
             <span className="scm-branch" title={status?.root ?? props.cwd}>
               {status?.branch ?? "Git"}
             </span>
             <button
               className="sidebar-action"
               type="button"
-              aria-label="Refresh Source Control"
+              dotbot-label="Refresh Source Control"
               title="Refresh Source Control"
               onClick={refresh}
             >
-              <span className="codicon codicon-refresh" aria-hidden="true" />
+              <span className="codicon codicon-refresh" dotbot-hidden="true" />
             </button>
           </div>
 

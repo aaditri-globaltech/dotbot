@@ -25,12 +25,12 @@ const gitCheck = await runGit(process.cwd(), ["--version"]);
 const gitAvailable = gitCheck.code === 0;
 
 describe.skipIf(!gitAvailable)("source control", () => {
-  const repository = mkdtempSync(join(tmpdir(), "aria-git-test-"));
+  const repository = mkdtempSync(join(tmpdir(), "dotbot-git-test-"));
 
   beforeAll(async () => {
     await runGit(repository, ["init"]);
-    await runGit(repository, ["config", "user.name", "Aria Test"]);
-    await runGit(repository, ["config", "user.email", "test@aria.invalid"]);
+    await runGit(repository, ["config", "user.name", "Dotbot Test"]);
+    await runGit(repository, ["config", "user.email", "test@dotbot.invalid"]);
     writeFileSync(join(repository, "untracked.txt"), "one\n");
   });
 

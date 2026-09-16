@@ -1,4 +1,4 @@
-import type { ExplorerEntry } from "@aria/workspace";
+import type { ExplorerEntry } from "@dotbot/workspace";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 
@@ -106,7 +106,7 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
           <div className="explorer-workspace">
             <select
               className="explorer-workspace-selector"
-              aria-label="Workspace"
+              dotbot-label="Workspace"
               title={props.cwd}
               value={props.cwd}
               onChange={(event) => props.onSelectWorkspace(event.target.value)}
@@ -123,26 +123,26 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
             <button
               className="sidebar-action"
               type="button"
-              aria-label="Open workspace"
+              dotbot-label="Open workspace"
               title="Open workspace for new session"
               onClick={props.onPickWorkspace}
             >
               <span
                 className="codicon codicon-folder-opened"
-                aria-hidden="true"
+                dotbot-hidden="true"
               />
             </button>
             <button
               className="sidebar-action"
               type="button"
-              aria-label="Refresh Explorer"
+              dotbot-label="Refresh Explorer"
               title="Refresh Explorer"
               onClick={refresh}
             >
-              <span className="codicon codicon-refresh" aria-hidden="true" />
+              <span className="codicon codicon-refresh" dotbot-hidden="true" />
             </button>
           </div>
-          <div className="explorer-tree" role="tree" aria-label="Explorer">
+          <div className="explorer-tree" role="tree" dotbot-label="Explorer">
             {error ? (
               <p className="sidebar-error">{error}</p>
             ) : (
@@ -156,8 +156,8 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
                     className={`explorer-entry ${selectedPath === row.entry.path ? "is-selected" : ""}`}
                     type="button"
                     role="treeitem"
-                    aria-selected={selectedPath === row.entry.path}
-                    aria-expanded={directory ? isExpanded : undefined}
+                    dotbot-selected={selectedPath === row.entry.path}
+                    dotbot-expanded={directory ? isExpanded : undefined}
                     style={{ paddingLeft: `${8 + row.depth * 16}px` }}
                     onClick={() => {
                       if (directory) toggleDirectory(row.entry.path);
@@ -166,7 +166,7 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
                   >
                     <span
                       className={`codicon ${directory ? (isExpanded ? "codicon-chevron-down" : "codicon-chevron-right") : "codicon-file"}`}
-                      aria-hidden="true"
+                      dotbot-hidden="true"
                     />
                     <span className="explorer-entry-name">
                       {row.entry.name}

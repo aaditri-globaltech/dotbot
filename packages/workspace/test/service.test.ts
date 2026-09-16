@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { readDirectory, validateDirectory } from "../src/service";
 
-const workspace = mkdtempSync(join(tmpdir(), "aria-workspace-test-"));
+const workspace = mkdtempSync(join(tmpdir(), "dotbot-workspace-test-"));
 
 beforeAll(() => {
   mkdirSync(join(workspace, "src", "nested"), { recursive: true });

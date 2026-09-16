@@ -1,5 +1,5 @@
 // Deliberately tiny browser entrypoint: this catches bundler/module regressions.
-import type { AgentSessionSummary } from "@aria/agent-core";
+import type { AgentSessionSummary } from "@dotbot/agent-core";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 

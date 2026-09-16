@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { ActivityView } from "../components/layout/ActivityBar";
 
 // The primary sidebar hosts the currently selected Activity Bar view.
-const OPENED_WORKSPACES_KEY = "aria.openedWorkspaces";
+const OPENED_WORKSPACES_KEY = "dotbot.openedWorkspaces";
 
 function readOpenedWorkspaces(): string[] {
   try {

@@ -1,4 +1,4 @@
-import type { AgentSessionSummary } from "@aria/agent-core";
+import type { AgentSessionSummary } from "@dotbot/agent-core";
 
 /** Inputs for the session list and workspace groups. */
 export type SessionSidebarProps = {
@@ -68,7 +68,7 @@ function SessionGroup(props: SessionGroupProps) {
   return (
     <details className="session-cwd-group" open={props.selected}>
       <summary title={props.cwd}>
-        <span className="codicon codicon-chevron-down" aria-hidden="true" />
+        <span className="codicon codicon-chevron-down" dotbot-hidden="true" />
         <span className="session-cwd-name">
           {props.cwd.split(/[\\/]/).filter(Boolean).pop() ?? props.cwd}
         </span>
@@ -101,7 +101,7 @@ function SessionGroup(props: SessionGroupProps) {
                 </span>
               </span>
               {session.unread && (
-                <span className="session-entry-unread" aria-hidden="true" />
+                <span className="session-entry-unread" dotbot-hidden="true" />
               )}
             </button>
           ))
@@ -128,11 +128,11 @@ export function SessionSidebar(props: SessionSidebarProps) {
         <button
           className="session-sidebar-action"
           type="button"
-          aria-label="New session"
+          dotbot-label="New session"
           title="New session in current workspace"
           onClick={props.onNew}
         >
-          <span className="codicon codicon-add" aria-hidden="true" />
+          <span className="codicon codicon-add" dotbot-hidden="true" />
         </button>
       </div>
 

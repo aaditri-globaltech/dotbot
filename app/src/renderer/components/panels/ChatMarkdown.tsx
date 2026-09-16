@@ -18,7 +18,7 @@ function escapeHtml(value: string): string {
 
 function safeUrl(value: string): string | undefined {
   try {
-    const url = new URL(value, "https://aria.invalid");
+    const url = new URL(value, "https://dotbot.invalid");
     return ["http:", "https:", "mailto:"].includes(url.protocol)
       ? value
       : undefined;
@@ -69,7 +69,7 @@ function MermaidDiagram(props: { code: string }) {
     const currentRevision = ++revisionRef.current;
     setSvg("");
     void mermaid
-      .render(`aria-mermaid-${++mermaidId}`, props.code)
+      .render(`dotbot-mermaid-${++mermaidId}`, props.code)
       .then((result) => {
         if (currentRevision === revisionRef.current) setSvg(result.svg);
       })

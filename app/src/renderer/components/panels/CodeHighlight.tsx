@@ -133,7 +133,7 @@ export function CodeHighlight(props: CodeHighlightProps) {
       >
         {lines.map((line) => (
           <span key={line.number} className="agent-tool-line">
-            <span className="agent-tool-line-number" aria-hidden="true">
+            <span className="agent-tool-line-number" dotbot-hidden="true">
               {line.number}
             </span>
             <span className="agent-tool-line-content">

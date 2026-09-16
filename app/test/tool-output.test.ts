@@ -1,4 +1,4 @@
-import type { AgentToolCall } from "@aria/agent-core";
+import type { AgentToolCall } from "@dotbot/agent-core";
 import { describe, expect, it } from "vitest";
 import { toolOutput } from "../src/renderer/components/panels/tool-display";
 

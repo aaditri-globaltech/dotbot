@@ -1,8 +1,8 @@
-# Contributing to Aria
+# Contributing to Dotbot
 
 ## Before contributing
 
-Aria is an npm workspace monorepo containing an Electron client and three
+Dotbot is an npm workspace monorepo containing an Electron client and three
 support packages. Read the root `README.md` and `AGENTS.md` before making
 changes.
 

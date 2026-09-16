@@ -23,11 +23,11 @@ export function PanelResizer(props: PanelResizerProps) {
     // Range metadata makes the visual separator usable as a keyboard control.
     <hr
       className={`panel-border ${props.target}-panel-border`}
-      aria-label={props.label}
-      aria-controls={props.controls}
-      aria-orientation={isBottom ? "horizontal" : "vertical"}
-      aria-valuemin={isBottom ? COLLAPSED_PANEL_HEIGHT : COLLAPSED_SIDE_WIDTH}
-      aria-valuenow={Math.round(props.value)}
+      dotbot-label={props.label}
+      dotbot-controls={props.controls}
+      dotbot-orientation={isBottom ? "horizontal" : "vertical"}
+      dotbot-valuemin={isBottom ? COLLAPSED_PANEL_HEIGHT : COLLAPSED_SIDE_WIDTH}
+      dotbot-valuenow={Math.round(props.value)}
       tabIndex={0}
       onPointerDown={props.onPointerDown}
       onKeyDown={props.onKeyDown}

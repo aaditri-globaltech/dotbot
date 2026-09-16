@@ -1,12 +1,12 @@
 {
-  "name": "aria",
+  "name": "dotbot",
   "version": "0.1.5",
   "description": "Electron workspace UI with in-process agent sessions.",
-  "homepage": "https://github.com/Aaditri-GlobalTech/aria#Aria",
+  "homepage": "https://github.com/Aaditri-GlobalTech/dotbot#Dotbot",
   "author": "Kumar Rahul Anand",
   "maintainer": "Aaditri GlobalTech",
   "license": "MIT",
-  "desktopName": "aria",
+  "desktopName": "dotbot",
   "private": true,
   "type": "module",
   "main": "dist/main/main.js",
@@ -21,9 +21,9 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@aria/agent-core": "*",
-    "@aria/source-control": "*",
-    "@aria/workspace": "*"
+    "@dotbot/agent-core": "*",
+    "@dotbot/source-control": "*",
+    "@dotbot/workspace": "*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
@@ -48,8 +48,8 @@
     "zustand": "5.0.15"
   },
   "build": {
-    "appId": "com.aaditri.aria",
-    "productName": "Aria",
+    "appId": "com.aaditri.dotbot",
+    "productName": "Dotbot",
     "directories": {
       "output": "release"
     },

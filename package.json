@@ -1,7 +1,7 @@
 {
-  "name": "aria-monorepo",
+  "name": "dotbot-monorepo",
   "description": "Electron workspace UI with in-process agent sessions.",
-  "homepage": "https://github.com/Aaditri-GlobalTech/aria#Aria",
+  "homepage": "https://github.com/Aaditri-GlobalTech/dotbot#Dotbot",
   "author": "Kumar Rahul Anand",
   "maintainer": "Aaditri GlobalTech",
   "license": "MIT",

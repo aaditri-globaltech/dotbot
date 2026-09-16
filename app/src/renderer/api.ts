@@ -4,12 +4,12 @@ import type {
   AgentManagerEvent,
   AgentSessionSummary,
   AgentStreamingBehavior,
-} from "@aria/agent-core";
-import type { GitStatus } from "@aria/source-control";
-import type { ExplorerEntry } from "@aria/workspace";
+} from "@dotbot/agent-core";
+import type { GitStatus } from "@dotbot/source-control";
+import type { ExplorerEntry } from "@dotbot/workspace";
 
 /** Renderer-safe API exposed by the isolated Electron preload. */
-export interface AriaApi {
+export interface DotbotApi {
   /** Basic bridge health check. */
   ping: () => string;
   /** Native window controls and maximized-state subscription. */
@@ -50,4 +50,4 @@ export interface AriaApi {
 }
 
 /** Typed reference to the preload bridge used by renderer components. */
-export const api: AriaApi = globalThis.window?.aria as AriaApi;
+export const api: DotbotApi = globalThis.window?.dotbot as DotbotApi;

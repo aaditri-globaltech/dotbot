@@ -10,7 +10,7 @@ import type {
   AgentStreamingBehavior,
   AgentThinkingLevel,
   AgentToolCall,
-} from "@aria/agent-core";
+} from "@dotbot/agent-core";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
@@ -129,7 +129,7 @@ function ChatItem({ item, cwd }: { item: AgentChatItem; cwd: string }) {
           <span
             className={`agent-status-dot agent-tool-status-dot agent-status-dot-${toolStatusColor(tool.status)}`}
             role="img"
-            aria-label={`Tool ${toolStatusText(tool.status)}`}
+            dotbot-label={`Tool ${toolStatusText(tool.status)}`}
             title={`Tool ${toolStatusText(tool.status)}`}
           />
         </summary>
@@ -174,7 +174,7 @@ function FeedbackDialog(props: {
 
   return (
     <div className="agent-feedback-backdrop">
-      <section className="agent-feedback" role="dialog" aria-modal="true">
+      <section className="agent-feedback" role="dialog" dotbot-modal="true">
         <div className="agent-feedback-title">{props.request.title}</div>
         {props.request.method === "select" && (
           <>
@@ -399,21 +399,21 @@ export function AgentView(props: AgentViewProps) {
             <button
               className="agent-view-tab-close"
               type="button"
-              aria-label={`Close ${tab.name ?? tab.title}`}
+              dotbot-label={`Close ${tab.name ?? tab.title}`}
               onClick={() => props.onCloseTab(tab.id)}
             >
-              <span className="codicon codicon-close" aria-hidden="true" />
+              <span className="codicon codicon-close" dotbot-hidden="true" />
             </button>
           </div>
         ))}
         <button
           className="agent-view-new-tab"
           type="button"
-          aria-label="New session"
+          dotbot-label="New session"
           title="New session"
           onClick={props.onNewSession}
         >
-          <span className="codicon codicon-add" aria-hidden="true" />
+          <span className="codicon codicon-add" dotbot-hidden="true" />
         </button>
       </div>
 
@@ -432,7 +432,7 @@ export function AgentView(props: AgentViewProps) {
             </div>
             <div className="agent-view-controls">
               <select
-                aria-label="Model"
+                dotbot-label="Model"
                 value={props.state.selectedModel}
                 disabled={busy || props.state.models.length === 0}
                 onChange={(event) => selectModel(event.target.value)}
@@ -447,7 +447,7 @@ export function AgentView(props: AgentViewProps) {
                 ))}
               </select>
               <select
-                aria-label="Thinking level"
+                dotbot-label="Thinking level"
                 value={props.state.thinkingLevel}
                 disabled={busy || props.state.thinkingLevels.length === 0}
                 onChange={(event) => selectThinkingLevel(event.target.value)}
@@ -513,13 +513,13 @@ export function AgentView(props: AgentViewProps) {
               <button
                 className="agent-scroll-latest"
                 type="button"
-                aria-label="Jump to latest message"
+                dotbot-label="Jump to latest message"
                 title="Jump to latest message"
                 onClick={messageScroll.jumpToBottom}
               >
                 <span
                   className="codicon codicon-chevron-down"
-                  aria-hidden="true"
+                  dotbot-hidden="true"
                 />
               </button>
             )}
@@ -534,7 +534,7 @@ export function AgentView(props: AgentViewProps) {
             >
               <textarea
                 className="agent-input"
-                aria-label="Message assistant"
+                dotbot-label="Message assistant"
                 placeholder="Ask assistant…"
                 rows={3}
                 value={draft}
@@ -547,7 +547,7 @@ export function AgentView(props: AgentViewProps) {
                   <label className="agent-streaming-mode">
                     <span>Send as</span>
                     <select
-                      aria-label="Streaming behavior"
+                      dotbot-label="Streaming behavior"
                       value={streamingBehavior}
                       onChange={(event) =>
                         setStreamingBehavior(

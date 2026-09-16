@@ -1,7 +1,7 @@
-# Aria desktop app
+# Dotbot desktop app
 
-The Electron client for Aria. It contains the React/Vite renderer, Electron
-main process, and preload bridge. The main process embeds `@aria/agent-core`,
+The Electron client for Dotbot. It contains the React/Vite renderer, Electron
+main process, and preload bridge. The main process embeds `@dotbot/agent-core`,
 which wraps the agent runtime in-process.
 
 ## Use the app
@@ -18,17 +18,17 @@ Choose a workspace with the Explorer folder action, then use the session pane
 to create or open an agent session. New sessions use the label `new session`
 until their first prompt supplies a fallback title. Git is optional for
 Explorer and required for Source Control. The agent runtime is bundled through
-`@aria/agent-core`; no separate install is required.
+`@dotbot/agent-core`; no separate install is required.
 
 ## Responsibilities
 
 - Render the workspace UI with React and Zustand.
 - Own windows, custom controls, tray behavior, and native folder selection.
-- Expose the narrow typed `window.aria` bridge to the renderer.
+- Expose the narrow typed `window.dotbot` bridge to the renderer.
 - Run one `AgentSessionManager` and forward only Agent manager events to the renderer.
 
-Filesystem and Git logic belongs in `@aria/workspace` and
-`@aria/source-control`, not in Electron or the renderer.
+Filesystem and Git logic belongs in `@dotbot/workspace` and
+`@dotbot/source-control`, not in Electron or the renderer.
 
 ## Chat rendering
 
@@ -74,7 +74,7 @@ npm run --workspace app build
 ```
 
 The agent runtime stays external in the main bundle, so the packaged app must
-include the production dependencies of `@aria/agent-core`.
+include the production dependencies of `@dotbot/agent-core`.
 
 The complete packaging commands are:
 

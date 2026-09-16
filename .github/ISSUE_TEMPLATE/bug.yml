@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible problem in Aria
+description: Report a reproducible problem in Dotbot
 title: "[Bug]: "
 labels:
   - bug
@@ -42,7 +42,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Aria version
+      label: Dotbot version
       description: Provide the release version or commit when the issue occurred.
     validations:
       required: false

@@ -45,7 +45,7 @@
 - Hydrate/update locally with `npm install --ignore-scripts`; clean/CI-style with `npm ci --ignore-scripts`. Don't run lifecycle scripts unless the user asks.
 - If dep metadata changes, refresh `package-lock.json` with `npm install --package-lock-only --ignore-scripts`.
 - If `app/npm-shrinkwrap.json` needs regen, run `node scripts/generate-app-shrinkwrap.mjs` (verify with `--check` or `npm run check`). New deps with lifecycle scripts require review and an explicit allowlist entry in that script; never add one silently.
-- Pre-commit blocks lockfile commits unless `ARIA_ALLOW_LOCKFILE_CHANGE=1`. Don't bypass unless the user wants the lockfile change committed.
+- Pre-commit blocks lockfile commits unless `DOTBOT_ALLOW_LOCKFILE_CHANGE=1`. Don't bypass unless the user wants the lockfile change committed.
 
 ## Git
 
@@ -106,8 +106,8 @@ Rules:
 
 Attribution:
 
-- Internal (from issues): `Fixed foo bar ([#123](https://github.com/aaditri-globaltech/aria/issues/123))`
-- External contributions: `Added feature X ([#456](https://github.com/aaditri-globaltech/aria/pull/456) by [@username](https://github.com/username))`
+- Internal (from issues): `Fixed foo bar ([#123](https://github.com/aaditri-globaltech/dotbot/issues/123))`
+- External contributions: `Added feature X ([#456](https://github.com/aaditri-globaltech/dotbot/pull/456) by [@username](https://github.com/username))`
 
 ## Releasing
 

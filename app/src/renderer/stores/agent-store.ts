@@ -14,7 +14,7 @@ import type {
   AgentManagerEvent,
   AgentSessionSummary,
   AgentStreamingBehavior,
-} from "@aria/agent-core";
+} from "@dotbot/agent-core";
 import { create } from "zustand";
 import { api } from "../api";
 import {

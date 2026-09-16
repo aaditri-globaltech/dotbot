@@ -1,8 +1,8 @@
 {
-  "name": "@aria/agent-core",
+  "name": "@dotbot/agent-core",
   "version": "0.0.0",
-  "description": "Named re-exports of the Pi SDK plus Aria's in-process session manager.",
-  "homepage": "https://github.com/Aaditri-GlobalTech/aria#Aria",
+  "description": "Named re-exports of the Pi SDK plus Dotbot's in-process session manager.",
+  "homepage": "https://github.com/Aaditri-GlobalTech/dotbot#Dotbot",
   "author": "Kumar Rahul Anand",
   "maintainer": "Aaditri GlobalTech",
   "license": "MIT",

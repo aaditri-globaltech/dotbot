@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import { validateDirectory } from "@aria/workspace";
+import { validateDirectory } from "@dotbot/workspace";
 import { parseGitStatus, runGit } from "./git";
 import type { GitStatus } from "./types";
 

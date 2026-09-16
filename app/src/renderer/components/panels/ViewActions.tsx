@@ -22,12 +22,12 @@ export function ViewActions(props: ViewActionsProps) {
       <button
         className="layout-action"
         type="button"
-        aria-label={
+        dotbot-label={
           props.primarySidebarCollapsed
             ? "Expand Primary Side Bar"
             : "Collapse Primary Side Bar"
         }
-        aria-pressed={!props.primarySidebarCollapsed}
+        dotbot-pressed={!props.primarySidebarCollapsed}
         onClick={props.onTogglePrimarySidebar}
       >
         <span
@@ -36,14 +36,14 @@ export function ViewActions(props: ViewActionsProps) {
             "codicon-layout-sidebar-left",
             "codicon-layout-sidebar-left-off",
           )}
-          aria-hidden="true"
+          dotbot-hidden="true"
         />
       </button>
       <button
         className="layout-action"
         type="button"
-        aria-label={props.panelCollapsed ? "Expand Panel" : "Collapse Panel"}
-        aria-pressed={!props.panelCollapsed}
+        dotbot-label={props.panelCollapsed ? "Expand Panel" : "Collapse Panel"}
+        dotbot-pressed={!props.panelCollapsed}
         onClick={props.onTogglePanel}
       >
         <span
@@ -52,18 +52,18 @@ export function ViewActions(props: ViewActionsProps) {
             "codicon-layout-panel",
             "codicon-layout-panel-off",
           )}
-          aria-hidden="true"
+          dotbot-hidden="true"
         />
       </button>
       <button
         className="layout-action"
         type="button"
-        aria-label={
+        dotbot-label={
           props.secondarySidebarCollapsed
             ? "Expand Secondary Side Bar"
             : "Collapse Secondary Side Bar"
         }
-        aria-pressed={!props.secondarySidebarCollapsed}
+        dotbot-pressed={!props.secondarySidebarCollapsed}
         onClick={props.onToggleSecondarySidebar}
       >
         <span
@@ -72,7 +72,7 @@ export function ViewActions(props: ViewActionsProps) {
             "codicon-layout-sidebar-right",
             "codicon-layout-sidebar-right-off",
           )}
-          aria-hidden="true"
+          dotbot-hidden="true"
         />
       </button>
     </div>

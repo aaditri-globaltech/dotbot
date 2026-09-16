@@ -1,5 +1,5 @@
 import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   fauxAssistantMessage,
@@ -16,8 +16,8 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { AgentSessionManager } from "../src/manager";
 import type { AgentManagerEvent } from "../src/types";
 
-const agentDir = mkdtempSync(join(tmpdir(), "aria-agent-test-"));
-const workspace = mkdtempSync(join(tmpdir(), "aria-workspace-test-"));
+const agentDir = mkdtempSync(join(tmpdir(), "dotbot-agent-test-"));
+const workspace = mkdtempSync(join(tmpdir(), "dotbot-workspace-test-"));
 process.env.PI_CODING_AGENT_DIR = agentDir;
 
 async function createFauxRuntime() {
@@ -254,5 +254,23 @@ describe("AgentSessionManager", () => {
     });
     await expect(answer).resolves.toBe("b");
     sessions.stopAll();
+  });
+
+  it("defaults the Pi data directory to Dotbot's own agent directory", () => {
+    const previous = process.env.PI_CODING_AGENT_DIR;
+    delete process.env.PI_CODING_AGENT_DIR;
+    try {
+      new AgentSessionManager();
+      expect(process.env.PI_CODING_AGENT_DIR).toBe(
+        join(homedir(), ".dot", "agent"),
+      );
+
+      process.env.PI_CODING_AGENT_DIR = "/tmp/explicit-agent-dir";
+      new AgentSessionManager();
+      expect(process.env.PI_CODING_AGENT_DIR).toBe("/tmp/explicit-agent-dir");
+    } finally {
+      if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = previous;
+    }
   });
 });

@@ -1,5 +1,5 @@
 /**
- * App-facing contract between Aria's Electron main process and its renderer.
+ * App-facing contract between Dotbot's Electron main process and its renderer.
  *
  * These types describe only what the desktop UI renders. Raw Pi session events
  * are forwarded unchanged as `AgentSessionEvent` (re-exported by the facade).
@@ -78,7 +78,7 @@ export type AgentFeedbackResponse =
 
 /** Session summary returned by manager events. */
 export type AgentSessionSummary = {
-  /** Aria's session identifier used in event payloads. */
+  /** Dotbot's session identifier used in event payloads. */
   id: string;
   /** Pi's persisted session identifier, once a session exists. */
   piSessionId?: string;

@@ -1,4 +1,4 @@
-# Aria
+# Dotbot
 
 Electron workspace UI with in-process agent sessions.
 
@@ -7,15 +7,15 @@ Electron workspace UI with in-process agent sessions.
 - License: [MIT](LICENSE)
 - Author: Kumar Rahul Anand
 - Maintainer: Aaditri GlobalTech
-- Homepage: [Aria](https://github.com/Aaditri-GlobalTech/aria#Aria)
+- Homepage: [Dotbot](https://github.com/Aaditri-GlobalTech/dotbot#Dotbot)
 
 ## Architecture
 
-Aria is an npm workspace monorepo. The Electron main process embeds the agent
+Dotbot is an npm workspace monorepo. The Electron main process embeds the agent
 runtime directly; there is no separate host process.
 
 - `app/` — Electron shell, preload bridge, and React/Vite renderer.
-- `packages/agent-core/` — named re-exports of the agent runtime plus Aria's in-process session manager.
+- `packages/agent-core/` — named re-exports of the agent runtime plus Dotbot's in-process session manager.
 - `packages/workspace/` — Explorer filesystem access.
 - `packages/source-control/` — Git status, staging, and commit operations.
 
@@ -70,7 +70,7 @@ and put it on `PATH` if you want branch, status, staging, and commit actions.
 The agent runtime is a dependency of `packages/agent-core`; no separate install
 is required.
 
-## Use Aria
+## Use Dotbot
 
 From the repository root, install dependencies and start the development app:
 

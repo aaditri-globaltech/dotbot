@@ -1,4 +1,4 @@
-import type { AgentSessionSummary } from "@aria/agent-core";
+import type { AgentSessionSummary } from "@dotbot/agent-core";
 
 /** Status-bar shortcuts for sessions that are waiting on user input. */
 export type StatusBarProps = {
@@ -21,7 +21,7 @@ export function StatusBar(props: StatusBarProps) {
           >
             <span
               className="codicon codicon-comment-discussion"
-              aria-hidden="true"
+              dotbot-hidden="true"
             />
             <span className="status-bar-notification-label">
               {session.name ?? session.title}
@@ -29,7 +29,7 @@ export function StatusBar(props: StatusBarProps) {
           </button>
         ))}
         {props.waitingSessions.length === 0 && (
-          <span className="status-bar-idle">Aria</span>
+          <span className="status-bar-idle">Dotbot</span>
         )}
       </div>
     </footer>

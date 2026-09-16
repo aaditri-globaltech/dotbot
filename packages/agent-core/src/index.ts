@@ -1,8 +1,8 @@
 /**
- * Aria's transparent facade over the Pi SDK.
+ * Dotbot's transparent facade over the Pi SDK.
  *
  * Named re-exports expose the session, model, settings, tool, and extension
- * APIs that Aria builds on, alongside the in-process session manager and the
+ * APIs that Dotbot builds on, alongside the in-process session manager and the
  * app-facing event contract. Pi package names stay inside this package;
  * downstream code uses agent, session, manager, and extension terms.
  */
