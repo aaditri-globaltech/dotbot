@@ -1,40 +1,24 @@
-/** View identifiers shown in the activity bar. */
-export type ActivityView =
-  | "explorer"
-  | "search"
-  | "source-control"
-  | "run-and-debug"
-  | "extensions"
-  | "accounts"
-  | "manage";
+import type { Screen } from "../../stores/workspace-store";
 
 type ActivityItem = {
-  id: ActivityView;
+  id: Screen;
   icon: string;
   label: string;
 };
 
-const activityItems: ActivityItem[] = [
-  { id: "explorer", icon: "codicon-files", label: "Explorer" },
-  { id: "search", icon: "codicon-search", label: "Search" },
-  {
-    id: "source-control",
-    icon: "codicon-source-control",
-    label: "Source Control",
-  },
-  { id: "run-and-debug", icon: "codicon-run-all", label: "Run and Debug" },
-  { id: "extensions", icon: "codicon-extensions", label: "Extensions" },
+const topItems: ActivityItem[] = [
+  { id: "dashboard", icon: "codicon-home", label: "Dashboard" },
+  { id: "workbench", icon: "codicon-project", label: "Workbench" },
 ];
 
-const bottomActivityItems: ActivityItem[] = [
-  { id: "accounts", icon: "codicon-account", label: "Accounts" },
+const bottomItems: ActivityItem[] = [
   { id: "manage", icon: "codicon-settings-gear", label: "Manage" },
 ];
 
-/** Inputs for the activity-bar view selector. */
+/** Inputs for the activity-bar screen selector. */
 export type ActivityBarProps = {
-  selected: ActivityView;
-  onSelect: (view: ActivityView) => void;
+  selected: Screen;
+  onSelect: (screen: Screen) => void;
 };
 
 function ActivityItems(props: ActivityBarProps & { items: ActivityItem[] }) {
@@ -46,7 +30,7 @@ function ActivityItems(props: ActivityBarProps & { items: ActivityItem[] }) {
           className={`activity-icon ${props.selected === item.id ? "is-active" : ""}`}
           type="button"
           dotbot-label={item.label}
-          dotbot-pressed={props.selected === item.id}
+          dotbot-selected={String(props.selected === item.id)}
           title={item.label}
           onClick={() => props.onSelect(item.id)}
         >
@@ -62,10 +46,10 @@ export function ActivityBar(props: ActivityBarProps) {
   return (
     <nav className="activity-bar" dotbot-label="Activity Bar">
       <div className="activity-items">
-        <ActivityItems {...props} items={activityItems} />
+        <ActivityItems {...props} items={topItems} />
       </div>
       <div className="activity-items activity-items-bottom">
-        <ActivityItems {...props} items={bottomActivityItems} />
+        <ActivityItems {...props} items={bottomItems} />
       </div>
     </nav>
   );

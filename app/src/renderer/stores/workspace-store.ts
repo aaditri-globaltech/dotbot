@@ -1,7 +1,5 @@
 import { create } from "zustand";
-import type { ActivityView } from "../components/layout/ActivityBar";
 
-// The primary sidebar hosts the currently selected Activity Bar view.
 const OPENED_WORKSPACES_KEY = "dotbot.openedWorkspaces";
 
 function readOpenedWorkspaces(): string[] {
@@ -37,11 +35,19 @@ function writeOpenedWorkspaces(workspaces: string[]) {
 
 const initialWorkspaces = readOpenedWorkspaces();
 
+/** Screens selectable from the activity bar. */
+export type Screen = "dashboard" | "workbench" | "manage";
+
+/** Pages selectable from the manage sidebar. */
+export type ManagePage = "general" | "providers";
+
 type WorkspaceStore = {
-  activityView: ActivityView;
+  screen: Screen;
+  managePage: ManagePage;
   workspaces: string[];
   selectedWorkspace?: string;
-  setActivityView: (view: ActivityView) => void;
+  setScreen: (screen: Screen) => void;
+  setManagePage: (page: ManagePage) => void;
   rememberWorkspace: (cwd: string) => void;
   selectWorkspace: (cwd: string) => void;
   selectInitialWorkspace: (cwd: string) => void;
@@ -49,11 +55,14 @@ type WorkspaceStore = {
 
 /** Workbench-level workspace selection shared by Explorer, Source Control, and sessions. */
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
-  activityView: "explorer",
+  screen: "dashboard",
+  managePage: "general",
   workspaces: initialWorkspaces,
   selectedWorkspace: initialWorkspaces.at(-1),
 
-  setActivityView: (view) => set({ activityView: view }),
+  setScreen: (screen) => set({ screen }),
+
+  setManagePage: (page) => set({ managePage: page }),
 
   rememberWorkspace: (cwd) => {
     if (!cwd || get().workspaces.includes(cwd)) return;

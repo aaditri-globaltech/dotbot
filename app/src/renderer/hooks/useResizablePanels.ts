@@ -199,3 +199,6 @@ export function useResizablePanels() {
     toggleCollapsed,
   };
 }
+
+/** Panel state shared by the workbench screen and the menu bar. */
+export type ResizablePanels = ReturnType<typeof useResizablePanels>;

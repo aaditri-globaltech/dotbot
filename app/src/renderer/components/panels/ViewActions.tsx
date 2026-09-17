@@ -27,7 +27,7 @@ export function ViewActions(props: ViewActionsProps) {
             ? "Expand Primary Side Bar"
             : "Collapse Primary Side Bar"
         }
-        dotbot-pressed={!props.primarySidebarCollapsed}
+        dotbot-expanded={String(!props.primarySidebarCollapsed)}
         onClick={props.onTogglePrimarySidebar}
       >
         <span
@@ -43,7 +43,7 @@ export function ViewActions(props: ViewActionsProps) {
         className="layout-action"
         type="button"
         dotbot-label={props.panelCollapsed ? "Expand Panel" : "Collapse Panel"}
-        dotbot-pressed={!props.panelCollapsed}
+        dotbot-expanded={String(!props.panelCollapsed)}
         onClick={props.onTogglePanel}
       >
         <span
@@ -63,7 +63,7 @@ export function ViewActions(props: ViewActionsProps) {
             ? "Expand Secondary Side Bar"
             : "Collapse Secondary Side Bar"
         }
-        dotbot-pressed={!props.secondarySidebarCollapsed}
+        dotbot-expanded={String(!props.secondarySidebarCollapsed)}
         onClick={props.onToggleSecondarySidebar}
       >
         <span
