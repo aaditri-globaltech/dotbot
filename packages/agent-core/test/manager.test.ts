@@ -529,7 +529,7 @@ describe("AgentSessionManager", () => {
     try {
       new AgentSessionManager();
       expect(process.env.PI_CODING_AGENT_DIR).toBe(
-        join(homedir(), ".dotbot", "agent"),
+        join(homedir(), ".bot", "agent"),
       );
 
       process.env.PI_CODING_AGENT_DIR = "/tmp/explicit-agent-dir";

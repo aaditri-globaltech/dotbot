@@ -250,7 +250,7 @@ export class AgentSessionManager {
   constructor(options: AgentSessionManagerOptions = {}) {
     // Pi's data (auth, models, sessions) lives in Dotbot's own directory; an
     // explicit PI_CODING_AGENT_DIR still wins.
-    process.env.PI_CODING_AGENT_DIR ??= join(homedir(), ".dotbot", "agent");
+    process.env.PI_CODING_AGENT_DIR ??= join(homedir(), ".bot", "agent");
     this.onEvent = options.onEvent;
     this.createSession = options.createSession ?? createAgentSession;
     this.injectedModelRuntime = options.modelRuntime;
