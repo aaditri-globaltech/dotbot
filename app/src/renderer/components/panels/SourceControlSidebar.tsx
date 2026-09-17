@@ -1,6 +1,7 @@
 import type { GitChange, GitStatus } from "@dotbot/source-control";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
+import { errorMessage } from "../../errors";
 import {
   DEFAULT_APP_KEYBINDINGS,
   formatKeybinding,
@@ -40,22 +41,28 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const requestIdRef = useRef(0);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
   const loadStatus = useCallback(
     async (cwd: string) => {
+      const requestId = ++requestIdRef.current;
       setLoading(true);
       setError(undefined);
       try {
         const next = await api.workspace.gitStatus(cwd);
-        if (props.cwd !== cwd) return;
+        if (props.cwd !== cwd || requestId !== requestIdRef.current) return;
         setStatus(next);
       } catch (reason) {
-        if (props.cwd === cwd) {
+        if (props.cwd === cwd && requestId === requestIdRef.current) {
           setStatus(undefined);
-          setError(reason instanceof Error ? reason.message : String(reason));
+          setError(errorMessage(reason));
         }
       } finally {
-        setLoading(false);
+        // Only the latest request may clear the loading state.
+        if (requestId === requestIdRef.current) setLoading(false);
       }
     },
     [props.cwd],
@@ -65,6 +72,24 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
     setStatus(undefined);
     setError(undefined);
     if (props.cwd) void loadStatus(props.cwd);
+  }, [props.cwd, loadStatus]);
+
+  // File changes make Git status stale; debounce because edits arrive in bursts.
+  useEffect(() => {
+    const cwd = props.cwd;
+    if (!cwd) return;
+    const unsubscribe = api.workspace.onChanged((change) => {
+      if (change.cwd !== cwd) return;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = undefined;
+        void loadStatus(cwd);
+      }, 500);
+    });
+    return () => {
+      unsubscribe();
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
   }, [props.cwd, loadStatus]);
 
   const refresh = () => {
@@ -79,7 +104,7 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
       await action();
       if (props.cwd) await loadStatus(props.cwd);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError(errorMessage(reason));
     } finally {
       setLoading(false);
     }

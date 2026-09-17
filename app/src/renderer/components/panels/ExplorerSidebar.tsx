@@ -1,6 +1,7 @@
 import type { ExplorerEntry } from "@dotbot/workspace";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
+import { errorMessage } from "../../errors";
 
 type ExplorerSidebarProps = {
   cwd?: string;
@@ -42,7 +43,7 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
         setDirectories((current) => ({ ...current, [path]: entries }));
       } catch (reason) {
         if (props.cwd === cwd) {
-          setError(reason instanceof Error ? reason.message : String(reason));
+          setError(errorMessage(reason));
         }
       } finally {
         setLoading(false);
@@ -50,6 +51,48 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
     },
     [props.cwd],
   );
+
+  // Re-read every loaded directory so refreshes keep the current expansion.
+  const refreshLoaded = useCallback(async () => {
+    const cwd = props.cwd;
+    if (!cwd) return;
+    const paths = [...loadedRef.current];
+    const results = await Promise.all(
+      paths.map(async (path) => {
+        try {
+          return {
+            path,
+            entries: await api.workspace.readDirectory(cwd, path),
+          };
+        } catch {
+          return { path, entries: undefined };
+        }
+      }),
+    );
+    if (props.cwd !== cwd) return;
+
+    const next: Record<string, ExplorerEntry[]> = {};
+    const removed = new Set<string>();
+    for (const result of results) {
+      if (result.entries) next[result.path] = result.entries;
+      else removed.add(result.path);
+    }
+    if (removed.size > 0) {
+      for (const path of removed) loadedRef.current.delete(path);
+      setExpanded((current) => {
+        const nextExpanded = new Set(current);
+        for (const path of removed) {
+          nextExpanded.delete(path);
+          for (const candidate of nextExpanded) {
+            if (candidate.startsWith(`${path}/`))
+              nextExpanded.delete(candidate);
+          }
+        }
+        return nextExpanded;
+      });
+    }
+    setDirectories(next);
+  }, [props.cwd]);
 
   const reset = useCallback(() => {
     loadedRef.current = new Set();
@@ -63,6 +106,19 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
     reset();
     if (props.cwd) void loadDirectory(props.cwd, "");
   }, [props.cwd, loadDirectory, reset]);
+
+  // Refresh the tree when files change, ignoring Git-internal updates.
+  useEffect(() => {
+    const cwd = props.cwd;
+    if (!cwd) return;
+    return api.workspace.onChanged((change) => {
+      if (change.cwd !== cwd) return;
+      const relevant = change.paths.some(
+        (path) => path === "" || (path !== ".git" && !path.startsWith(".git/")),
+      );
+      if (relevant) void refreshLoaded();
+    });
+  }, [props.cwd, refreshLoaded]);
 
   const refresh = () => {
     const cwd = props.cwd;
@@ -156,8 +212,8 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
                     className={`explorer-entry ${selectedPath === row.entry.path ? "is-selected" : ""}`}
                     type="button"
                     role="treeitem"
-                    dotbot-selected={selectedPath === row.entry.path}
-                    dotbot-expanded={directory ? isExpanded : undefined}
+                    dotbot-selected={String(selectedPath === row.entry.path)}
+                    dotbot-expanded={directory ? String(isExpanded) : undefined}
                     style={{ paddingLeft: `${8 + row.depth * 16}px` }}
                     onClick={() => {
                       if (directory) toggleDirectory(row.entry.path);
