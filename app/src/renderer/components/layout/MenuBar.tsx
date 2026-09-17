@@ -16,10 +16,13 @@ export function MenuBar(props: MenuBarProps) {
   }, []);
 
   return (
-    <header className="menu-bar">
-      <span className="codicon codicon-code menu-logo" dotbot-hidden="true" />
-      <nav dotbot-label="Menu Bar">
-        <ul className="menu-items">
+    <header className="flex items-center border-b border-border bg-app pl-2.5 [-webkit-app-region:drag]">
+      <span
+        className="codicon codicon-code text-base text-accent"
+        dotbot-hidden="true"
+      />
+      <nav className="h-full" dotbot-label="Menu Bar">
+        <ul className="flex h-full list-none items-center gap-4 text-xs text-muted">
           {menuItems.map((item) => (
             <li key={item}>{item}</li>
           ))}
@@ -29,36 +32,39 @@ export function MenuBar(props: MenuBarProps) {
         </ul>
       </nav>
       <ViewActions {...props} />
-      <div className="window-controls">
+      <div className="ml-2 flex self-stretch [-webkit-app-region:no-drag]">
         <button
-          className="window-control"
+          className="grid h-full w-8 cursor-pointer place-items-center border-0 bg-transparent text-dim hover:bg-control hover:text-primary"
           type="button"
           dotbot-label="Minimize window"
           onClick={() => api.window.minimize()}
         >
           <span
-            className="codicon codicon-chrome-minimize"
+            className="codicon codicon-chrome-minimize text-[13px]"
             dotbot-hidden="true"
           />
         </button>
         <button
-          className="window-control"
+          className="grid h-full w-8 cursor-pointer place-items-center border-0 bg-transparent text-dim hover:bg-control hover:text-primary"
           type="button"
           dotbot-label={maximized ? "Restore window" : "Maximize window"}
           onClick={() => api.window.toggleMaximize()}
         >
           <span
-            className={`codicon ${maximized ? "codicon-chrome-restore" : "codicon-chrome-maximize"}`}
+            className={`codicon text-[13px] ${maximized ? "codicon-chrome-restore" : "codicon-chrome-maximize"}`}
             dotbot-hidden="true"
           />
         </button>
         <button
-          className="window-control window-control-close"
+          className="grid h-full w-8 cursor-pointer place-items-center border-0 bg-transparent text-dim hover:bg-window-close hover:text-primary"
           type="button"
           dotbot-label="Close window"
           onClick={() => api.window.close()}
         >
-          <span className="codicon codicon-chrome-close" dotbot-hidden="true" />
+          <span
+            className="codicon codicon-chrome-close text-[13px]"
+            dotbot-hidden="true"
+          />
         </button>
       </div>
     </header>

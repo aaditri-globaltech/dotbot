@@ -13,12 +13,16 @@ export function ManageSidebar() {
   const managePage = useWorkspaceStore((state) => state.managePage);
   const setManagePage = useWorkspaceStore((state) => state.setManagePage);
   return (
-    <nav className="manage-nav" dotbot-label="Manage">
+    <nav className="flex flex-col py-1" dotbot-label="Manage">
       {manageItems.map((item) => (
         <button
           key={item.id}
           type="button"
-          className={`manage-nav-item ${managePage === item.id ? "is-active" : ""}`}
+          className={`cursor-pointer px-3.5 py-1.5 text-left ${
+            managePage === item.id
+              ? "bg-elevated text-primary"
+              : "text-secondary hover:bg-surface-hover focus-visible:bg-surface-hover"
+          }`}
           dotbot-selected={String(managePage === item.id)}
           onClick={() => setManagePage(item.id)}
         >

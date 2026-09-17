@@ -9,12 +9,12 @@ export type StatusBarProps = {
 /** Render shortcuts for sessions waiting on feedback. */
 export function StatusBar(props: StatusBarProps) {
   return (
-    <footer className="status-bar">
-      <div className="status-bar-right">
+    <footer className="flex min-w-0 items-center justify-end border-t border-border bg-app px-2">
+      <div className="flex h-full min-w-0 items-center gap-2">
         {props.waitingSessions.map((session) => (
           <button
             key={session.id}
-            className="status-bar-notification"
+            className="flex h-[18px] max-w-[240px] cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1.5 text-[10px] text-warning hover:bg-control hover:text-primary"
             type="button"
             onClick={() => props.onSelectSession(session.id)}
             title={`Feedback needed: ${session.name ?? session.title}`}
@@ -23,13 +23,11 @@ export function StatusBar(props: StatusBarProps) {
               className="codicon codicon-comment-discussion"
               dotbot-hidden="true"
             />
-            <span className="status-bar-notification-label">
-              {session.name ?? session.title}
-            </span>
+            <span className="truncate">{session.name ?? session.title}</span>
           </button>
         ))}
         {props.waitingSessions.length === 0 && (
-          <span className="status-bar-idle">Dotbot</span>
+          <span className="text-[10px] text-faint">Dotbot</span>
         )}
       </div>
     </footer>

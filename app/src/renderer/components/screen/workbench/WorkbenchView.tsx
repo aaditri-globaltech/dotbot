@@ -78,9 +78,9 @@ export function WorkbenchView(props: WorkbenchViewProps) {
     >
       <aside
         id="primary-sidebar"
-        className={`panel side-panel left-panel ${panels.leftCollapsed ? "is-collapsed" : ""}`}
+        className={`panel side-panel left-panel border-r border-border bg-app ${panels.leftCollapsed ? "is-collapsed" : ""}`}
       >
-        <div className="workbench-sidebar-main">
+        <div className="flex min-h-0 flex-1 flex-col">
           <PanelHeader title="EXPLORER" />
           <ExplorerSidebar
             cwd={workspaceCwd}
@@ -89,8 +89,10 @@ export function WorkbenchView(props: WorkbenchViewProps) {
             onPickWorkspace={() => void pickWorkspaceAndCreateSession()}
           />
         </div>
-        <details className="workbench-scm">
-          <summary>Source Control</summary>
+        <details className="flex max-h-[45%] min-h-0 shrink-0 flex-col border-t border-border">
+          <summary className="flex min-h-7 shrink-0 cursor-pointer items-center border-b border-border bg-app px-3 text-[11px] font-medium tracking-[0.04em] text-muted uppercase [&::-webkit-details-marker]:hidden">
+            Source Control
+          </summary>
           <SourceControlSidebar cwd={workspaceCwd} />
         </details>
       </aside>
@@ -132,7 +134,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
 
         <section
           id="panel"
-          className={`panel bottom-panel ${panels.panelCollapsed ? "is-collapsed" : ""}`}
+          className={`panel bottom-panel border-t border-border bg-app ${panels.panelCollapsed ? "is-collapsed" : ""}`}
         >
           <PanelHeader title="Panel" />
         </section>
@@ -149,7 +151,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
 
       <aside
         id="secondary-sidebar"
-        className={`panel side-panel right-panel session-panel ${panels.rightCollapsed ? "is-collapsed" : ""}`}
+        className={`panel side-panel right-panel session-panel border-l border-border ${panels.rightCollapsed ? "is-collapsed" : ""}`}
       >
         <SessionSidebar
           sessions={sessions}

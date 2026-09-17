@@ -1,7 +1,7 @@
 import { marked, Renderer } from "marked";
 import mermaid from "mermaid";
 import { useEffect, useRef, useState } from "react";
-import { CodeHighlight } from "./CodeHighlight";
+import { CODE_BLOCK_CLASS, CodeHighlight } from "./CodeHighlight";
 import { type ChatBlock, parseChatBlocks } from "./chat-markdown";
 
 const htmlEntities: Record<string, string> = {
@@ -84,14 +84,17 @@ function MermaidDiagram(props: { code: string }) {
 
   if (!svg) {
     return (
-      <pre className="agent-code-block agent-mermaid-fallback">
+      <pre className={`${CODE_BLOCK_CLASS} [white-space:pre-wrap]`}>
         <code>{props.code}</code>
       </pre>
     );
   }
 
   return (
-    <div className="agent-mermaid" dangerouslySetInnerHTML={{ __html: svg }} />
+    <div
+      className="max-w-full overflow-auto rounded border border-border bg-surface p-3 [&_svg]:block [&_svg]:h-auto [&_svg]:max-w-full"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
   );
 }
 
@@ -99,7 +102,11 @@ function MermaidDiagram(props: { code: string }) {
 export function MarkdownText(props: { text: string; className?: string }) {
   return (
     <div
-      className={props.className ?? "agent-markdown-text"}
+      className={
+        props.className ??
+        // `agent-markdown-text` carries the element styles for generated HTML.
+        "agent-markdown-text text-inherit leading-normal [overflow-wrap:anywhere] [white-space:normal]"
+      }
       dangerouslySetInnerHTML={{ __html: renderMarkdown(props.text) }}
     />
   );
@@ -119,7 +126,7 @@ function ChatBlockView(props: { block: ChatBlock }) {
 /** Render chat text with fenced code and Mermaid blocks separated. */
 export function ChatMarkdown(props: { text: string }) {
   return (
-    <div className="agent-markdown">
+    <div className="flex min-w-0 flex-col gap-2.5 [overflow-wrap:anywhere] empty:after:inline-block empty:after:h-3 empty:after:w-[5px] empty:after:animate-[agent-blink_900ms_steps(2,jump-none)_infinite] empty:after:bg-accent empty:after:content-['']">
       {parseChatBlocks(props.text).map((block, index) => (
         <ChatBlockView key={index} block={block} />
       ))}

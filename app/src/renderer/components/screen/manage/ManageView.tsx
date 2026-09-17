@@ -8,12 +8,12 @@ import { ProvidersPage } from "./ProvidersPage";
 export function ManageView() {
   const managePage = useWorkspaceStore((state) => state.managePage);
   return (
-    <div className="manage-layout">
-      <aside className="panel side-panel manage-sidebar">
+    <div className="grid h-full min-h-0 w-full grid-cols-[240px_minmax(0,1fr)] bg-surface">
+      <aside className="panel side-panel border-r border-border bg-app">
         <PanelHeader title="MANAGE" />
         <ManageSidebar />
       </aside>
-      <div className="screen-content">
+      <div className="min-h-0 min-w-0 overflow-auto px-6 py-5">
         {managePage === "general" ? <GeneralPage /> : <ProvidersPage />}
       </div>
     </div>

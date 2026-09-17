@@ -7,6 +7,7 @@ import {
   formatKeybinding,
   matchesKey,
 } from "../../keybindings";
+import { ICON_BUTTON_CLASS } from "./panel-classes";
 
 type SourceControlSidebarProps = {
   cwd?: string;
@@ -138,13 +139,18 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
 
   const changeList = (changes: GitChange[], staged: boolean) =>
     changes.map((change) => (
-      <div key={change.path} className="scm-change">
-        <span className="scm-change-kind">{changeLabel(change)[0]}</span>
-        <span className="scm-change-name" title={change.path}>
+      <div
+        key={change.path}
+        className="group flex min-h-[25px] items-center gap-1.5 py-0.5 pr-1.5 pl-2.5 text-[11px] text-secondary hover:bg-surface-hover"
+      >
+        <span className="shrink-0 basis-3 text-center font-semibold text-warning">
+          {changeLabel(change)[0]}
+        </span>
+        <span className="min-w-0 truncate" title={change.path}>
           {change.path}
         </span>
         <button
-          className="sidebar-action scm-change-action"
+          className={`${ICON_BUTTON_CLASS} ml-auto invisible group-hover:visible focus-visible:visible`}
           type="button"
           dotbot-label={
             staged ? `Unstage ${change.path}` : `Stage ${change.path}`
@@ -161,18 +167,23 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
     ));
 
   return (
-    <div className="scm-sidebar">
+    <div className="min-h-0 flex-1 overflow-auto">
       {!props.cwd ? (
-        <p className="sidebar-empty">Open a workspace for source control.</p>
+        <p className="mx-3 my-4.5 text-[11px] leading-normal text-dim">
+          Open a workspace for source control.
+        </p>
       ) : (
         <>
-          <div className="scm-toolbar">
+          <div className="flex min-h-[30px] shrink-0 items-center gap-1.5 border-b border-border px-2.5 text-[11px] text-muted">
             <span className="codicon codicon-git-branch" dotbot-hidden="true" />
-            <span className="scm-branch" title={status?.root ?? props.cwd}>
+            <span
+              className="min-w-0 flex-1 truncate"
+              title={status?.root ?? props.cwd}
+            >
               {status?.branch ?? "Git"}
             </span>
             <button
-              className="sidebar-action"
+              className={ICON_BUTTON_CLASS}
               type="button"
               dotbot-label="Refresh Source Control"
               title="Refresh Source Control"
@@ -182,11 +193,19 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
             </button>
           </div>
 
-          {error && <p className="sidebar-error">{error}</p>}
-          {status?.error && <p className="sidebar-error">{status.error}</p>}
+          {error && (
+            <p className="mx-3 my-4.5 text-[11px] leading-normal text-error">
+              {error}
+            </p>
+          )}
+          {status?.error && (
+            <p className="mx-3 my-4.5 text-[11px] leading-normal text-error">
+              {status.error}
+            </p>
+          )}
           {status?.root && !status.error && (
             <>
-              <div className="scm-commit-box">
+              <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-2.5">
                 <textarea
                   value={message}
                   placeholder={`Message (${formatKeybinding(DEFAULT_APP_KEYBINDINGS.commit)} to commit)`}
@@ -205,7 +224,7 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
                   }}
                 />
                 <button
-                  className="scm-commit-button"
+                  className="shrink-0 cursor-pointer self-start rounded-sm bg-button px-2.5 py-1 text-[11px] text-white disabled:cursor-default disabled:bg-elevated disabled:text-dim"
                   type="button"
                   disabled={
                     loading || !message.trim() || stagedChanges.length === 0
@@ -216,24 +235,30 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
                 </button>
               </div>
 
-              <section className="scm-group">
-                <h2>
-                  Staged Changes <span>{stagedChanges.length}</span>
+              <section className="border-b border-border">
+                <h2 className="flex justify-between p-[7px_10px] text-[10px] font-medium tracking-[0.04em] text-muted uppercase">
+                  Staged Changes{" "}
+                  <span className="text-dim">{stagedChanges.length}</span>
                 </h2>
                 {stagedChanges.length > 0 ? (
                   changeList(stagedChanges, true)
                 ) : (
-                  <p className="scm-empty">No staged changes</p>
+                  <p className="mx-2.5 mt-1 mb-2.5 text-[11px] text-dim">
+                    No staged changes
+                  </p>
                 )}
               </section>
-              <section className="scm-group">
-                <h2>
-                  Changes <span>{unstagedChanges.length}</span>
+              <section className="border-b border-border">
+                <h2 className="flex justify-between p-[7px_10px] text-[10px] font-medium tracking-[0.04em] text-muted uppercase">
+                  Changes{" "}
+                  <span className="text-dim">{unstagedChanges.length}</span>
                 </h2>
                 {unstagedChanges.length > 0 ? (
                   changeList(unstagedChanges, false)
                 ) : (
-                  <p className="scm-empty">No changes</p>
+                  <p className="mx-2.5 mt-1 mb-2.5 text-[11px] text-dim">
+                    No changes
+                  </p>
                 )}
               </section>
             </>

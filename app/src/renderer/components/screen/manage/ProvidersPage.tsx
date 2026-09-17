@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../../api";
 import { errorMessage } from "../../../errors";
 import { CustomProviderForm } from "./CustomProviderForm";
+import { BUTTON_CLASS, FIELD_CLASS, INPUT_CLASS } from "./manage-classes";
 import { ProviderPicker } from "./ProviderPicker";
 
 /** List providers, manage their API keys, and add custom providers. */
@@ -105,12 +106,12 @@ export function ProvidersPage() {
   }
 
   return (
-    <section className="screen-page">
-      <h2>Providers</h2>
+    <section className="flex max-w-[520px] flex-col gap-3">
+      <h2 className="text-base font-semibold">Providers</h2>
       {providers.length === 0 && !error && (
-        <p className="screen-empty">No API-key providers were found.</p>
+        <p className="text-muted">No API-key providers were found.</p>
       )}
-      <div className="provider-picker-row">
+      <div className="flex items-center gap-2">
         <ProviderPicker
           providers={providers}
           selected={selected}
@@ -118,6 +119,7 @@ export function ProvidersPage() {
         />
         <button
           type="button"
+          className={`${BUTTON_CLASS} shrink-0 whitespace-nowrap`}
           disabled={busy}
           onClick={() => {
             setCreating(true);
@@ -130,18 +132,20 @@ export function ProvidersPage() {
       </div>
       {selected && (
         <>
-          <label className="manage-field">
+          <label className={FIELD_CLASS}>
             <span>API key</span>
             <input
               type="password"
+              className={INPUT_CLASS}
               value={apiKey}
               disabled={busy}
               onChange={(event) => setApiKey(event.target.value)}
             />
           </label>
-          <div className="manage-actions">
+          <div className="flex gap-2">
             <button
               type="button"
+              className={BUTTON_CLASS}
               disabled={busy || !apiKey.trim()}
               onClick={() => void save()}
             >
@@ -150,6 +154,7 @@ export function ProvidersPage() {
             {selected.configured && (
               <button
                 type="button"
+                className={BUTTON_CLASS}
                 disabled={busy}
                 onClick={() => void remove()}
               >
@@ -159,9 +164,9 @@ export function ProvidersPage() {
           </div>
         </>
       )}
-      {notice && <p className="manage-notice">{notice}</p>}
+      {notice && <p className="text-success">{notice}</p>}
       {error && (
-        <p className="manage-error" role="alert">
+        <p className="text-error" role="alert">
           {error}
         </p>
       )}

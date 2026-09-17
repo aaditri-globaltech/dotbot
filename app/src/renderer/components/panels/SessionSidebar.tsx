@@ -1,4 +1,10 @@
 import type { AgentSessionSummary } from "@dotbot/agent-core";
+import {
+  ICON_BUTTON_CLASS,
+  PANEL_HEADING_CLASS,
+  PANEL_TITLE_CLASS,
+} from "./panel-classes";
+import { statusDotClass } from "./status-dot";
 
 /** Inputs for the session list and workspace groups. */
 export type SessionSidebarProps = {
@@ -66,42 +72,68 @@ type SessionGroupProps = {
 
 function SessionGroup(props: SessionGroupProps) {
   return (
-    <details className="session-cwd-group" open={props.selected}>
-      <summary title={props.cwd}>
-        <span className="codicon codicon-chevron-down" dotbot-hidden="true" />
-        <span className="session-cwd-name">
+    <details
+      className={`group flex min-h-0 flex-none flex-col border-b border-border ${
+        props.selected
+          ? "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden " +
+            "[&::details-content]:flex [&::details-content]:min-h-0 " +
+            "[&::details-content]:flex-col [&::details-content]:overflow-hidden"
+          : ""
+      }`}
+      open={props.selected}
+    >
+      <summary
+        className={`flex min-h-[28px] shrink-0 cursor-pointer items-center gap-1.5 overflow-hidden border-b border-border bg-app px-2.5 text-[11px] text-muted select-none hover:bg-input hover:text-secondary [&::-webkit-details-marker]:hidden ${
+          props.selected ? "sticky top-0 z-1" : ""
+        }`}
+        title={props.cwd}
+      >
+        <span
+          className="codicon codicon-chevron-down text-[11px] transition-transform duration-100 group-open:rotate-0 rotate-[-90deg]"
+          dotbot-hidden="true"
+        />
+        <span className="min-w-0 flex-1 truncate">
           {props.cwd.split(/[\\/]/).filter(Boolean).pop() ?? props.cwd}
         </span>
-        <span className="session-cwd-count">{props.sessions.length}</span>
+        <span className="text-[10px] text-faint">{props.sessions.length}</span>
       </summary>
-      <div className="session-cwd-items">
+      <div
+        className={`min-h-0 overflow-y-auto pb-1 ${
+          props.selected ? "max-h-none" : "max-h-[156px]"
+        }`}
+      >
         {props.sessions.length === 0 ? (
-          <p className="session-group-empty">No sessions</p>
+          <p className="mx-3.5 my-4 text-[11px] text-dim">No sessions</p>
         ) : (
           props.sessions.map((session) => (
             <button
               key={session.id}
-              className={`session-entry ${props.openTabIds.includes(session.id) ? "is-open" : ""}`}
+              className={`flex min-h-[38px] w-full cursor-pointer items-center gap-1.5 border-0 border-l-2 border-l-transparent py-[5px] pr-2.5 pl-6 text-left text-muted hover:bg-input hover:text-secondary ${
+                props.openTabIds.includes(session.id)
+                  ? "border-l-accent bg-card text-secondary"
+                  : ""
+              }`}
               type="button"
               onClick={() => props.onOpen(session.id)}
               title={`${session.title}\n${session.cwd}`}
             >
-              <span
-                className={`agent-status-dot agent-status-dot-${session.status}`}
-              />
-              <span className="session-entry-content">
-                <span className="session-entry-title">
+              <span className={statusDotClass(session.status)} />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate text-[11px]">
                   {session.name ?? session.title}
                 </span>
-                <span className="session-entry-meta">
+                <span className="truncate text-[10px] text-faint">
                   {statusText(session)}
                   {session.waiting && (
-                    <span className="session-entry-feedback">feedback</span>
+                    <span className="ml-1.5 text-warning">feedback</span>
                   )}
                 </span>
               </span>
               {session.unread && (
-                <span className="session-entry-unread" dotbot-hidden="true" />
+                <span
+                  className="size-1.5 rounded-full bg-accent"
+                  dotbot-hidden="true"
+                />
               )}
             </button>
           ))
@@ -122,11 +154,11 @@ export function SessionSidebar(props: SessionSidebarProps) {
   const otherGroups = groups.filter(([cwd]) => cwd !== props.workspaceCwd);
 
   return (
-    <div className="session-sidebar">
-      <div className="session-sidebar-heading panel-heading">
-        <h1>Sessions</h1>
+    <div className="flex h-full min-h-0 w-full flex-col">
+      <div className={`${PANEL_HEADING_CLASS} shrink-0 border-b border-border`}>
+        <h1 className={`flex-1 ${PANEL_TITLE_CLASS}`}>Sessions</h1>
         <button
-          className="session-sidebar-action"
+          className={ICON_BUTTON_CLASS}
           type="button"
           dotbot-label="New session"
           title="New session in current workspace"
@@ -137,12 +169,12 @@ export function SessionSidebar(props: SessionSidebarProps) {
       </div>
 
       {groups.length === 0 ? (
-        <p className="session-list-empty">
+        <p className="mx-3.5 my-6 text-center text-[11px] leading-normal text-dim">
           No sessions yet. Open a workspace to start one.
         </p>
       ) : (
-        <div className="session-list">
-          <div className="session-selected-workspace">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden py-1.5">
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden">
             {selectedGroups.map(([cwd, sessions]) => (
               <SessionGroup
                 key={cwd}
@@ -154,7 +186,7 @@ export function SessionSidebar(props: SessionSidebarProps) {
               />
             ))}
           </div>
-          <div className="session-other-workspaces">
+          <div className="mt-auto flex max-h-[45%] min-h-0 flex-none flex-col overflow-y-auto">
             {otherGroups.map(([cwd, sessions]) => (
               <SessionGroup
                 key={cwd}

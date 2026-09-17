@@ -1,3 +1,5 @@
+import { PANEL_HEADING_CLASS, PANEL_TITLE_CLASS } from "./panel-classes";
+
 /** Title displayed at the top of a workbench panel. */
 type PanelHeaderProps = {
   title: string;
@@ -6,8 +8,8 @@ type PanelHeaderProps = {
 /** Render a panel heading. */
 export function PanelHeader(props: PanelHeaderProps) {
   return (
-    <div className="panel-heading">
-      <h1>{props.title}</h1>
+    <div className={PANEL_HEADING_CLASS}>
+      <h1 className={PANEL_TITLE_CLASS}>{props.title}</h1>
     </div>
   );
 }

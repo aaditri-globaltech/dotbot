@@ -52,7 +52,7 @@ export default function App() {
   };
 
   return (
-    <main className="app-shell">
+    <main className="grid h-full min-h-[640px] w-full min-w-[1100px] grid-rows-[34px_minmax(0,1fr)_22px] bg-app">
       <MenuBar
         primarySidebarCollapsed={panels.leftCollapsed}
         secondarySidebarCollapsed={panels.rightCollapsed}
@@ -62,7 +62,7 @@ export default function App() {
         onTogglePanel={() => panels.toggleCollapsed("bottom")}
       />
 
-      <div className="workbench">
+      <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] grid-cols-[48px_minmax(0,1fr)]">
         <ActivityBar selected={screen} onSelect={selectScreen} />
 
         {screen === "dashboard" ? (

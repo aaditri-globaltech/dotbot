@@ -1,6 +1,11 @@
 import hljs from "highlight.js/lib/common";
 import { type UIEvent, useEffect, useRef, useState } from "react";
 
+/** Bordered block for code, mermaid fallbacks, and plain tool output. */
+export const CODE_BLOCK_CLASS =
+  "max-w-full overflow-auto rounded border border-border bg-surface p-3 " +
+  "[white-space:pre] font-mono text-xs leading-[1.45]";
+
 /** Inputs for a plain or syntax-highlighted code block. */
 export type CodeHighlightProps = {
   code: string;
@@ -75,7 +80,7 @@ export function CodeHighlight(props: CodeHighlightProps) {
   const [lines, setLines] = useState<HighlightedLine[]>([]);
   const revisionRef = useRef(0);
 
-  const className = props.className ?? "agent-code-block";
+  const className = props.className ?? CODE_BLOCK_CLASS;
   const withLineNumbers = props.lineNumbers === true;
   const start = lineStart(props.lineNumberStart);
 
@@ -128,15 +133,19 @@ export function CodeHighlight(props: CodeHighlightProps) {
     return (
       <div
         ref={props.setElement}
-        className={`${className} agent-editor-output`}
+        className={`${className} py-[7px] [overflow-wrap:normal] [white-space:pre]`}
         onScroll={props.onScroll}
       >
         {lines.map((line) => (
-          <span key={line.number} className="agent-tool-line">
-            <span className="agent-tool-line-number" dotbot-hidden="true">
+          <span key={line.number} className="flex min-h-[1.45em] min-w-max">
+            <span
+              className="shrink-0 basis-[50px] px-3 text-right text-faint select-none"
+              data-line-number="true"
+              dotbot-hidden="true"
+            >
               {line.number}
             </span>
-            <span className="agent-tool-line-content">
+            <span className="min-w-0 shrink-0 px-3 [white-space:pre]">
               {line.html !== undefined ? (
                 <span dangerouslySetInnerHTML={{ __html: line.html }} />
               ) : (

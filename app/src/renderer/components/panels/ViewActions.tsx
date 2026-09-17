@@ -1,3 +1,5 @@
+import { ICON_BUTTON_CLASS } from "./panel-classes";
+
 /** Inputs for the workbench collapse/expand actions. */
 export type ViewActionsProps = {
   onTogglePanel: () => void;
@@ -18,9 +20,9 @@ const iconClass = (
 /** Toolbar for toggling the three resizable workbench regions. */
 export function ViewActions(props: ViewActionsProps) {
   return (
-    <div className="layout-actions">
+    <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
       <button
-        className="layout-action"
+        className={ICON_BUTTON_CLASS}
         type="button"
         dotbot-label={
           props.primarySidebarCollapsed
@@ -40,7 +42,7 @@ export function ViewActions(props: ViewActionsProps) {
         />
       </button>
       <button
-        className="layout-action"
+        className={ICON_BUTTON_CLASS}
         type="button"
         dotbot-label={props.panelCollapsed ? "Expand Panel" : "Collapse Panel"}
         dotbot-expanded={String(!props.panelCollapsed)}
@@ -56,7 +58,7 @@ export function ViewActions(props: ViewActionsProps) {
         />
       </button>
       <button
-        className="layout-action"
+        className={ICON_BUTTON_CLASS}
         type="button"
         dotbot-label={
           props.secondarySidebarCollapsed

@@ -2,6 +2,7 @@ import type { ExplorerEntry } from "@dotbot/workspace";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { errorMessage } from "../../errors";
+import { ICON_BUTTON_CLASS } from "./panel-classes";
 
 type ExplorerSidebarProps = {
   cwd?: string;
@@ -15,7 +16,7 @@ type ExplorerRow = {
   depth: number;
 };
 
-function workspaceName(path: string) {
+export function workspaceName(path: string) {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
@@ -154,14 +155,16 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
   visit("", 0);
 
   return (
-    <div className="explorer-sidebar">
+    <div className="flex min-h-0 flex-1 flex-col">
       {!props.cwd ? (
-        <p className="sidebar-empty">Open a workspace to browse files.</p>
+        <p className="mx-3 my-4.5 text-[11px] leading-normal text-dim">
+          Open a workspace to browse files.
+        </p>
       ) : (
         <>
-          <div className="explorer-workspace">
+          <div className="flex min-h-[30px] shrink-0 items-center gap-1.5 border-b border-border px-2.5 text-[11px] text-muted">
             <select
-              className="explorer-workspace-selector"
+              className="min-w-0 flex-1 truncate rounded-sm border border-transparent bg-app px-1 py-0.5 text-xs font-medium text-muted hover:border-border-strong hover:text-secondary focus:border-border-strong focus:text-secondary focus:outline-none"
               dotbot-label="Workspace"
               title={props.cwd}
               value={props.cwd}
@@ -177,7 +180,7 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
               ))}
             </select>
             <button
-              className="sidebar-action"
+              className={ICON_BUTTON_CLASS}
               type="button"
               dotbot-label="Open workspace"
               title="Open workspace for new session"
@@ -189,7 +192,7 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
               />
             </button>
             <button
-              className="sidebar-action"
+              className={ICON_BUTTON_CLASS}
               type="button"
               dotbot-label="Refresh Explorer"
               title="Refresh Explorer"
@@ -198,9 +201,15 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
               <span className="codicon codicon-refresh" dotbot-hidden="true" />
             </button>
           </div>
-          <div className="explorer-tree" role="tree" dotbot-label="Explorer">
+          <div
+            className="min-h-0 flex-1 overflow-auto py-1"
+            role="tree"
+            dotbot-label="Explorer"
+          >
             {error ? (
-              <p className="sidebar-error">{error}</p>
+              <p className="mx-3 my-4.5 text-[11px] leading-normal text-error">
+                {error}
+              </p>
             ) : (
               (!loading || visibleEntries.length > 0) &&
               visibleEntries.map((row) => {
@@ -209,7 +218,9 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
                 return (
                   <button
                     key={row.entry.path}
-                    className={`explorer-entry ${selectedPath === row.entry.path ? "is-selected" : ""}`}
+                    className={`flex min-h-6 w-full cursor-pointer items-center gap-1.5 overflow-hidden border-0 bg-transparent py-0.5 pr-2 text-left text-[11px] text-secondary hover:bg-surface-hover focus-visible:bg-surface-hover ${
+                      selectedPath === row.entry.path ? "bg-surface-hover" : ""
+                    }`}
                     type="button"
                     role="treeitem"
                     dotbot-selected={String(selectedPath === row.entry.path)}
@@ -221,12 +232,10 @@ export function ExplorerSidebar(props: ExplorerSidebarProps) {
                     }}
                   >
                     <span
-                      className={`codicon ${directory ? (isExpanded ? "codicon-chevron-down" : "codicon-chevron-right") : "codicon-file"}`}
+                      className={`codicon shrink-0 text-dim ${directory ? (isExpanded ? "codicon-chevron-down" : "codicon-chevron-right") : "codicon-file"}`}
                       dotbot-hidden="true"
                     />
-                    <span className="explorer-entry-name">
-                      {row.entry.name}
-                    </span>
+                    <span className="min-w-0 truncate">{row.entry.name}</span>
                   </button>
                 );
               })

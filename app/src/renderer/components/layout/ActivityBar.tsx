@@ -27,14 +27,21 @@ function ActivityItems(props: ActivityBarProps & { items: ActivityItem[] }) {
       {props.items.map((item) => (
         <button
           key={item.id}
-          className={`activity-icon ${props.selected === item.id ? "is-active" : ""}`}
+          className={`relative grid size-12 cursor-pointer place-items-center border-0 bg-transparent hover:text-primary focus-visible:ring-1 focus-visible:ring-focus ${
+            props.selected === item.id
+              ? "text-primary before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:bg-accent before:content-['']"
+              : "text-dim"
+          }`}
           type="button"
           dotbot-label={item.label}
           dotbot-selected={String(props.selected === item.id)}
           title={item.label}
           onClick={() => props.onSelect(item.id)}
         >
-          <span className={`codicon ${item.icon}`} dotbot-hidden="true" />
+          <span
+            className={`codicon text-[22px] ${item.icon}`}
+            dotbot-hidden="true"
+          />
         </button>
       ))}
     </>
@@ -44,11 +51,14 @@ function ActivityItems(props: ActivityBarProps & { items: ActivityItem[] }) {
 /** Render the primary activity-bar navigation. */
 export function ActivityBar(props: ActivityBarProps) {
   return (
-    <nav className="activity-bar" dotbot-label="Activity Bar">
-      <div className="activity-items">
+    <nav
+      className="flex min-h-0 flex-col justify-between border-r border-border bg-app py-2"
+      dotbot-label="Activity Bar"
+    >
+      <div className="flex flex-col items-center gap-1">
         <ActivityItems {...props} items={topItems} />
       </div>
-      <div className="activity-items activity-items-bottom">
+      <div className="flex flex-col items-center gap-1">
         <ActivityItems {...props} items={bottomItems} />
       </div>
     </nav>

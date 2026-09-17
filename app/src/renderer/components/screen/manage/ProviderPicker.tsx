@@ -15,7 +15,7 @@ type ProviderPickerProps = {
 function ProviderStatus(props: { configured: boolean }) {
   return (
     <span
-      className={`manage-provider-status ${props.configured ? "is-configured" : ""}`}
+      className={`text-xs ${props.configured ? "text-success" : "text-muted"}`}
     >
       {props.configured ? "✓ Configured" : "Not configured"}
     </span>
@@ -80,10 +80,10 @@ export function ProviderPicker(props: ProviderPickerProps) {
   };
 
   return (
-    <div className="provider-picker" ref={containerRef}>
+    <div className="relative min-w-0 flex-1" ref={containerRef}>
       <button
         type="button"
-        className="provider-picker-trigger"
+        className="flex w-full cursor-pointer items-center justify-between gap-3 border border-border-strong bg-input px-2.5 py-1.5 text-left text-secondary hover:border-focus focus-visible:border-focus focus:outline-none"
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => (open ? setOpen(false) : openPicker())}
@@ -94,15 +94,15 @@ export function ProviderPicker(props: ProviderPickerProps) {
             <ProviderStatus configured={props.selected.configured} />
           </>
         ) : (
-          <span className="screen-empty">Select a provider</span>
+          <span className="text-muted">Select a provider</span>
         )}
         <span className="codicon codicon-chevron-down" dotbot-hidden="true" />
       </button>
       {open && (
-        <div className="provider-picker-overlay">
+        <div className="absolute inset-x-0 top-[calc(100%+4px)] z-20 flex max-h-80 flex-col border border-border-strong bg-input shadow-[0_8px_20px_rgb(0_0_0/45%)]">
           <input
             ref={inputRef}
-            className="provider-picker-search"
+            className="border-b border-border bg-app px-2.5 py-1.5 text-secondary focus:outline-none"
             placeholder="Search providers"
             value={query}
             onChange={(event) => {
@@ -111,12 +111,14 @@ export function ProviderPicker(props: ProviderPickerProps) {
             }}
             onKeyDown={handleKeyDown}
           />
-          <div className="provider-picker-list">
+          <div className="min-h-0 overflow-auto">
             {matches.map((provider, index) => (
               <button
                 key={provider.id}
                 type="button"
-                className={`manage-provider-item ${index === highlight ? "is-highlighted" : ""}`}
+                className={`flex w-full cursor-pointer items-center justify-between gap-3 px-2.5 py-1.5 text-left text-secondary hover:bg-surface-hover focus-visible:bg-surface-hover ${
+                  index === highlight ? "bg-surface-hover" : ""
+                }`}
                 onMouseEnter={() => setHighlight(index)}
                 onClick={() => choose(index)}
               >
@@ -125,7 +127,7 @@ export function ProviderPicker(props: ProviderPickerProps) {
               </button>
             ))}
             {matches.length === 0 && (
-              <p className="provider-picker-empty">No matching providers</p>
+              <p className="m-2.5 text-xs text-dim">No matching providers</p>
             )}
           </div>
         </div>
