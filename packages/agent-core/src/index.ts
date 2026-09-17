@@ -64,6 +64,7 @@ export {
   type AgentSessionManagerOptions,
   type CreateSessionFunction,
 } from "./manager";
+export { getSessionsDir } from "./paths";
 export type {
   AgentChatItem,
   AgentChatMessage,
