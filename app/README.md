@@ -45,6 +45,54 @@ starts at its requested offset. Errors remain unnumbered. The transcript
 follows streamed output while the user is at the bottom, loads older history on
 demand, and offers a jump-to-latest control after the user scrolls away.
 
+## Styling
+
+Components use Tailwind v4 utilities. `src/renderer/index.css` is the entry:
+it imports Tailwind, then the vendored icon and highlight stylesheets, then
+`styles/app.css`.
+
+Cascade layers decide which stylesheet wins:
+
+- Tailwind emits its own layers (`theme`, `base`, `components`, `utilities`).
+- Vendored stylesheets are imported into `layer(base)`, so utilities can
+  override them. Without this, `.codicon[class*='codicon-'] { font: … }` would
+  beat `text-4xl` and icons could never be resized with a utility.
+- `styles/app.css` stays unlayered, so anything left in it beats every
+  utility. Keep it to the cases below, and move a rule into a utility class
+  when you touch that markup.
+
+`styles/app.css` keeps only what utilities cannot express:
+
+- The resizable workbench grid: `workspace-layout`, `view-area`, the
+  `*.is-collapsed` panels, and the `panel-border` resize handles, which are
+  driven by the CSS variables `useResizablePanels` sets inline.
+- `.agent-markdown-text` and its descendants. These are element selectors for
+  HTML generated from markdown, so the class stays on the wrapper purely as a
+  styling hook.
+- Global scrollbars, `@keyframes`, and the highlight.js additions/deletions
+  theme.
+
+Semantic tokens mirror the palette, so use them instead of hex values:
+`bg-app`, `bg-surface`, `bg-surface-hover`, `bg-card`, `bg-elevated`,
+`bg-input`, `bg-button`, `bg-control`, `text-primary`, `text-secondary`,
+`text-muted`, `text-dim`, `text-faint`, `text-code`, `border-border`,
+`border-border-strong`, `border-border-strong-hover`, `text-accent`,
+`border-focus`, `text-success`, `text-warning`, `text-error`, and
+`bg-window-close`. Values live in the `@theme` block of `index.css`; add a
+token there rather than a new hex value. Genuinely one-off colors (the diff
+backgrounds in the edit tool card) use arbitrary values.
+
+Presentation shared by several components lives in small modules rather than
+repeated class strings: `panels/chat-classes.ts`, `panels/panel-classes.ts`,
+`panels/status-dot.ts`, and `screen/manage/manage-classes.ts`.
+
+Two details worth knowing:
+
+- Tailwind only emits the variables of tokens that a utility actually uses, so
+  `var(--color-surface)` is empty until something uses `bg-surface`.
+- Biome needs `css.parser.tailwindDirectives` (set in the repository
+  `biome.json`) to parse `@theme` and other Tailwind at-rules.
+
 ## Session behavior
 
 Opening a session creates one in-process agent session and loads its history
