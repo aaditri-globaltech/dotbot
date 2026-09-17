@@ -9,6 +9,7 @@ import type {
 } from "@dotbot/agent-core";
 import type { GitStatus } from "@dotbot/source-control";
 import type { ExplorerEntry } from "@dotbot/workspace";
+import type { ActivityStatsResult } from "../shared/activity-stats";
 
 /** Filesystem change batch reported for the watched workspace. */
 export type WorkspaceChange = {
@@ -55,6 +56,10 @@ export interface DotbotApi {
     ) => Promise<AgentProviderSummary>;
     remove: (providerId: string) => Promise<AgentProviderSummary>;
     add: (provider: AgentCustomProviderInput) => Promise<AgentProviderSummary>;
+  };
+  /** Dashboard activity statistics derived from persisted sessions. */
+  activity: {
+    getStats: () => Promise<ActivityStatsResult>;
   };
   /** Workspace picker, Explorer, and Git operations. */
   workspace: {

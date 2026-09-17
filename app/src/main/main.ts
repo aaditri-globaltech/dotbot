@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import {
   type AgentManagerEvent,
   AgentSessionManager,
+  getSessionsDir,
 } from "@dotbot/agent-core";
 import {
   type GitStatus,
@@ -21,7 +22,7 @@ import {
   nativeImage,
   Tray,
 } from "electron";
-
+import { ActivityStatsStore } from "./activity-stats";
 import { createWorkspaceWatch } from "./workspace-watch";
 
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -31,6 +32,13 @@ let tray: Tray | undefined;
 let isQuitting = false;
 
 const sessions = new AgentSessionManager({ onEvent: sendEvent });
+
+// Constructed after the manager so the agent data directory has been resolved.
+const activityStats = new ActivityStatsStore({
+  sessionsRoot: getSessionsDir(),
+  storePath: join(app.getPath("userData"), "activity-stats.json"),
+});
+
 const workspaceWatch = createWorkspaceWatch(watchDirectory);
 
 /** Forward a message only while a renderer window is available. */
@@ -177,6 +185,8 @@ ipcMain.handle("providers:remove", (_event, id: unknown) =>
 ipcMain.handle("providers:add", (_event, value: unknown) =>
   sessions.addCustomProvider(value),
 );
+
+ipcMain.handle("activity:get-stats", () => activityStats.computeStats());
 
 // Workspace picking uses the native dialog; Explorer and Git stay in packages.
 ipcMain.handle("workspace:pick", async () => {

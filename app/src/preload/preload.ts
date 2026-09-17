@@ -14,6 +14,7 @@ import type { GitStatus } from "@dotbot/source-control";
 import type { ExplorerEntry } from "@dotbot/workspace";
 import { contextBridge, ipcRenderer } from "electron";
 import type { DotbotApi, WorkspaceChange } from "../renderer/api";
+import type { ActivityStatsResult } from "../shared/activity-stats";
 
 const api: DotbotApi = {
   ping: () => "pong",
@@ -82,6 +83,10 @@ const api: DotbotApi = {
         "providers:add",
         provider,
       ) as Promise<AgentProviderSummary>,
+  },
+  activity: {
+    getStats: () =>
+      ipcRenderer.invoke("activity:get-stats") as Promise<ActivityStatsResult>,
   },
   // Filesystem and Git operations stay in the main process behind validated IPC.
   workspace: {

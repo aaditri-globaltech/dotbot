@@ -1,12 +1,238 @@
-import { PanelHeader } from "../../panels/PanelHeader";
+/**
+ * Home screen: launcher for recent work plus activity statistics, recent
+ * workspaces, and recent sessions.
+ */
 
-/** Placeholder home screen shown by default. */
+import type { AgentSessionSummary } from "@dotbot/agent-core";
+import { useMemo, useState } from "react";
+import { api } from "../../../api";
+import { useAgentStore } from "../../../stores/agent-store";
+import { useWorkspaceStore } from "../../../stores/workspace-store";
+import { workspaceName } from "../../panels/ExplorerSidebar";
+import { PanelHeader } from "../../panels/PanelHeader";
+import { ActivityStatsPanel } from "./ActivityStatsPanel";
+
+const MAX_RECENT_WORKSPACES = 6;
+const MAX_RECENT_SESSIONS = 5;
+
+/** Shared presentation for recent workspace and session rows. */
+const ROW_CLASS =
+  "flex w-full cursor-pointer items-center gap-3 rounded-md border border-border " +
+  "bg-card/40 px-3 py-2 text-left hover:border-border-strong-hover " +
+  "hover:bg-surface-hover focus-visible:border-border-strong-hover " +
+  "focus-visible:bg-surface-hover";
+
+/** Shared presentation for the two launcher actions. */
+const ACTION_CLASS =
+  "flex cursor-pointer items-center gap-3 rounded-md border border-border-strong " +
+  "bg-card px-4 py-3 text-left hover:border-border-strong-hover " +
+  "hover:bg-surface-hover focus-visible:border-border-strong-hover " +
+  "focus-visible:bg-surface-hover";
+
+/** Newest activity first; sessions without activity come last. */
+function byRecentActivity(a: AgentSessionSummary, b: AgentSessionSummary) {
+  return (b.lastActivity ?? "").localeCompare(a.lastActivity ?? "");
+}
+
+/** Home launcher: stats, recent sessions, and recent workspaces. */
 export function DashboardView() {
+  const sessions = useAgentStore((state) => state.sessions);
+  const createSession = useAgentStore((state) => state.createSession);
+  const openSession = useAgentStore((state) => state.openSession);
+  const workspaces = useWorkspaceStore((state) => state.workspaces);
+  const selectedWorkspace = useWorkspaceStore(
+    (state) => state.selectedWorkspace,
+  );
+  const selectWorkspace = useWorkspaceStore((state) => state.selectWorkspace);
+  const setScreen = useWorkspaceStore((state) => state.setScreen);
+
+  const [busy, setBusy] = useState(false);
+
+  const workspaceCwd = selectedWorkspace ?? workspaces[workspaces.length - 1];
+
+  // Workspaces are remembered in open order, so the newest are at the end.
+  const recentWorkspaces = useMemo(
+    () => [...workspaces].reverse().slice(0, MAX_RECENT_WORKSPACES),
+    [workspaces],
+  );
+  const recentSessions = useMemo(
+    () => [...sessions].sort(byRecentActivity).slice(0, MAX_RECENT_SESSIONS),
+    [sessions],
+  );
+
+  /** Run an action with the page locked, so double clicks cannot race. */
+  const run = (action: () => Promise<void>) => {
+    setBusy(true);
+    void action()
+      .catch((error: unknown) => console.error(error))
+      .finally(() => setBusy(false));
+  };
+
+  const openFolder = async () => {
+    const cwd = await api.workspace.pick();
+    if (!cwd) return;
+    selectWorkspace(cwd);
+    setScreen("workbench");
+  };
+
+  const newSession = async () => {
+    if (!workspaceCwd) {
+      await openFolder();
+      return;
+    }
+    await createSession(workspaceCwd);
+    setScreen("workbench");
+  };
+
+  const showWorkspace = (cwd: string) => {
+    selectWorkspace(cwd);
+    setScreen("workbench");
+  };
+
+  const showSession = (id: string) => {
+    openSession(id);
+    setScreen("workbench");
+  };
+
   return (
-    <div className="dashboard-layout">
+    <div className="flex h-full min-h-0 w-full flex-col bg-surface">
       <PanelHeader title="DASHBOARD" />
-      <div className="screen-content">
-        <p className="screen-empty">Dashboard widgets will appear here.</p>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          className={`mx-auto max-w-[952px] px-8 py-12${
+            busy ? " pointer-events-none opacity-60" : ""
+          }`}
+        >
+          <header className="mb-6 flex flex-col items-center text-center">
+            <span
+              className="codicon codicon-hubot text-[48px] text-accent"
+              dotbot-hidden="true"
+            />
+            <h2 className="mt-3 text-2xl font-semibold text-primary">Dotbot</h2>
+            <p className="mt-1 text-[13px] text-muted">
+              Open a workspace or pick up where you left off.
+            </p>
+          </header>
+
+          <div className="mb-6 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              className={ACTION_CLASS}
+              onClick={() => run(openFolder)}
+            >
+              <span
+                className="codicon codicon-folder-opened shrink-0 text-lg text-secondary"
+                dotbot-hidden="true"
+              />
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[13px] font-medium text-primary">
+                  Open Folder
+                </span>
+                <span className="truncate text-xs text-muted">
+                  Browse for a project to open as a workspace
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={ACTION_CLASS}
+              onClick={() => run(newSession)}
+            >
+              <span
+                className="codicon codicon-add shrink-0 text-lg text-secondary"
+                dotbot-hidden="true"
+              />
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[13px] font-medium text-primary">
+                  New Session
+                </span>
+                <span className="truncate text-xs text-muted">
+                  {workspaceCwd
+                    ? `In ${workspaceName(workspaceCwd)}`
+                    : "Pick a folder first"}
+                </span>
+              </span>
+            </button>
+          </div>
+
+          <ActivityStatsPanel />
+
+          <div className="grid grid-cols-2 items-start gap-6">
+            <section>
+              <h3 className="mb-2 text-xs font-medium tracking-[0.04em] text-muted uppercase">
+                Recent Sessions
+              </h3>
+              {recentSessions.length === 0 ? (
+                <p className="text-xs text-dim">No sessions yet.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {recentSessions.map((session) => (
+                    <button
+                      key={session.id}
+                      type="button"
+                      className={ROW_CLASS}
+                      title={session.name ?? session.title}
+                      onClick={() => showSession(session.id)}
+                    >
+                      <span
+                        className="codicon codicon-clock shrink-0 text-sm text-muted"
+                        dotbot-hidden="true"
+                      />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-[13px] text-secondary">
+                          {session.name ?? session.title}
+                        </span>
+                        <span className="truncate text-[11px] text-dim">
+                          {workspaceName(session.cwd)}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h3 className="mb-2 text-xs font-medium tracking-[0.04em] text-muted uppercase">
+                Recent Workspaces
+              </h3>
+              {recentWorkspaces.length === 0 ? (
+                <p className="text-xs text-dim">No workspaces yet.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {recentWorkspaces.map((cwd) => (
+                    <button
+                      key={cwd}
+                      type="button"
+                      className={ROW_CLASS}
+                      title={cwd}
+                      onClick={() => showWorkspace(cwd)}
+                    >
+                      <span
+                        className="codicon codicon-layers shrink-0 text-sm text-muted"
+                        dotbot-hidden="true"
+                      />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-[13px] text-secondary">
+                          {workspaceName(cwd)}
+                        </span>
+                        <span className="truncate text-[11px] text-dim">
+                          {cwd}
+                        </span>
+                      </span>
+                      {cwd === selectedWorkspace && (
+                        <span className="shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">
+                          current
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
       </div>
     </div>
   );
