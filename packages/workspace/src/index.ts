@@ -1,2 +1,2 @@
-export { readDirectory, validateDirectory } from "./service";
+export { readDirectory, validateDirectory, watchDirectory } from "./service";
 export type { ExplorerEntry } from "./types";

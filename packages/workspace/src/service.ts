@@ -1,5 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import watcher from "@parcel/watcher";
 import type { ExplorerEntry } from "./types";
 
 /** Resolve a workspace directory or throw a user-facing error. */
@@ -46,4 +47,43 @@ export async function readDirectory(
       if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
+}
+
+/** Paths that never need watching; mirrors VS Code's default watcher excludes. */
+const WATCH_IGNORES = [
+  "**/.git/objects/**",
+  "**/.git/subtree-cache/**",
+  "**/.hg/store/**",
+];
+
+/** Receives normalized, directory-relative paths changed on disk. */
+export type WatchDirectoryListener = (paths: string[]) => void;
+
+function normalizeChange(cwd: string, path: string): string {
+  return relative(cwd, path).split(sep).join("/");
+}
+
+/**
+ * Watch a directory recursively and forward the watcher's change batches.
+ * Returns a function that stops watching.
+ */
+export async function watchDirectory(
+  cwdValue: unknown,
+  listener: WatchDirectoryListener,
+  onError?: (error: unknown) => void,
+): Promise<() => Promise<void>> {
+  const cwd = await validateDirectory(cwdValue);
+  const subscription = await watcher.subscribe(
+    cwd,
+    (error, events) => {
+      if (error) {
+        onError?.(error);
+        return;
+      }
+      listener(events.map((event) => normalizeChange(cwd, event.path)));
+    },
+    { ignore: WATCH_IGNORES },
+  );
+
+  return () => subscription.unsubscribe();
 }

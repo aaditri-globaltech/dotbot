@@ -17,5 +17,8 @@
   },
   "devDependencies": {
     "@types/node": "26.2.0"
+  },
+  "dependencies": {
+    "@parcel/watcher": "2.6.0"
   }
 }
