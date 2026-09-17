@@ -3,15 +3,17 @@
 
 import type {
   AgentCommand,
+  AgentCustomProviderInput,
   AgentFeedbackResponse,
   AgentManagerEvent,
+  AgentProviderSummary,
   AgentSessionSummary,
   AgentStreamingBehavior,
 } from "@dotbot/agent-core";
 import type { GitStatus } from "@dotbot/source-control";
 import type { ExplorerEntry } from "@dotbot/workspace";
 import { contextBridge, ipcRenderer } from "electron";
-import type { DotbotApi } from "../renderer/api";
+import type { DotbotApi, WorkspaceChange } from "../renderer/api";
 
 const api: DotbotApi = {
   ping: () => "pong",
@@ -62,6 +64,25 @@ const api: DotbotApi = {
       return () => ipcRenderer.removeListener("agent:event", handler);
     },
   },
+  providers: {
+    list: () =>
+      ipcRenderer.invoke("providers:list") as Promise<AgentProviderSummary[]>,
+    setKey: (providerId: string, apiKey: string) =>
+      ipcRenderer.invoke("providers:set-key", {
+        providerId,
+        apiKey,
+      }) as Promise<AgentProviderSummary>,
+    remove: (providerId: string) =>
+      ipcRenderer.invoke(
+        "providers:remove",
+        providerId,
+      ) as Promise<AgentProviderSummary>,
+    add: (provider: AgentCustomProviderInput) =>
+      ipcRenderer.invoke(
+        "providers:add",
+        provider,
+      ) as Promise<AgentProviderSummary>,
+  },
   // Filesystem and Git operations stay in the main process behind validated IPC.
   workspace: {
     pick: () =>
@@ -70,6 +91,16 @@ const api: DotbotApi = {
       ipcRenderer.invoke("workspace:read-directory", { cwd, path }) as Promise<
         ExplorerEntry[]
       >,
+    watch: (cwd: string) => ipcRenderer.invoke("workspace:watch", cwd),
+    unwatch: () => ipcRenderer.invoke("workspace:unwatch"),
+    onChanged: (listener: (change: WorkspaceChange) => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        change: WorkspaceChange,
+      ) => listener(change);
+      ipcRenderer.on("workspace:changed", handler);
+      return () => ipcRenderer.removeListener("workspace:changed", handler);
+    },
     gitStatus: (cwd: string) =>
       ipcRenderer.invoke("workspace:git-status", cwd) as Promise<GitStatus>,
     gitStage: (cwd: string, path: string) =>

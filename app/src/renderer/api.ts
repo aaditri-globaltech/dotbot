@@ -1,12 +1,20 @@
 import type {
   AgentCommand,
+  AgentCustomProviderInput,
   AgentFeedbackResponse,
   AgentManagerEvent,
+  AgentProviderSummary,
   AgentSessionSummary,
   AgentStreamingBehavior,
 } from "@dotbot/agent-core";
 import type { GitStatus } from "@dotbot/source-control";
 import type { ExplorerEntry } from "@dotbot/workspace";
+
+/** Filesystem change batch reported for the watched workspace. */
+export type WorkspaceChange = {
+  cwd: string;
+  paths: string[];
+};
 
 /** Renderer-safe API exposed by the isolated Electron preload. */
 export interface DotbotApi {
@@ -38,10 +46,23 @@ export interface DotbotApi {
     ) => Promise<void>;
     onEvent: (listener: (event: AgentManagerEvent) => void) => () => void;
   };
+  /** Provider listing and API key management. */
+  providers: {
+    list: () => Promise<AgentProviderSummary[]>;
+    setKey: (
+      providerId: string,
+      apiKey: string,
+    ) => Promise<AgentProviderSummary>;
+    remove: (providerId: string) => Promise<AgentProviderSummary>;
+    add: (provider: AgentCustomProviderInput) => Promise<AgentProviderSummary>;
+  };
   /** Workspace picker, Explorer, and Git operations. */
   workspace: {
     pick: () => Promise<string | undefined>;
     readDirectory: (cwd: string, path?: string) => Promise<ExplorerEntry[]>;
+    watch: (cwd: string) => Promise<void>;
+    unwatch: () => Promise<void>;
+    onChanged: (listener: (change: WorkspaceChange) => void) => () => void;
     gitStatus: (cwd: string) => Promise<GitStatus>;
     gitStage: (cwd: string, path: string) => Promise<void>;
     gitUnstage: (cwd: string, path: string) => Promise<void>;

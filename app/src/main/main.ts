@@ -11,7 +11,7 @@ import {
   gitStatus,
   gitUnstage,
 } from "@dotbot/source-control";
-import { readDirectory } from "@dotbot/workspace";
+import { readDirectory, watchDirectory } from "@dotbot/workspace";
 import {
   app,
   BrowserWindow,
@@ -22,6 +22,8 @@ import {
   Tray,
 } from "electron";
 
+import { createWorkspaceWatch } from "./workspace-watch";
+
 const directory = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | undefined;
@@ -29,11 +31,16 @@ let tray: Tray | undefined;
 let isQuitting = false;
 
 const sessions = new AgentSessionManager({ onEvent: sendEvent });
+const workspaceWatch = createWorkspaceWatch(watchDirectory);
 
-/** Forward manager events only while a renderer window is available. */
-function sendEvent(event: AgentManagerEvent) {
+/** Forward a message only while a renderer window is available. */
+function sendToRenderer(channel: string, payload: unknown) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.send("agent:event", event);
+  mainWindow.webContents.send(channel, payload);
+}
+
+function sendEvent(event: AgentManagerEvent) {
+  sendToRenderer("agent:event", event);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -160,6 +167,17 @@ ipcMain.handle("agent:respond", (_event, value: unknown) => {
   sessions.respond(value);
 });
 
+ipcMain.handle("providers:list", () => sessions.listProviders());
+ipcMain.handle("providers:set-key", (_event, value: unknown) =>
+  sessions.setProviderApiKey(value),
+);
+ipcMain.handle("providers:remove", (_event, id: unknown) =>
+  sessions.removeProviderApiKey(id),
+);
+ipcMain.handle("providers:add", (_event, value: unknown) =>
+  sessions.addCustomProvider(value),
+);
+
 // Workspace picking uses the native dialog; Explorer and Git stay in packages.
 ipcMain.handle("workspace:pick", async () => {
   const result = await dialog.showOpenDialog({
@@ -168,6 +186,20 @@ ipcMain.handle("workspace:pick", async () => {
   });
   return result.canceled ? undefined : result.filePaths[0];
 });
+
+// Only the active workspace is watched; workspaceWatch serializes replacement.
+ipcMain.handle("workspace:watch", (_event, cwd: unknown) =>
+  workspaceWatch.watch(
+    cwd,
+    (paths) => sendToRenderer("workspace:changed", { cwd, paths }),
+    (error: unknown) => {
+      // Watch failures leave the manual refresh buttons as the fallback.
+      console.error("Workspace watcher failed:", error);
+    },
+  ),
+);
+
+ipcMain.handle("workspace:unwatch", () => workspaceWatch.stop());
 
 ipcMain.handle("workspace:read-directory", (_event, value: unknown) => {
   const input = asRecord(value);
@@ -196,6 +228,7 @@ ipcMain.handle("workspace:git-commit", (_event, value: unknown) => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  void workspaceWatch.stop();
   // Agent sessions run in-process, so shutdown only needs to dispose them.
   sessions.stopAll();
 });

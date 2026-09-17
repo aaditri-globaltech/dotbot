@@ -13,7 +13,7 @@ const outputDirectory = resolve(appDirectory, "dist");
 await build({
   entryPoints: [resolve(appDirectory, "src/main/main.ts")],
   bundle: true,
-  external: ["electron", "@earendil-works/*"],
+  external: ["electron", "@earendil-works/*", "@parcel/watcher"],
   format: "esm",
   platform: "node",
   outfile: resolve(outputDirectory, "main/main.js"),
