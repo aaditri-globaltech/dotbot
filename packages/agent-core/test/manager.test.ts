@@ -1,16 +1,18 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   fauxAssistantMessage,
   fauxProvider,
   fauxText,
+  type Provider,
 } from "@earendil-works/pi-ai";
 import {
   type AgentSession,
   type CreateAgentSessionResult,
   createAgentSession,
   ModelRuntime,
+  readStoredCredential,
 } from "@earendil-works/pi-coding-agent";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { AgentSessionManager } from "../src/manager";
@@ -24,7 +26,7 @@ async function createFauxRuntime() {
   const runtime = await ModelRuntime.create({
     refreshOnCreate: false,
     authPath: join(agentDir, "auth.json"),
-    modelsPath: null,
+    modelsPath: join(agentDir, "models.json"),
   });
   const faux = fauxProvider({
     models: [{ id: "faux-1", name: "Faux", reasoning: true }],
@@ -66,6 +68,88 @@ function collectEvents() {
   };
 }
 
+function stubProvider(
+  id: string,
+  name: string,
+  auth: Provider["auth"],
+): Provider {
+  return {
+    id,
+    name,
+    auth,
+    getModels: () => [],
+    stream: () => {
+      throw new Error("stream is not used in manager tests");
+    },
+    streamSimple: () => {
+      throw new Error("streamSimple is not used in manager tests");
+    },
+  };
+}
+
+type ApiKeyLogin = NonNullable<Provider["auth"]["apiKey"]>["login"];
+
+function apiKeyProvider(
+  id: string,
+  name: string,
+  login: ApiKeyLogin,
+): Provider {
+  return stubProvider(id, name, {
+    apiKey: {
+      name: `${name} key`,
+      resolve: async ({ credential }) =>
+        credential?.key ? { auth: { apiKey: credential.key } } : undefined,
+      login,
+    },
+  });
+}
+
+function authKeyProvider(): Provider {
+  return apiKeyProvider("test-auth", "Test Auth", async ({ prompt }) => ({
+    type: "api_key",
+    key: await prompt({ type: "secret", message: "Enter Test Auth key" }),
+  }));
+}
+
+function oauthOnlyProvider(): Provider {
+  return stubProvider("test-oauth", "Test OAuth", {
+    oauth: {
+      name: "Test OAuth",
+      login: async () => ({
+        type: "oauth",
+        refresh: "refresh",
+        access: "access",
+        expires: 0,
+      }),
+      refresh: async (credential) => credential,
+      toAuth: async () => ({}),
+    },
+  });
+}
+
+function selectFirstProvider(): Provider {
+  return apiKeyProvider("test-select", "Test Select", async ({ prompt }) => ({
+    type: "api_key",
+    key: await prompt({
+      type: "select",
+      message: "Choose method",
+      options: [{ id: "key", label: "Key" }],
+    }),
+  }));
+}
+
+function twoStepProvider(): Provider {
+  return apiKeyProvider(
+    "test-two-step",
+    "Test Two Step",
+    async ({ prompt }) => {
+      const key = await prompt({ type: "secret", message: "Enter key" });
+      const account = await prompt({ type: "text", message: "Enter account" });
+      return { type: "api_key", key, env: { ACCOUNT: account } };
+    },
+  );
+}
+
 describe("AgentSessionManager", () => {
   let manager: AgentSessionManager | undefined;
 
@@ -88,7 +172,7 @@ describe("AgentSessionManager", () => {
       createSession: (options) =>
         createAgentSession({ ...options, model: faux.getModel() }),
     });
-    return { manager, faux, collector };
+    return { manager, faux, collector, runtime };
   }
 
   it("creates, opens, and streams a prompt through the manager", async () => {
@@ -156,6 +240,13 @@ describe("AgentSessionManager", () => {
     expect(last?.type === "session_state" && last.state.thinkingLevel).toBe(
       "low",
     );
+
+    const settings = JSON.parse(
+      readFileSync(join(agentDir, "settings.json"), "utf-8"),
+    );
+    expect(settings.defaultProvider).toBe("faux");
+    expect(settings.defaultModel).toBe("faux-1");
+    expect(settings.defaultThinkingLevel).toBe("low");
   });
 
   it("lists persisted sessions from a previous manager", async () => {
@@ -256,13 +347,189 @@ describe("AgentSessionManager", () => {
     sessions.stopAll();
   });
 
+  describe("provider API keys", () => {
+    it("lists API key providers and manages a stored key", async () => {
+      const { manager: sessions, runtime } = await startManager();
+      runtime.registerNativeProvider(authKeyProvider());
+
+      const listed = (await sessions.listProviders()).find(
+        (provider) => provider.id === "test-auth",
+      );
+      expect(listed).toEqual({
+        id: "test-auth",
+        name: "Test Auth",
+        configured: false,
+      });
+
+      const saved = await sessions.setProviderApiKey({
+        providerId: "test-auth",
+        apiKey: "sk-test",
+      });
+      expect(saved.configured).toBe(true);
+      expect(
+        readStoredCredential("test-auth", join(agentDir, "auth.json")),
+      ).toEqual({ type: "api_key", key: "sk-test" });
+
+      const removed = await sessions.removeProviderApiKey("test-auth");
+      expect(removed.configured).toBe(false);
+      expect(
+        readStoredCredential("test-auth", join(agentDir, "auth.json")),
+      ).toBeUndefined();
+    });
+
+    it("excludes providers without API key auth", async () => {
+      const { manager: sessions, runtime } = await startManager();
+      runtime.registerNativeProvider(oauthOnlyProvider());
+
+      const ids = (await sessions.listProviders()).map(
+        (provider) => provider.id,
+      );
+      expect(ids).not.toContain("test-oauth");
+    });
+
+    it("rejects providers whose setup needs more than a key", async () => {
+      const { manager: sessions, runtime } = await startManager();
+      runtime.registerNativeProvider(selectFirstProvider());
+      runtime.registerNativeProvider(twoStepProvider());
+
+      await expect(
+        sessions.setProviderApiKey({
+          providerId: "test-select",
+          apiKey: "sk-x",
+        }),
+      ).rejects.toThrow("requires additional setup");
+      await expect(
+        sessions.setProviderApiKey({
+          providerId: "test-two-step",
+          apiKey: "sk-x",
+        }),
+      ).rejects.toThrow("requires additional setup");
+
+      expect(
+        readStoredCredential("test-select", join(agentDir, "auth.json")),
+      ).toBeUndefined();
+      expect(
+        readStoredCredential("test-two-step", join(agentDir, "auth.json")),
+      ).toBeUndefined();
+    });
+
+    it("rejects unknown and non-configurable providers", async () => {
+      const { manager: sessions, faux } = await startManager();
+
+      await expect(
+        sessions.setProviderApiKey({ providerId: "missing", apiKey: "sk-x" }),
+      ).rejects.toThrow("does not support API key setup");
+      await expect(
+        sessions.setProviderApiKey({
+          providerId: faux.provider.id,
+          apiKey: "sk-x",
+        }),
+      ).rejects.toThrow("does not support API key setup");
+      await expect(
+        sessions.setProviderApiKey({ providerId: "missing", apiKey: " " }),
+      ).rejects.toThrow("API key is required");
+    });
+
+    it("adds a custom provider to models.json", async () => {
+      const { manager: sessions } = await startManager();
+
+      const added = await sessions.addCustomProvider({
+        id: "custom-local",
+        baseUrl: "http://localhost:1234/v1",
+        api: "openai-completions",
+        models: ["model-a", "model-b"],
+      });
+      expect(added.id).toBe("custom-local");
+      expect(added.configured).toBe(false);
+
+      expect(
+        JSON.parse(readFileSync(join(agentDir, "models.json"), "utf-8")),
+      ).toEqual({
+        providers: {
+          "custom-local": {
+            baseUrl: "http://localhost:1234/v1",
+            api: "openai-completions",
+            models: [{ id: "model-a" }, { id: "model-b" }],
+          },
+        },
+      });
+
+      const listed = (await sessions.listProviders()).find(
+        (provider) => provider.id === "custom-local",
+      );
+      expect(listed?.configured).toBe(false);
+
+      const saved = await sessions.setProviderApiKey({
+        providerId: "custom-local",
+        apiKey: "local-key",
+      });
+      expect(saved.configured).toBe(true);
+    });
+
+    it("rejects duplicate and colliding custom providers", async () => {
+      const { manager: sessions, faux } = await startManager();
+
+      await sessions.addCustomProvider({
+        id: "custom-dup",
+        baseUrl: "http://localhost:2345/v1",
+        api: "openai-completions",
+        models: ["model-a"],
+      });
+      await expect(
+        sessions.addCustomProvider({
+          id: "custom-dup",
+          baseUrl: "http://localhost:2345/v1",
+          api: "openai-completions",
+          models: ["model-a"],
+        }),
+      ).rejects.toThrow("already exists");
+      await expect(
+        sessions.addCustomProvider({
+          id: faux.provider.id,
+          baseUrl: "http://localhost:2345/v1",
+          api: "openai-completions",
+          models: ["model-a"],
+        }),
+      ).rejects.toThrow("already exists");
+    });
+
+    it("validates custom provider input", async () => {
+      const { manager: sessions } = await startManager();
+
+      await expect(
+        sessions.addCustomProvider({
+          id: "bad api",
+          baseUrl: "http://localhost:1",
+          api: "openai-completions",
+          models: ["model-a"],
+        }),
+      ).rejects.toThrow("whitespace");
+      await expect(
+        sessions.addCustomProvider({
+          id: "bad-api",
+          baseUrl: "http://localhost:1",
+          api: "unsupported",
+          models: ["model-a"],
+        }),
+      ).rejects.toThrow("not supported");
+      await expect(
+        sessions.addCustomProvider({
+          id: "bad-models",
+          baseUrl: "http://localhost:1",
+          api: "openai-completions",
+          models: [],
+        }),
+      ).rejects.toThrow("At least one model id");
+    });
+  });
+
   it("defaults the Pi data directory to Dotbot's own agent directory", () => {
     const previous = process.env.PI_CODING_AGENT_DIR;
     delete process.env.PI_CODING_AGENT_DIR;
     try {
       new AgentSessionManager();
       expect(process.env.PI_CODING_AGENT_DIR).toBe(
-        join(homedir(), ".dot", "agent"),
+        join(homedir(), ".dotbot", "agent"),
       );
 
       process.env.PI_CODING_AGENT_DIR = "/tmp/explicit-agent-dir";

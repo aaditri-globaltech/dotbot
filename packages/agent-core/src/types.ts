@@ -23,6 +23,31 @@ export type AgentModel = {
   name: string;
 };
 
+/** Pi provider that can be configured with an API key. */
+export type AgentProviderSummary = {
+  id: string;
+  name: string;
+  configured: boolean;
+};
+
+/** API protocols Pi supports for custom providers. */
+export const AGENT_PROVIDER_APIS = [
+  "openai-completions",
+  "openai-responses",
+  "anthropic-messages",
+  "google-generative-ai",
+] as const;
+
+export type AgentProviderApi = (typeof AGENT_PROVIDER_APIS)[number];
+
+/** Fields Dotbot writes for a custom provider in models.json. */
+export type AgentCustomProviderInput = {
+  id: string;
+  baseUrl: string;
+  api: AgentProviderApi;
+  models: string[];
+};
+
 /** Thinking levels accepted by Pi's `set_thinking_level` command. */
 export type AgentThinkingLevel =
   | "off"

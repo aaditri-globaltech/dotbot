@@ -68,6 +68,7 @@ export type {
   AgentChatItem,
   AgentChatMessage,
   AgentCommand,
+  AgentCustomProviderInput,
   AgentErrorNotice,
   AgentEvent,
   AgentFeedbackPayload,
@@ -75,6 +76,8 @@ export type {
   AgentFeedbackResponse,
   AgentManagerEvent,
   AgentModel,
+  AgentProviderApi,
+  AgentProviderSummary,
   AgentSessionState,
   AgentSessionSummary,
   AgentStatus,
@@ -83,3 +86,4 @@ export type {
   AgentThinkingLevel,
   AgentToolCall,
 } from "./types";
+export { AGENT_PROVIDER_APIS } from "./types";
