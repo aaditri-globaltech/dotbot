@@ -249,6 +249,37 @@ describe("AgentSessionManager", () => {
     expect(settings.defaultThinkingLevel).toBe("low");
   });
 
+  it("removes a session that was never prompted", async () => {
+    const { manager: sessions } = await startManager();
+    const created = await sessions.create(workspace);
+    await sessions.open(created.id);
+
+    sessions.remove(created.id);
+
+    expect(
+      (await sessions.list()).some((session) => session.id === created.id),
+    ).toBe(false);
+  });
+
+  it("reports a project's model and thinking defaults before any session", async () => {
+    const { manager: sessions } = await startManager();
+
+    const defaults = await sessions.getDefaults({ cwd: workspace });
+    expect(
+      defaults.models.map((model) => `${model.provider}/${model.id}`),
+    ).toContain("faux/faux-1");
+    expect(defaults.selectedModel).toBe("faux/faux-1");
+    expect(defaults.thinkingLevels).toContain(defaults.thinkingLevel);
+    expect(defaults.thinkingLevels).toContain("high");
+
+    const requested = await sessions.getDefaults({
+      cwd: workspace,
+      provider: "faux",
+      modelId: "faux-1",
+    });
+    expect(requested.selectedModel).toBe("faux/faux-1");
+  });
+
   it("lists persisted sessions from a previous manager", async () => {
     const { manager: sessions, collector } = await startManager();
     const created = await sessions.create(workspace);

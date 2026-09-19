@@ -11,6 +11,10 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import {
+  clampThinkingLevel,
+  getSupportedThinkingLevels,
+} from "@earendil-works/pi-ai";
+import {
   type AgentSession,
   type AgentSessionEvent,
   type CreateAgentSessionOptions,
@@ -21,6 +25,7 @@ import {
   ModelRuntime,
   type SessionInfo,
   SessionManager,
+  SettingsManager,
   type Theme,
 } from "@earendil-works/pi-coding-agent";
 import { compactAgentHistory } from "./history";
@@ -31,6 +36,7 @@ import type {
   AgentFeedbackRequest,
   AgentFeedbackResponse,
   AgentManagerEvent,
+  AgentModel,
   AgentProviderApi,
   AgentProviderSummary,
   AgentSessionState,
@@ -106,6 +112,13 @@ function summary(record: SessionRecord): AgentSessionSummary {
     unread: false,
     lastActivity: record.lastActivity,
   };
+}
+
+/** Project the runtime's model list into the renderer's selector shape. */
+function modelOptions(
+  models: readonly { provider: string; id: string; name: string }[],
+): AgentModel[] {
+  return models.map(({ provider, id, name }) => ({ provider, id, name }));
 }
 
 function truncate(value: string, length = 80): string {
@@ -264,6 +277,43 @@ export class AgentSessionManager {
       .map(summary);
   }
 
+  /**
+   * Model and thinking choices a project would start a session with, without
+   * creating one. `provider`/`modelId` preview another model's levels.
+   */
+  async getDefaults(value: unknown): Promise<AgentSessionState> {
+    const input = asObject(value);
+    const cwd = await validateDirectory(input?.cwd);
+    const settings = SettingsManager.create(cwd);
+    const modelRuntime = await this.getModelRuntime();
+    const available = await modelRuntime.getAvailable();
+    const requested =
+      typeof input?.provider === "string" && typeof input?.modelId === "string"
+        ? modelRuntime.getModel(input.provider, input.modelId)
+        : undefined;
+    const defaultProvider = settings.getDefaultProvider();
+    const defaultModelId = settings.getDefaultModel();
+    const configured =
+      defaultProvider && defaultModelId
+        ? modelRuntime.getModel(defaultProvider, defaultModelId)
+        : undefined;
+    const model = requested ?? configured ?? available[0];
+    const preferredLevel = model
+      ? (settings.getModelThinkingLevel(model.provider, model.id) ??
+        settings.getDefaultThinkingLevel() ??
+        "medium")
+      : "medium";
+
+    return {
+      models: modelOptions(available),
+      selectedModel: model ? `${model.provider}/${model.id}` : "",
+      thinkingLevel: model
+        ? clampThinkingLevel(model, preferredLevel)
+        : "medium",
+      thinkingLevels: model ? [...getSupportedThinkingLevels(model)] : [],
+    };
+  }
+
   /** Create an idle session for an existing workspace directory. */
   async create(cwdValue: unknown): Promise<AgentSessionSummary> {
     const cwd = await validateDirectory(cwdValue);
@@ -289,6 +339,13 @@ export class AgentSessionManager {
     const record = this.getRecord(id);
     record.opened = false;
     if (record.session && record.settled) this.disposeRecord(record);
+  }
+
+  /** Remove a session that was never prompted, releasing its in-process resources. */
+  remove(id: unknown): void {
+    const record = this.getRecord(id);
+    this.disposeRecord(record);
+    this.sessions.delete(record.id);
   }
 
   /** Send a prompt, starting the session when it is not active. */
@@ -701,11 +758,7 @@ export class AgentSessionManager {
     if (record.session !== session) return;
 
     const state: AgentSessionState = {
-      models: available.map((model) => ({
-        provider: model.provider,
-        id: model.id,
-        name: model.name,
-      })),
+      models: modelOptions(available),
       selectedModel: session?.model
         ? `${session.model.provider}/${session.model.id}`
         : "",
