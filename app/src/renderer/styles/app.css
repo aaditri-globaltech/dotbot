@@ -61,7 +61,7 @@ body {
 }
 
 .app-shell.is-sidebar-collapsed {
-  grid-template-columns: 0 minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
 }
 
 /* Chrome is a raised panel and the view a recessed one; they meet flush so no
@@ -88,11 +88,6 @@ body {
   overflow: hidden;
   border-radius: 0 10px 10px 0;
   background: #111113;
-}
-
-.app-shell.is-sidebar-collapsed .main-column {
-  margin-left: 6px;
-  border-radius: 10px;
 }
 
 /* Drag region shared by the sidebar brand row and the main title strip. */

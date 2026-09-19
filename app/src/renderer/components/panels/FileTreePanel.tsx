@@ -1,18 +1,18 @@
-/** Workspace file tree with Git markers, shown in place of the task list. */
+/** Project file tree with Git markers, shown in place of the task list. */
 
 import type { ExplorerEntry } from "@dotbot/workspace";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { errorMessage } from "../../errors";
 import { useGitStatus } from "../../hooks/useGitStatus";
-import { workspaceName } from "../../workspace-name";
+import { projectName } from "../../project-name";
 import { fileBadge } from "./file-badge";
 import { gitMarkers } from "./git-markers";
 import { ICON_BUTTON_CLASS } from "./panel-classes";
 
 type FileTreePanelProps = {
   cwd?: string;
-  onPickWorkspace: () => void;
+  onPickProject: () => void;
 };
 
 type TreeRow = {
@@ -20,7 +20,7 @@ type TreeRow = {
   depth: number;
 };
 
-/** Render the lazy-loading workspace tree with Git status markers. */
+/** Render the lazy-loading project tree with Git status markers. */
 export function FileTreePanel(props: FileTreePanelProps) {
   const [directories, setDirectories] = useState<
     Record<string, ExplorerEntry[]>
@@ -32,7 +32,7 @@ export function FileTreePanel(props: FileTreePanelProps) {
   const gitStatus = useGitStatus(props.cwd);
   const markers = gitMarkers(gitStatus);
 
-  // Load folders on demand so large workspaces do not require a full tree upfront.
+  // Load folders on demand so large projects do not require a full tree upfront.
   const loadDirectory = useCallback(
     async (cwd: string, path: string) => {
       if (loadedRef.current.has(path)) return;
@@ -107,7 +107,7 @@ export function FileTreePanel(props: FileTreePanelProps) {
   }, [props.cwd, loadDirectory, reset]);
 
   // The watcher lives with the tree: it runs while the explorer shows this
-  // workspace and stops as soon as the explorer closes or the project changes.
+  // project and stops as soon as the explorer closes or the project changes.
   useEffect(() => {
     const cwd = props.cwd;
     if (!cwd) return;
@@ -180,14 +180,14 @@ export function FileTreePanel(props: FileTreePanelProps) {
           className="min-w-0 flex-1 truncate text-[13px] text-secondary"
           title={props.cwd}
         >
-          {workspaceName(props.cwd)}
+          {projectName(props.cwd)}
         </span>
         <button
           className={ICON_BUTTON_CLASS}
           type="button"
           dotbot-label="Open project"
-          title="Open a project and start a task"
-          onClick={props.onPickWorkspace}
+          title="Open a project"
+          onClick={props.onPickProject}
         >
           <span
             className="codicon codicon-folder-opened"

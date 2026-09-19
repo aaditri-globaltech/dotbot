@@ -14,8 +14,8 @@ import { DEFAULT_APP_KEYBINDINGS, matchesKey } from "../keybindings";
 const MIN_SIDE_WIDTH = 170;
 /** Minimum expanded height for the bottom panel in pixels. */
 const MIN_PANEL_HEIGHT = 77;
-/** Collapsed side-panel width in pixels. */
-export const COLLAPSED_SIDE_WIDTH = 0;
+/** Collapsed side-panel width in pixels; wide enough for an icon rail. */
+export const COLLAPSED_SIDE_WIDTH = 52;
 /** Collapsed bottom-panel height in pixels. */
 export const COLLAPSED_PANEL_HEIGHT = 0;
 

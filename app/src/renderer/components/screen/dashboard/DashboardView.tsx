@@ -1,24 +1,23 @@
 /**
  * Home screen: launcher for recent work plus activity statistics, recent
- * workspaces, and recent sessions.
+ * projects, and recent sessions.
  */
 
 import type { AgentSessionSummary } from "@dotbot/agent-core";
 import { useMemo, useState } from "react";
-import { api } from "../../../api";
-import { useWorkspaceCwd } from "../../../hooks/useWorkspaceCwd";
+import { useProjectDir } from "../../../hooks/useProjectDir";
+import { projectName } from "../../../project-name";
 import { relativeTime } from "../../../relative-time";
 import { useAgentStore } from "../../../stores/agent-store";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
-import { workspaceName } from "../../../workspace-name";
 import { Hero } from "../../panels/Hero";
 import { PanelHeader } from "../../panels/PanelHeader";
 import { ActivityStatsPanel } from "./ActivityStatsPanel";
 
-const MAX_RECENT_WORKSPACES = 6;
+const MAX_RECENT_PROJECTS = 6;
 const MAX_RECENT_SESSIONS = 5;
 
-/** Shared presentation for recent workspace and session rows. */
+/** Shared presentation for recent project and session rows. */
 const ROW_CLASS =
   "flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border " +
   "bg-card px-3 py-2 text-left hover:border-border-strong-hover " +
@@ -44,23 +43,24 @@ function byRecentActivity(a: AgentSessionSummary, b: AgentSessionSummary) {
   return b.lastActivity.localeCompare(a.lastActivity);
 }
 
-/** Home launcher: stats, recent sessions, and recent workspaces. */
+/** Home launcher: stats, recent sessions, and recent projects. */
 export function DashboardView() {
   const sessions = useAgentStore((state) => state.sessions);
-  const createSession = useAgentStore((state) => state.createSession);
+  const startNewTask = useAgentStore((state) => state.startNewTask);
+  const pickProject = useAgentStore((state) => state.pickProject);
   const openSession = useAgentStore((state) => state.openSession);
-  const workspaces = useWorkspaceStore((state) => state.workspaces);
-  const selectWorkspace = useWorkspaceStore((state) => state.selectWorkspace);
+  const projects = useWorkspaceStore((state) => state.projects);
+  const selectProject = useWorkspaceStore((state) => state.selectProject);
   const setScreen = useWorkspaceStore((state) => state.setScreen);
 
   const [busy, setBusy] = useState(false);
 
-  const workspaceCwd = useWorkspaceCwd();
+  const projectDir = useProjectDir();
 
-  // Workspaces are remembered in open order, so the newest are at the end.
-  const recentWorkspaces = useMemo(
-    () => [...workspaces].reverse().slice(0, MAX_RECENT_WORKSPACES),
-    [workspaces],
+  // Projects are remembered in open order, so the newest are at the end.
+  const recentProjects = useMemo(
+    () => [...projects].reverse().slice(0, MAX_RECENT_PROJECTS),
+    [projects],
   );
   const recentSessions = useMemo(
     () => [...sessions].sort(byRecentActivity).slice(0, MAX_RECENT_SESSIONS),
@@ -76,23 +76,16 @@ export function DashboardView() {
   };
 
   const openFolder = async () => {
-    const cwd = await api.workspace.pick();
-    if (!cwd) return;
-    selectWorkspace(cwd);
+    if (!(await pickProject())) return;
     setScreen("workbench");
   };
 
   const newSession = async () => {
-    if (!workspaceCwd) {
-      await openFolder();
-      return;
-    }
-    await createSession(workspaceCwd);
-    setScreen("workbench");
+    await startNewTask(projectDir);
   };
 
-  const showWorkspace = (cwd: string) => {
-    selectWorkspace(cwd);
+  const showProject = (cwd: string) => {
+    selectProject(cwd);
     setScreen("workbench");
   };
 
@@ -151,8 +144,8 @@ export function DashboardView() {
                   New task
                 </span>
                 <span className="truncate text-xs text-muted">
-                  {workspaceCwd
-                    ? `In ${workspaceName(workspaceCwd)}`
+                  {projectDir
+                    ? `In ${projectName(projectDir)}`
                     : "Pick a folder first"}
                 </span>
               </span>
@@ -185,7 +178,7 @@ export function DashboardView() {
                           {session.name ?? session.title}
                         </span>
                         <span className="truncate text-[11px] text-dim">
-                          {workspaceName(session.cwd)}
+                          {projectName(session.cwd)}
                         </span>
                       </span>
                       <span className="shrink-0 text-[10px] text-faint tabular-nums">
@@ -199,17 +192,17 @@ export function DashboardView() {
 
             <section>
               <h3 className={SECTION_TITLE_CLASS}>Recent projects</h3>
-              {recentWorkspaces.length === 0 ? (
+              {recentProjects.length === 0 ? (
                 <p className="text-xs text-dim">No projects yet.</p>
               ) : (
                 <div className="flex flex-col gap-1.5">
-                  {recentWorkspaces.map((cwd) => (
+                  {recentProjects.map((cwd) => (
                     <button
                       key={cwd}
                       type="button"
                       className={ROW_CLASS}
                       title={cwd}
-                      onClick={() => showWorkspace(cwd)}
+                      onClick={() => showProject(cwd)}
                     >
                       <span
                         className="codicon codicon-layers shrink-0 text-sm text-muted"
@@ -217,13 +210,13 @@ export function DashboardView() {
                       />
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-[13px] text-secondary">
-                          {workspaceName(cwd)}
+                          {projectName(cwd)}
                         </span>
                         <span className="truncate text-[11px] text-dim">
                           {cwd}
                         </span>
                       </span>
-                      {cwd === workspaceCwd && (
+                      {cwd === projectDir && (
                         <span className="shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">
                           current
                         </span>

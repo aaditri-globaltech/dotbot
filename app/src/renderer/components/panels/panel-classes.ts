@@ -19,8 +19,11 @@ export const NAV_ROW_IDLE_CLASS =
 /** Sentence-case panel title, quiet enough to sit above the content. */
 export const PANEL_TITLE_CLASS = "text-[11px] font-medium text-muted";
 
+/** Hover, focus, and shape shared by chrome icon buttons; add a size class. */
+export const CHROME_BUTTON_CLASS =
+  "grid shrink-0 cursor-pointer place-items-center rounded-md border-0 " +
+  "bg-transparent text-dim hover:bg-control hover:text-primary " +
+  "focus-visible:ring-1 focus-visible:ring-focus";
+
 /** 22px square icon button used by panel headings and view actions. */
-export const ICON_BUTTON_CLASS =
-  "grid size-5.5 shrink-0 cursor-pointer place-items-center rounded-md border-0 " +
-  "bg-transparent text-dim hover:bg-control hover:text-primary focus-visible:ring-1 " +
-  "focus-visible:ring-focus";
+export const ICON_BUTTON_CLASS = `size-5.5 ${CHROME_BUTTON_CLASS}`;

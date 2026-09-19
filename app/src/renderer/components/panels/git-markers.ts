@@ -13,7 +13,7 @@ const LETTERS: Record<string, string> = {
   T: "T",
 };
 
-/** Status markers for one workspace, both keyed by relative path. */
+/** Status markers for one project, both keyed by relative path. */
 type GitMarkers = {
   /** One letter per changed file. */
   files: Map<string, string>;
@@ -30,7 +30,7 @@ function letterFor(indexStatus: string, worktreeStatus: string): string {
   return LETTERS[code] ?? "M";
 }
 
-/** Read the change markers for a workspace status, ignoring failed reads. */
+/** Read the change markers for a project status, ignoring failed reads. */
 export function gitMarkers(status?: GitStatus): GitMarkers {
   const files = new Map<string, string>();
   const directories = new Set<string>();

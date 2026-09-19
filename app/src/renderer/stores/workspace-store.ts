@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 const OPENED_WORKSPACES_KEY = "dotbot.openedWorkspaces";
 
-function readOpenedWorkspaces(): string[] {
+function readOpenedProjects(): string[] {
   try {
     const value: unknown = JSON.parse(
       globalThis.localStorage.getItem(OPENED_WORKSPACES_KEY) ?? "null",
@@ -11,8 +11,8 @@ function readOpenedWorkspaces(): string[] {
       ? [
           ...new Set(
             value.filter(
-              (workspace): workspace is string =>
-                typeof workspace === "string" && workspace.length > 0,
+              (projectDir): projectDir is string =>
+                typeof projectDir === "string" && projectDir.length > 0,
             ),
           ),
         ]
@@ -22,18 +22,18 @@ function readOpenedWorkspaces(): string[] {
   }
 }
 
-function writeOpenedWorkspaces(workspaces: string[]) {
+function writeOpenedProjects(projects: string[]) {
   try {
     globalThis.localStorage.setItem(
       OPENED_WORKSPACES_KEY,
-      JSON.stringify(workspaces),
+      JSON.stringify(projects),
     );
   } catch {
     // Storage can be unavailable in restricted renderer contexts.
   }
 }
 
-const initialWorkspaces = readOpenedWorkspaces();
+const initialProjects = readOpenedProjects();
 
 /** Screens selectable from the primary sidebar. */
 export type Screen = "dashboard" | "workbench" | "manage";
@@ -48,23 +48,23 @@ type WorkspaceStore = {
   screen: Screen;
   sidebarMode: SidebarMode;
   managePage: ManagePage;
-  workspaces: string[];
-  selectedWorkspace?: string;
+  /** Project directories the workspace holds, in open order. */
+  projects: string[];
+  selectedProject?: string;
   setScreen: (screen: Screen) => void;
   setSidebarMode: (mode: SidebarMode) => void;
   setManagePage: (page: ManagePage) => void;
-  rememberWorkspace: (cwd: string) => void;
-  selectWorkspace: (cwd: string) => void;
-  selectInitialWorkspace: (cwd: string) => void;
+  rememberProject: (projectDir: string) => void;
+  selectProject: (projectDir: string) => void;
 };
 
-/** Workbench-level workspace selection shared by the file tree, Source Control, and sessions. */
+/** Workspace state shared by the sidebar, dashboard, and workbench. */
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   screen: "dashboard",
   sidebarMode: "tasks",
   managePage: "general",
-  workspaces: initialWorkspaces,
-  selectedWorkspace: initialWorkspaces.at(-1),
+  projects: initialProjects,
+  selectedProject: initialProjects.at(-1),
 
   setScreen: (screen) => set({ screen }),
 
@@ -72,19 +72,16 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   setManagePage: (page) => set({ managePage: page }),
 
-  rememberWorkspace: (cwd) => {
-    if (!cwd || get().workspaces.includes(cwd)) return;
-    const next = [...get().workspaces, cwd];
-    writeOpenedWorkspaces(next);
-    set({ workspaces: next });
+  rememberProject: (projectDir) => {
+    if (!projectDir || get().projects.includes(projectDir)) return;
+    const next = [...get().projects, projectDir];
+    writeOpenedProjects(next);
+    set({ projects: next });
   },
 
-  selectWorkspace: (cwd) => {
-    if (!cwd) return;
-    get().rememberWorkspace(cwd);
-    set({ selectedWorkspace: cwd });
-  },
-  selectInitialWorkspace: (cwd) => {
-    if (!get().selectedWorkspace) get().selectWorkspace(cwd);
+  selectProject: (projectDir) => {
+    if (!projectDir) return;
+    get().rememberProject(projectDir);
+    set({ selectedProject: projectDir });
   },
 }));

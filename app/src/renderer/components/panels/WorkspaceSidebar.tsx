@@ -1,9 +1,9 @@
-/** Workspace sidebar: every added project with its tasks, below the navigation. */
+/** Workspace sidebar: every opened project with its tasks, below the navigation. */
 
 import type { AgentSessionSummary } from "@dotbot/agent-core";
 import { useState } from "react";
+import { projectName } from "../../project-name";
 import { relativeTime } from "../../relative-time";
-import { workspaceName } from "../../workspace-name";
 import { ICON_BUTTON_CLASS } from "./panel-classes";
 import { statusDotClass } from "./status-dot";
 import { orderTasks } from "./task-order";
@@ -12,30 +12,30 @@ import { orderTasks } from "./task-order";
 const ACTIVE_TASK_COUNT = 5;
 const OTHER_TASK_COUNT = 3;
 
-/** Inputs for the task list grouped by workspace. */
+/** Inputs for the task list grouped by project. */
 export type WorkspaceSidebarProps = {
   sessions: AgentSessionSummary[];
   openTabIds: string[];
-  /** Every added project, oldest first. */
-  workspaces: string[];
+  /** Every opened project, oldest first. */
+  projects: string[];
   onOpen: (id: string) => void;
-  onBrowseFiles: (cwd: string) => void;
+  onBrowseFiles: (projectDir: string) => void;
   selectedSessionId?: string;
-  workspaceCwd?: string;
+  projectDir?: string;
 };
 
-type WorkspaceTasksProps = {
-  cwd: string;
+type ProjectTasksProps = {
+  projectDir: string;
   /** Whether this is the project the composer and file tree point at. */
   active: boolean;
   sessions: AgentSessionSummary[];
   openTabIds: string[];
   onOpen: (id: string) => void;
-  onBrowseFiles: (cwd: string) => void;
+  onBrowseFiles: (projectDir: string) => void;
 };
 
 /** One project row followed by its tasks, capped until "Show more". */
-function WorkspaceTasks(props: WorkspaceTasksProps) {
+function ProjectTasks(props: ProjectTasksProps) {
   const [expanded, setExpanded] = useState(false);
   const limit = props.active ? ACTIVE_TASK_COUNT : OTHER_TASK_COUNT;
   const hidden = props.sessions.length - limit;
@@ -48,21 +48,21 @@ function WorkspaceTasks(props: WorkspaceTasksProps) {
         className={`flex min-h-[30px] items-center gap-2 rounded-md px-2 text-[13px] ${
           props.active ? "text-secondary" : "text-muted"
         }`}
-        title={props.cwd}
+        title={props.projectDir}
       >
         <span
           className="codicon codicon-folder shrink-0 text-[15px] text-dim"
           dotbot-hidden="true"
         />
         <span className="min-w-0 flex-1 truncate">
-          {workspaceName(props.cwd)}
+          {projectName(props.projectDir)}
         </span>
         <button
           className={ICON_BUTTON_CLASS}
           type="button"
-          dotbot-label={`View files in ${workspaceName(props.cwd)}`}
+          dotbot-label={`View files in ${projectName(props.projectDir)}`}
           title="View files"
-          onClick={() => props.onBrowseFiles(props.cwd)}
+          onClick={() => props.onBrowseFiles(props.projectDir)}
         >
           <span className="codicon codicon-files" dotbot-hidden="true" />
         </button>
@@ -110,8 +110,9 @@ function WorkspaceTasks(props: WorkspaceTasksProps) {
 }
 
 /**
- * Render the workspace section: every added project, each followed by its tasks.
- * The selected project comes first; remembered projects keep their open order.
+ * Render the workspace section: every opened project, each followed by its
+ * tasks. Projects keep their open order (newest first); selecting one never
+ * moves it. Persisted sessions never add a project row.
  */
 export function WorkspaceSidebar(props: WorkspaceSidebarProps) {
   const tasksByProject = new Map<string, AgentSessionSummary[]>();
@@ -121,13 +122,7 @@ export function WorkspaceSidebar(props: WorkspaceSidebarProps) {
     tasksByProject.set(session.cwd, tasks);
   }
 
-  const projects = [
-    ...new Set([
-      ...(props.workspaceCwd ? [props.workspaceCwd] : []),
-      ...[...props.workspaces].reverse(),
-      ...props.sessions.map((session) => session.cwd),
-    ]),
-  ];
+  const projects = [...props.projects].reverse();
 
   return (
     <>
@@ -139,10 +134,10 @@ export function WorkspaceSidebar(props: WorkspaceSidebarProps) {
           </p>
         ) : (
           projects.map((cwd) => (
-            <WorkspaceTasks
+            <ProjectTasks
               key={cwd}
-              cwd={cwd}
-              active={cwd === props.workspaceCwd}
+              projectDir={cwd}
+              active={cwd === props.projectDir}
               sessions={orderTasks(
                 tasksByProject.get(cwd) ?? [],
                 props.selectedSessionId,

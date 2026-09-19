@@ -170,7 +170,7 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
     <div className="min-h-0 flex-1 overflow-auto">
       {!props.cwd ? (
         <p className="mx-3 my-4.5 text-[11px] leading-normal text-dim">
-          Open a workspace for source control.
+          Open a project for source control.
         </p>
       ) : (
         <>

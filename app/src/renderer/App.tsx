@@ -3,6 +3,7 @@
 import { type CSSProperties, useEffect } from "react";
 import { MainTopBar, SidebarBrand } from "./components/layout/AppChrome";
 import { PrimarySidebar } from "./components/layout/PrimarySidebar";
+import { SessionTabs } from "./components/layout/SessionTabs";
 import { PanelResizer } from "./components/panels/PanelResizer";
 import { DashboardView } from "./components/screen/dashboard/DashboardView";
 import { ManageSidebar } from "./components/screen/manage/ManageSidebar";
@@ -33,11 +34,14 @@ export default function App() {
       style={{ "--sidebar-width": `${panels.leftWidth}px` } as CSSProperties}
     >
       <aside id="primary-sidebar" className="sidebar">
-        <SidebarBrand />
+        <SidebarBrand collapsed={panels.leftCollapsed} />
         {screen === "manage" ? (
-          <ManageSidebar onBack={() => setScreen("workbench")} />
+          <ManageSidebar
+            collapsed={panels.leftCollapsed}
+            onBack={() => setScreen("workbench")}
+          />
         ) : (
-          <PrimarySidebar />
+          <PrimarySidebar collapsed={panels.leftCollapsed} />
         )}
       </aside>
 
@@ -56,7 +60,9 @@ export default function App() {
           panelCollapsed={panels.panelCollapsed}
           onTogglePrimarySidebar={() => panels.toggleCollapsed("left")}
           onTogglePanel={() => panels.toggleCollapsed("bottom")}
-        />
+        >
+          {screen === "workbench" && <SessionTabs />}
+        </MainTopBar>
 
         <div className="main-view">
           {screen === "dashboard" ? (

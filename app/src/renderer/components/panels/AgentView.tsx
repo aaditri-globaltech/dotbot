@@ -24,7 +24,7 @@ import {
   formatKeybinding,
   matchesKey,
 } from "../../keybindings";
-import { workspaceName } from "../../workspace-name";
+import { projectName } from "../../project-name";
 import {
   isErrorNotice,
   isThinking,
@@ -355,17 +355,15 @@ function FeedbackDialog(props: {
 
 /** Inputs for the selected Agent transcript and controls. */
 export type AgentViewProps = {
-  tabs: AgentSessionSummary[];
   selectedSession?: AgentSessionSummary;
   state?: SessionClientState;
-  /** Workspaces offered by the composer's project menu. */
-  workspaces: string[];
-  /** Workspace the selected session runs in. */
-  workspaceCwd?: string;
-  onSelectWorkspace: (cwd: string) => void;
-  onSelectTab: (id: string) => void;
-  onCloseTab: (id: string) => void;
-  onNewSession: () => void;
+  /** Whether the composer shows the new-task template instead of a session. */
+  drafting: boolean;
+  /** Projects offered by the composer's project menu. */
+  projects: string[];
+  /** Project the selected session or template runs in. */
+  projectDir?: string;
+  onSelectProject: (cwd: string) => void;
   onDraft: (value: string) => void;
   onPrompt: (
     message: string,
@@ -379,18 +377,14 @@ export type AgentViewProps = {
 /** Render session tabs, transcript controls, and the prompt composer. */
 export function AgentView(props: AgentViewProps) {
   const status = props.selectedSession?.status;
-  const gitStatus = useGitStatus(props.workspaceCwd);
+  const gitStatus = useGitStatus(props.projectDir);
   // Only a real repository has a branch to show next to the project.
   const branch = gitStatus?.root ? gitStatus.branch : undefined;
   const busy =
     status === "starting" || status === "running" || status === "waiting";
   const running = status === "running";
-  const inputDisabled = status === "starting" || status === "waiting";
-  const draft = props.state?.draft ?? "";
+  const inputDisabled = status === "waiting";
   const feedback = props.selectedSession?.waiting;
-  const sessionStatus = props.selectedSession
-    ? statusLabel(props.selectedSession)
-    : "";
   const [streamingBehavior, setStreamingBehavior] =
     useState<AgentStreamingBehavior>("steer");
   const [historyPages, setHistoryPages] = useState<Record<string, number>>({});
@@ -411,8 +405,11 @@ export function AgentView(props: AgentViewProps) {
     props.state?.messages,
     props.selectedSession?.id,
   );
+  // The composer only renders for a session or the template, both of which have state.
+  const composerState =
+    props.drafting || props.selectedSession ? props.state : undefined;
 
-  const send = () => {
+  const send = (draft: string) => {
     // Running turns can be steered or queued; idle turns always start normally.
     const message = draft.trim();
     if (message && !inputDisabled) {
@@ -420,7 +417,10 @@ export function AgentView(props: AgentViewProps) {
     }
   };
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (
+    event: ReactKeyboardEvent<HTMLTextAreaElement>,
+    draft: string,
+  ) => {
     if (
       !matchesKey(event.nativeEvent, DEFAULT_EDITOR_KEYBINDINGS.submit) ||
       event.nativeEvent.isComposing
@@ -428,7 +428,7 @@ export function AgentView(props: AgentViewProps) {
       return;
     }
     event.preventDefault();
-    send();
+    send(draft);
   };
 
   const selectModel = (value: string) => {
@@ -450,130 +450,95 @@ export function AgentView(props: AgentViewProps) {
       id="view"
       className="panel view-panel relative flex flex-col overflow-hidden bg-surface"
     >
-      <div className="flex min-h-[35px] shrink-0 items-stretch overflow-x-auto border-b border-border bg-app">
-        {props.tabs.map((tab) => {
-          const active = tab.id === props.selectedSession?.id;
-          return (
-            <div
-              key={tab.id}
-              className="flex max-w-[220px] shrink-0 items-stretch border-r border-border"
-            >
-              <button
-                type="button"
-                className={`flex min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden border-0 px-2 text-[11px] ${
-                  active
-                    ? "bg-surface text-secondary"
-                    : "bg-transparent text-dim"
-                }`}
-                onClick={() => props.onSelectTab(tab.id)}
-              >
-                <span className={statusDotClass(tab.status)} />
-                <span className="truncate">{tab.name ?? tab.title}</span>
-              </button>
-              <button
-                className="grid size-[26px] shrink-0 cursor-pointer place-items-center border-0 bg-transparent text-dim hover:bg-border hover:text-primary"
-                type="button"
-                dotbot-label={`Close ${tab.name ?? tab.title}`}
-                onClick={() => props.onCloseTab(tab.id)}
-              >
-                <span
-                  className="codicon codicon-close text-xs"
-                  dotbot-hidden="true"
-                />
-              </button>
-            </div>
-          );
-        })}
-        <button
-          className="grid size-[26px] shrink-0 cursor-pointer place-items-center border-0 bg-transparent text-dim hover:bg-border hover:text-primary"
-          type="button"
-          dotbot-label="New task"
-          title="New task"
-          onClick={props.onNewSession}
-        >
-          <span className="codicon codicon-add text-xs" dotbot-hidden="true" />
-        </button>
-      </div>
-
-      {props.selectedSession &&
-      props.state &&
-      props.selectedSession.status !== "starting" ? (
-        <>
-          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-            <div
-              ref={messageScroll.setElement}
-              className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-5 py-4"
-              onScroll={messageScroll.onScroll}
-            >
-              {messages.length === 0 ? (
-                <Hero
-                  title={`Start a task in ${workspaceName(props.workspaceCwd ?? "")}`}
-                  hint="Describe the change, question, or task you want help with."
-                />
-              ) : (
-                <>
-                  {historyWindow.older > 0 && (
-                    <button
-                      className="cursor-pointer self-center rounded-md border border-border-strong bg-card px-2.5 py-1 text-[11px] text-muted hover:border-focus hover:text-secondary"
-                      type="button"
-                      onClick={loadOlderMessages}
-                    >
-                      Load older messages
-                    </button>
-                  )}
-                  {historyWindow.messages.map((item) => (
-                    <ChatItem
-                      key={item.id}
-                      item={item}
-                      cwd={props.selectedSession?.cwd ?? ""}
-                    />
-                  ))}
-                </>
-              )}
-            </div>
-            {!messageScroll.isFollowing && messages.length > 0 && (
-              <button
-                className="absolute bottom-3 left-1/2 z-2 grid size-[26px] -translate-x-1/2 cursor-pointer place-items-center rounded-full border border-border-strong bg-card text-secondary shadow-[0_2px_8px_rgb(0_0_0/35%)] hover:border-focus hover:text-primary focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-offset-2"
-                type="button"
-                dotbot-label="Jump to latest message"
-                title="Jump to latest message"
-                onClick={messageScroll.jumpToBottom}
-              >
-                <span
-                  className="codicon codicon-chevron-down"
-                  dotbot-hidden="true"
-                />
-              </button>
+      {props.drafting ? (
+        <Hero
+          title={`Start a task in ${projectName(props.projectDir ?? "")}`}
+          hint="Describe the change, question, or task you want help with."
+        />
+      ) : props.selectedSession &&
+        props.state &&
+        props.selectedSession.status !== "starting" ? (
+        <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <div
+            ref={messageScroll.setElement}
+            className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-5 py-4"
+            onScroll={messageScroll.onScroll}
+          >
+            {messages.length === 0 ? (
+              <Hero
+                title={`Start a task in ${projectName(props.projectDir ?? "")}`}
+                hint="Describe the change, question, or task you want help with."
+              />
+            ) : (
+              <>
+                {historyWindow.older > 0 && (
+                  <button
+                    className="cursor-pointer self-center rounded-md border border-border-strong bg-card px-2.5 py-1 text-[11px] text-muted hover:border-focus hover:text-secondary"
+                    type="button"
+                    onClick={loadOlderMessages}
+                  >
+                    Load older messages
+                  </button>
+                )}
+                {historyWindow.messages.map((item) => (
+                  <ChatItem
+                    key={item.id}
+                    item={item}
+                    cwd={props.selectedSession?.cwd ?? ""}
+                  />
+                ))}
+              </>
             )}
           </div>
-
-          <div className="shrink-0 px-5 pt-1.5 pb-4">
-            <form
-              className="mx-auto w-full max-w-[740px] rounded-2xl bg-card px-4 pt-3 pb-2.5 transition-colors focus-within:ring-1 focus-within:ring-border-strong"
-              onSubmit={(event) => {
-                event.preventDefault();
-                send();
-              }}
+          {!messageScroll.isFollowing && messages.length > 0 && (
+            <button
+              className="absolute bottom-3 left-1/2 z-2 grid size-[26px] -translate-x-1/2 cursor-pointer place-items-center rounded-full border border-border-strong bg-card text-secondary shadow-[0_2px_8px_rgb(0_0_0/35%)] hover:border-focus hover:text-primary focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-offset-2"
+              type="button"
+              dotbot-label="Jump to latest message"
+              title="Jump to latest message"
+              onClick={messageScroll.jumpToBottom}
             >
-              {/* Project and branch the task runs against, as in the reference composer. */}
+              <span
+                className="codicon codicon-chevron-down"
+                dotbot-hidden="true"
+              />
+            </button>
+          )}
+        </div>
+      ) : props.selectedSession ? (
+        <div className="grid flex-1 place-items-center text-xs text-dim">
+          Starting assistant…
+        </div>
+      ) : (
+        <Hero
+          title="No task open"
+          hint="Pick one from the sidebar, or start a new task."
+        />
+      )}
+
+      {composerState && (
+        <div className="shrink-0 px-5 pt-1.5 pb-4">
+          <form
+            className="mx-auto w-full max-w-[740px] rounded-2xl bg-card px-4 pt-3 pb-2.5 transition-colors focus-within:ring-1 focus-within:ring-border-strong"
+            onSubmit={(event) => {
+              event.preventDefault();
+              send(composerState.draft);
+            }}
+          >
+            {/* Project and branch the task runs against, before a session exists. */}
+            {props.drafting && (
               <div className="mb-2 flex min-w-0 items-center gap-1.5 text-[12px] text-secondary">
                 <Dropdown
                   label="Project"
                   icon="codicon-folder"
-                  value={props.workspaceCwd ?? ""}
-                  onChange={props.onSelectWorkspace}
+                  value={props.projectDir ?? ""}
+                  onChange={props.onSelectProject}
                   placement="up"
                   className="max-w-[200px]"
-                  options={[
-                    ...(props.workspaceCwd &&
-                    !props.workspaces.includes(props.workspaceCwd)
-                      ? [props.workspaceCwd]
-                      : []),
-                    ...props.workspaces,
-                  ].map((workspace) => ({
-                    value: workspace,
-                    label: workspaceName(workspace),
-                    description: workspace,
+                  options={props.projects.map((projectDir) => ({
+                    value: projectDir,
+                    label: projectName(projectDir),
+                    description: projectDir,
                   }))}
                 />
                 {branch && (
@@ -588,116 +553,109 @@ export function AgentView(props: AgentViewProps) {
                   </>
                 )}
               </div>
-              <textarea
-                className="block field-sizing-content max-h-[220px] min-h-[52px] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-[13px] leading-[1.5] text-secondary outline-0 placeholder:text-faint focus:outline-none disabled:opacity-60"
-                dotbot-label="Message assistant"
-                placeholder="Ask Dotbot…"
-                rows={3}
-                value={draft}
-                disabled={inputDisabled}
-                onChange={(event) => props.onDraft(event.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              <div className="mt-1.5 flex items-center gap-1.5">
+            )}
+            <textarea
+              className="block field-sizing-content max-h-[220px] min-h-[52px] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-[13px] leading-[1.5] text-secondary outline-0 placeholder:text-faint focus:outline-none disabled:opacity-60"
+              dotbot-label="Message assistant"
+              placeholder="Ask Dotbot…"
+              rows={3}
+              value={composerState.draft}
+              disabled={inputDisabled}
+              onChange={(event) => props.onDraft(event.target.value)}
+              onKeyDown={(event) => handleKeyDown(event, composerState.draft)}
+            />
+            <div className="mt-1.5 flex items-center gap-1.5">
+              {props.selectedSession && (
                 <span
                   className={`shrink-0 text-[11px] whitespace-nowrap ${statusTextClass(props.selectedSession.status)}`}
                 >
-                  {sessionStatus}
+                  {statusLabel(props.selectedSession)}
                 </span>
-                {running && (
-                  <button
-                    className={`${CHAT_BUTTON_CLASS} shrink-0 border-error/50 text-error`}
-                    type="button"
-                    onClick={props.onAbort}
-                  >
-                    Stop
-                  </button>
-                )}
-                {running && (
-                  <span className="flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap text-dim">
-                    Send as
-                    <Dropdown
-                      label="Streaming behavior"
-                      value={streamingBehavior}
-                      placement="up"
-                      align="right"
-                      onChange={setStreamingBehavior}
-                      options={[
-                        { value: "steer", label: "Steer" },
-                        { value: "followUp", label: "Follow up" },
-                      ]}
-                    />
-                  </span>
-                )}
-                <span className="min-w-0 flex-1 truncate text-[11px] text-faint">
-                  {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.submit)} sends ·{" "}
-                  {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.newline)} adds a
-                  line
-                </span>
-                <Dropdown
-                  label="Model"
-                  value={props.state.selectedModel}
-                  placement="up"
-                  align="right"
-                  placeholder={
-                    props.state.models.length === 0
-                      ? "Loading models…"
-                      : undefined
-                  }
-                  disabled={busy || props.state.models.length === 0}
-                  onChange={selectModel}
-                  options={props.state.models.map((model: AgentModel) => ({
-                    value: modelKey(model),
-                    label: model.name,
-                    description: model.provider,
-                  }))}
-                />
-                <Dropdown
-                  label="Thinking level"
-                  icon="codicon-lightbulb"
-                  value={props.state.thinkingLevel}
-                  placement="up"
-                  align="right"
-                  placeholder={
-                    props.state.thinkingLevels.length === 0
-                      ? "Loading levels…"
-                      : undefined
-                  }
-                  disabled={busy || props.state.thinkingLevels.length === 0}
-                  onChange={selectThinkingLevel}
-                  options={props.state.thinkingLevels.map((level) => ({
-                    value: level,
-                    label: level,
-                  }))}
-                />
+              )}
+              {running && (
                 <button
-                  className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-secondary text-app disabled:cursor-default disabled:bg-elevated disabled:text-dim"
-                  type="submit"
-                  dotbot-label="Send message"
-                  title="Send message"
-                  disabled={inputDisabled || !draft.trim()}
+                  className={`${CHAT_BUTTON_CLASS} shrink-0 border-error/50 text-error`}
+                  type="button"
+                  onClick={props.onAbort}
                 >
-                  <span
-                    className="codicon codicon-arrow-up text-[13px]"
-                    dotbot-hidden="true"
-                  />
+                  Stop
                 </button>
-              </div>
-            </form>
-          </div>
-          {feedback && (
-            <FeedbackDialog request={feedback} onRespond={props.onRespond} />
-          )}
-        </>
-      ) : props.selectedSession ? (
-        <div className="grid flex-1 place-items-center text-xs text-dim">
-          Starting assistant…
+              )}
+              {running && (
+                <span className="flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap text-dim">
+                  Send as
+                  <Dropdown
+                    label="Streaming behavior"
+                    value={streamingBehavior}
+                    placement="up"
+                    align="right"
+                    onChange={setStreamingBehavior}
+                    options={[
+                      { value: "steer", label: "Steer" },
+                      { value: "followUp", label: "Follow up" },
+                    ]}
+                  />
+                </span>
+              )}
+              <span className="min-w-0 flex-1 truncate text-[11px] text-faint">
+                {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.submit)} sends ·{" "}
+                {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.newline)} adds a
+                line
+              </span>
+              <Dropdown
+                label="Model"
+                value={composerState.selectedModel}
+                placement="up"
+                align="right"
+                placeholder={
+                  composerState.models.length === 0
+                    ? "Loading models…"
+                    : undefined
+                }
+                disabled={busy || composerState.models.length === 0}
+                onChange={selectModel}
+                options={composerState.models.map((model: AgentModel) => ({
+                  value: modelKey(model),
+                  label: model.name,
+                  description: model.provider,
+                }))}
+              />
+              <Dropdown
+                label="Thinking level"
+                icon="codicon-lightbulb"
+                value={composerState.thinkingLevel}
+                placement="up"
+                align="right"
+                placeholder={
+                  composerState.thinkingLevels.length === 0
+                    ? "Loading levels…"
+                    : undefined
+                }
+                disabled={busy || composerState.thinkingLevels.length === 0}
+                onChange={selectThinkingLevel}
+                options={composerState.thinkingLevels.map((level) => ({
+                  value: level,
+                  label: level,
+                }))}
+              />
+              <button
+                className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-secondary text-app disabled:cursor-default disabled:bg-elevated disabled:text-dim"
+                type="submit"
+                dotbot-label="Send message"
+                title="Send message"
+                disabled={inputDisabled || !composerState.draft.trim()}
+              >
+                <span
+                  className="codicon codicon-arrow-up text-[13px]"
+                  dotbot-hidden="true"
+                />
+              </button>
+            </div>
+          </form>
         </div>
-      ) : (
-        <Hero
-          title="No task open"
-          hint="Pick one from the sidebar, or start a new task."
-        />
+      )}
+      {feedback && (
+        <FeedbackDialog request={feedback} onRespond={props.onRespond} />
       )}
     </section>
   );

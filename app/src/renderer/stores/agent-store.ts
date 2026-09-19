@@ -35,13 +35,17 @@ type AgentStore = {
   tabs: string[];
   selectedId?: string;
   states: Record<string, SessionClientState>;
+  /** New-task template state, present until its first keystroke starts a session. */
+  template?: SessionClientState;
   subscribe: () => () => void;
   loadSessions: () => Promise<void>;
   selectSession: (id?: string) => void;
   openSession: (id: string) => void;
   closeTab: (id: string) => void;
-  createSession: (cwd: string) => Promise<void>;
-  pickWorkspaceAndCreateSession: () => Promise<void>;
+  /** Open the new-task template; picks a project when none is given. */
+  startNewTask: (projectDir?: string) => Promise<void>;
+  /** Pick a project directory and make it the current project. */
+  pickProject: () => Promise<string | undefined>;
   prompt: (message: string, streamingBehavior?: AgentStreamingBehavior) => void;
   abort: () => void;
   command: (command: AgentCommand) => void;
@@ -72,6 +76,10 @@ function sameSummary(
 export const useAgentStore = create<AgentStore>((set, get) => {
   const pendingStateEvents = new Map<string, PendingStateUpdate[]>();
   let stateFlushScheduled = false;
+  let templateSeq = 0;
+  let templateCreation: Promise<string> | undefined;
+  // Sessions created by the template that have not been prompted yet.
+  const unprompted = new Set<string>();
 
   const flushStateEvents = () => {
     stateFlushScheduled = false;
@@ -131,7 +139,6 @@ export const useAgentStore = create<AgentStore>((set, get) => {
   };
 
   const updateSession = (session: AgentSessionSummary) => {
-    useWorkspaceStore.getState().rememberWorkspace(session.cwd);
     set((current) => {
       const entry = current.sessions.find(
         (candidate) => candidate.id === session.id,
@@ -151,12 +158,6 @@ export const useAgentStore = create<AgentStore>((set, get) => {
   const handleEvent = (event: AgentManagerEvent) => {
     // Main-process events are the source of truth; client state only decorates them.
     if (event.type === "sessions") {
-      const workspace = useWorkspaceStore.getState();
-      for (const session of event.sessions)
-        workspace.rememberWorkspace(session.cwd);
-      if (event.sessions[0]) {
-        workspace.selectInitialWorkspace(event.sessions[0].cwd);
-      }
       set((current) => {
         const unread = new Map(
           current.sessions.map((session) => [session.id, session.unread]),
@@ -227,6 +228,7 @@ export const useAgentStore = create<AgentStore>((set, get) => {
 
   const selectSession = (id?: string) => {
     set((current) => ({
+      template: undefined,
       selectedId: id,
       sessions: id
         ? current.sessions.map((session) =>
@@ -266,26 +268,19 @@ export const useAgentStore = create<AgentStore>((set, get) => {
   };
 
   const closeTab = (id: string) => {
-    void api.agent.close(id).catch(reportError);
     const current = get();
     const index = current.tabs.indexOf(id);
     const next = current.tabs.filter((tabId) => tabId !== id);
-    set({ tabs: next });
+    if (unprompted.has(id)) {
+      discardSession(id);
+    } else {
+      void api.agent.close(id).catch(reportError);
+      set({ tabs: next });
+    }
     if (current.selectedId !== id) return;
 
     const replacement = next[index] ?? next[index - 1];
     selectSession(replacement);
-  };
-
-  const createSession = async (cwd: string) => {
-    try {
-      useWorkspaceStore.getState().selectWorkspace(cwd);
-      const session = await api.agent.create(cwd);
-      updateSession(session);
-      openSession(session.id);
-    } catch (error) {
-      reportError(error);
-    }
   };
 
   const updateSelectedState = (
@@ -301,20 +296,207 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     }));
   };
 
+  /** Drop an unprompted session from the manager and every renderer list. */
+  const discardSession = (id: string) => {
+    unprompted.delete(id);
+    void api.agent.remove(id).catch(reportError);
+    set((current) => {
+      const states = { ...current.states };
+      delete states[id];
+      return {
+        sessions: current.sessions.filter((session) => session.id !== id),
+        tabs: current.tabs.filter((tabId) => tabId !== id),
+        states,
+        ...(current.selectedId === id ? { selectedId: undefined } : {}),
+      };
+    });
+  };
+
+  const sendPrompt = (
+    id: string,
+    message: string,
+    streamingBehavior?: AgentStreamingBehavior,
+  ) => {
+    unprompted.delete(id);
+    // Optimistically render the user's message while the agent streams its response.
+    set((current) => {
+      const state = current.states[id] ?? createSessionClientState();
+      return {
+        states: {
+          ...current.states,
+          [id]: {
+            ...state,
+            draft: "",
+            messages: [
+              ...state.messages,
+              { id: crypto.randomUUID(), role: "user", text: message },
+            ],
+          },
+        },
+      };
+    });
+    void api.agent.prompt(id, message, streamingBehavior).catch(reportError);
+  };
+
+  /**
+   * Start the template's session on its first keystroke. A template abandoned or
+   * replaced before the session opens has that session discarded.
+   */
+  const ensureTemplateSession = (): Promise<string> | undefined => {
+    if (templateCreation) return templateCreation;
+    const projectDir = useWorkspaceStore.getState().selectedProject;
+    if (!get().template || !projectDir) return undefined;
+
+    const seq = templateSeq;
+    const creation = (async () => {
+      const session = await api.agent.create(projectDir);
+      updateSession(session);
+      unprompted.add(session.id);
+      const discard = () => {
+        discardSession(session.id);
+        return session.id;
+      };
+
+      if (!get().template || templateSeq !== seq) return discard();
+
+      // Open first so the manager keeps the session, then apply the template
+      // choices before publishing it as the selected session.
+      await api.agent.open(session.id);
+      const stillActive = get().template;
+      if (!stillActive || templateSeq !== seq) return discard();
+
+      const separator = stillActive.selectedModel.indexOf("/");
+      if (separator !== -1) {
+        await api.agent.command(session.id, {
+          type: "set_model",
+          provider: stillActive.selectedModel.slice(0, separator),
+          modelId: stillActive.selectedModel.slice(separator + 1),
+        });
+      }
+      await api.agent.command(session.id, {
+        type: "set_thinking_level",
+        level: stillActive.thinkingLevel,
+      });
+      const latest = get().template;
+      if (!latest || templateSeq !== seq) return discard();
+
+      // Hand the template's draft to the session the composer now shows.
+      set((current) => ({
+        states: {
+          ...current.states,
+          [session.id]: {
+            ...(current.states[session.id] ?? createSessionClientState()),
+            draft: latest.draft,
+          },
+        },
+      }));
+      openSession(session.id);
+      return session.id;
+    })();
+    templateCreation = creation;
+    const clear = () => {
+      if (templateCreation === creation) templateCreation = undefined;
+    };
+    void creation.then(clear, clear);
+    return creation;
+  };
+
+  const pickProject = async (): Promise<string | undefined> => {
+    try {
+      const projectDir = await api.workspace.pick();
+      if (projectDir) useWorkspaceStore.getState().selectProject(projectDir);
+      return projectDir;
+    } catch (error) {
+      reportError(error);
+      return undefined;
+    }
+  };
+
+  const startNewTask = async (projectDir?: string) => {
+    let target = projectDir ?? useWorkspaceStore.getState().selectedProject;
+    if (!target) {
+      target = await pickProject();
+      if (!target) return;
+    }
+
+    useWorkspaceStore.getState().selectProject(target);
+    templateSeq += 1;
+    templateCreation = undefined;
+    const seq = templateSeq;
+    set({ template: createSessionClientState(), selectedId: undefined });
+    useWorkspaceStore.getState().setScreen("workbench");
+
+    try {
+      const defaults = await api.agent.defaults({ cwd: target });
+      if (templateSeq !== seq) return;
+      set((current) =>
+        current.template
+          ? { template: applySessionState(current.template, defaults) }
+          : current,
+      );
+    } catch (error) {
+      reportError(error);
+    }
+  };
+
+  const command = (command: AgentCommand) => {
+    const template = get().template;
+    if (template) {
+      if (command.type === "set_thinking_level") {
+        set({ template: { ...template, thinkingLevel: command.level } });
+        return;
+      }
+
+      set({
+        template: {
+          ...template,
+          selectedModel: `${command.provider}/${command.modelId}`,
+        },
+      });
+      const projectDir = useWorkspaceStore.getState().selectedProject;
+      if (!projectDir) return;
+      // Previewing another model also changes the supported thinking levels.
+      void api.agent
+        .defaults({
+          cwd: projectDir,
+          provider: command.provider,
+          modelId: command.modelId,
+        })
+        .then((next) => {
+          set((current) => {
+            if (!current.template) return current;
+            const applied = applySessionState(current.template, next);
+            return {
+              template: {
+                ...applied,
+                thinkingLevel: applied.thinkingLevels.includes(
+                  current.template.thinkingLevel,
+                )
+                  ? current.template.thinkingLevel
+                  : applied.thinkingLevel,
+              },
+            };
+          });
+        })
+        .catch(reportError);
+      return;
+    }
+
+    const id = get().selectedId;
+    if (id) void api.agent.command(id, command).catch(reportError);
+  };
+
   return {
     sessions: [],
     tabs: [],
     selectedId: undefined,
     states: {},
+    template: undefined,
 
     subscribe: () => api.agent.onEvent(handleEvent),
 
     loadSessions: async () => {
-      const next = await api.agent.list();
-      set({ sessions: next });
-      const workspace = useWorkspaceStore.getState();
-      for (const session of next) workspace.rememberWorkspace(session.cwd);
-      if (next[0]) workspace.selectInitialWorkspace(next[0].cwd);
+      set({ sessions: await api.agent.list() });
     },
 
     selectSession,
@@ -323,30 +505,23 @@ export const useAgentStore = create<AgentStore>((set, get) => {
 
     closeTab,
 
-    createSession,
+    startNewTask,
 
-    pickWorkspaceAndCreateSession: async () => {
-      try {
-        const cwd = await api.workspace.pick();
-        if (cwd) await createSession(cwd);
-      } catch (error) {
-        reportError(error);
-      }
-    },
+    pickProject,
 
     prompt: (message, streamingBehavior) => {
-      // Optimistically render the user's message while the agent streams its response.
+      if (get().template) {
+        const pending = ensureTemplateSession();
+        if (pending) {
+          void pending
+            .then((id) => sendPrompt(id, message, streamingBehavior))
+            .catch(reportError);
+        }
+        return;
+      }
       const id = get().selectedId;
       if (!id) return;
-      updateSelectedState((state) => ({
-        ...state,
-        draft: "",
-        messages: [
-          ...state.messages,
-          { id: crypto.randomUUID(), role: "user", text: message },
-        ],
-      }));
-      void api.agent.prompt(id, message, streamingBehavior).catch(reportError);
+      sendPrompt(id, message, streamingBehavior);
     },
 
     abort: () => {
@@ -354,10 +529,7 @@ export const useAgentStore = create<AgentStore>((set, get) => {
       if (id) void api.agent.abort(id).catch(reportError);
     },
 
-    command: (command) => {
-      const id = get().selectedId;
-      if (id) void api.agent.command(id, command).catch(reportError);
-    },
+    command,
 
     respond: (response) => {
       const id = get().selectedId;
@@ -365,6 +537,15 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     },
 
     setDraft: (value) => {
+      const template = get().template;
+      if (template) {
+        set({ template: { ...template, draft: value } });
+        if (value) {
+          const pending = ensureTemplateSession();
+          if (pending) void pending.catch(reportError);
+        }
+        return;
+      }
       updateSelectedState((state) => ({ ...state, draft: value }));
     },
   };
