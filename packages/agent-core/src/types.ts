@@ -122,7 +122,7 @@ export type AgentSessionSummary = {
   /** Renderer-owned unread marker. */
   unread: boolean;
   /** ISO timestamp of the latest observed activity. */
-  lastActivity?: string;
+  lastActivity: string;
 };
 
 /** Model and thinking selections for one session. */

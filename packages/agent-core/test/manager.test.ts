@@ -179,7 +179,7 @@ describe("AgentSessionManager", () => {
     const { manager: sessions, collector } = await startManager();
 
     const created = await sessions.create(workspace);
-    expect(created.title).toBe("new session");
+    expect(created.title).toBe("new task");
     expect(created.active).toBe(false);
     expect(created.piSessionId).toBe(created.id);
 

@@ -63,7 +63,7 @@ type SessionRecord = {
   /** Whether Pi has finished the current turn. */
   settled: boolean;
   waiting?: AgentFeedbackRequest;
-  lastActivity?: string;
+  lastActivity: string;
   session?: AgentSession;
   /** Reserved session manager for a record that has not started yet. */
   sessionManager?: SessionManager;
@@ -260,9 +260,7 @@ export class AgentSessionManager {
   async list(): Promise<AgentSessionSummary[]> {
     await this.refreshPersistedSessions();
     return [...this.sessions.values()]
-      .sort((a, b) =>
-        (b.lastActivity ?? "").localeCompare(a.lastActivity ?? ""),
-      )
+      .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity))
       .map(summary);
   }
 
@@ -311,10 +309,10 @@ export class AgentSessionManager {
     record.opened = true;
     await this.ensureSession(record);
     const session = record.session;
-    if (!session) throw new Error("Pi session is not running");
+    if (!session) throw new Error("Session is not running");
 
     const message = input.message.trim();
-    if (!record.name && record.title === "new session") {
+    if (!record.name && record.title === "new task") {
       record.title = truncate(message);
       this.emitSessionUpdate(record);
     }
@@ -351,7 +349,7 @@ export class AgentSessionManager {
     const record = this.getRecord(input?.sessionId);
     await this.ensureSession(record);
     const session = record.session;
-    if (!session) throw new Error("Pi session is not running");
+    if (!session) throw new Error("Session is not running");
 
     if (command.type === "set_thinking_level") {
       session.setThinkingLevel(command.level);
@@ -538,11 +536,12 @@ export class AgentSessionManager {
     const record: SessionRecord = {
       id,
       cwd,
-      title: "new session",
+      title: "new task",
       status: "idle",
       active: false,
       opened: false,
       settled: true,
+      lastActivity: new Date().toISOString(),
       pendingFeedback: new Map(),
     };
     this.sessions.set(record.id, record);

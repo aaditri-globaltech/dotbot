@@ -10,6 +10,7 @@ const session: AgentSessionSummary = {
   status: "idle",
   active: false,
   unread: false,
+  lastActivity: new Date().toISOString(),
 };
 
 const root = document.getElementById("root");
