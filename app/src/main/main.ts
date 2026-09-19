@@ -157,10 +157,16 @@ ipcMain.on("window:close", (event) => {
 });
 
 ipcMain.handle("agent:list", () => sessions.list());
+ipcMain.handle("agent:defaults", (_event, value: unknown) =>
+  sessions.getDefaults(value),
+);
 ipcMain.handle("agent:create", (_event, cwd: unknown) => sessions.create(cwd));
 ipcMain.handle("agent:open", (_event, id: unknown) => sessions.open(id));
 ipcMain.handle("agent:close", (_event, id: unknown) => {
   sessions.close(id);
+});
+ipcMain.handle("agent:remove", (_event, id: unknown) => {
+  sessions.remove(id);
 });
 ipcMain.handle("agent:prompt", (_event, value: unknown) =>
   sessions.prompt(value),

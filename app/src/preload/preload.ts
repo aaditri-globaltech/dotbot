@@ -7,13 +7,18 @@ import type {
   AgentFeedbackResponse,
   AgentManagerEvent,
   AgentProviderSummary,
+  AgentSessionState,
   AgentSessionSummary,
   AgentStreamingBehavior,
 } from "@dotbot/agent-core";
 import type { GitStatus } from "@dotbot/source-control";
 import type { ExplorerEntry } from "@dotbot/workspace";
 import { contextBridge, ipcRenderer } from "electron";
-import type { DotbotApi, WorkspaceChange } from "../renderer/api";
+import type {
+  AgentDefaultsInput,
+  DotbotApi,
+  WorkspaceChange,
+} from "../renderer/api";
 import type { ActivityStatsResult } from "../shared/activity-stats";
 
 const api: DotbotApi = {
@@ -33,6 +38,8 @@ const api: DotbotApi = {
   agent: {
     list: () =>
       ipcRenderer.invoke("agent:list") as Promise<AgentSessionSummary[]>,
+    defaults: (input: AgentDefaultsInput) =>
+      ipcRenderer.invoke("agent:defaults", input) as Promise<AgentSessionState>,
     create: (cwd: string) =>
       ipcRenderer.invoke("agent:create", cwd) as Promise<AgentSessionSummary>,
     open: (sessionId: string) =>
@@ -41,6 +48,8 @@ const api: DotbotApi = {
         sessionId,
       ) as Promise<AgentSessionSummary>,
     close: (sessionId: string) => ipcRenderer.invoke("agent:close", sessionId),
+    remove: (sessionId: string) =>
+      ipcRenderer.invoke("agent:remove", sessionId),
     prompt: (
       sessionId: string,
       message: string,
