@@ -8,4 +8,5 @@ release/
 
 # local
 plans/
+.superpowers/
 todo.md
