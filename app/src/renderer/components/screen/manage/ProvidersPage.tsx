@@ -5,9 +5,15 @@ import type {
 import { useEffect, useState } from "react";
 import { api } from "../../../api";
 import { errorMessage } from "../../../errors";
+import { Dropdown, type DropdownOption } from "../../panels/Dropdown";
 import { CustomProviderForm } from "./CustomProviderForm";
-import { BUTTON_CLASS, FIELD_CLASS, INPUT_CLASS } from "./manage-classes";
-import { ProviderPicker } from "./ProviderPicker";
+import {
+  BUTTON_CLASS,
+  CARD_CLASS,
+  CARD_HINT_CLASS,
+  CARD_TITLE_CLASS,
+  INPUT_CLASS,
+} from "./manage-classes";
 
 /** List providers, manage their API keys, and add custom providers. */
 export function ProvidersPage() {
@@ -106,51 +112,64 @@ export function ProvidersPage() {
   }
 
   return (
-    <section className="flex max-w-[520px] flex-col gap-3">
+    <section className="flex max-w-[560px] flex-col gap-3">
       <h2 className="text-base font-semibold">Providers</h2>
       {providers.length === 0 && !error && (
         <p className="text-muted">No API-key providers were found.</p>
       )}
-      <div className="flex items-center gap-2">
-        <ProviderPicker
-          providers={providers}
-          selected={selected}
-          onSelect={selectProvider}
-        />
-        <button
-          type="button"
-          className={`${BUTTON_CLASS} shrink-0 whitespace-nowrap`}
-          disabled={busy}
-          onClick={() => {
-            setCreating(true);
-            setNotice(undefined);
-            setError(undefined);
-          }}
-        >
-          Add custom provider
-        </button>
+      <div className={CARD_CLASS}>
+        <div className={CARD_TITLE_CLASS}>Provider</div>
+        <p className={CARD_HINT_CLASS}>
+          Choose the provider whose API key you want to manage.
+        </p>
+        <div className="mt-2.5 flex items-center gap-2">
+          <Dropdown
+            className="flex-1"
+            label="Provider"
+            value={selectedId}
+            placeholder="Select a provider"
+            variant="field"
+            searchable
+            disabled={busy}
+            onChange={selectProvider}
+            options={providers.map(
+              (provider): DropdownOption => ({
+                value: provider.id,
+                label: provider.name,
+                trailing: provider.configured
+                  ? { label: "Configured", tone: "success" }
+                  : { label: "Unconfigured", tone: "muted" },
+              }),
+            )}
+          />
+          <button
+            type="button"
+            className={`${BUTTON_CLASS} shrink-0 whitespace-nowrap`}
+            disabled={busy}
+            onClick={() => {
+              setCreating(true);
+              setNotice(undefined);
+              setError(undefined);
+            }}
+          >
+            Add custom provider
+          </button>
+        </div>
       </div>
       {selected && (
-        <>
-          <label className={FIELD_CLASS}>
-            <span>API key</span>
-            <input
-              type="password"
-              className={INPUT_CLASS}
-              value={apiKey}
-              disabled={busy}
-              onChange={(event) => setApiKey(event.target.value)}
-            />
-          </label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={BUTTON_CLASS}
-              disabled={busy || !apiKey.trim()}
-              onClick={() => void save()}
-            >
-              Save
-            </button>
+        <div className={CARD_CLASS}>
+          <div className={CARD_TITLE_CLASS}>API key</div>
+          <p className={CARD_HINT_CLASS}>
+            Stored locally and sent only to {selected.name}.
+          </p>
+          <input
+            type="password"
+            className={`${INPUT_CLASS} mt-2.5`}
+            value={apiKey}
+            disabled={busy}
+            onChange={(event) => setApiKey(event.target.value)}
+          />
+          <div className="mt-2.5 flex justify-end gap-2">
             {selected.configured && (
               <button
                 type="button"
@@ -161,8 +180,16 @@ export function ProvidersPage() {
                 Remove
               </button>
             )}
+            <button
+              type="button"
+              className={BUTTON_CLASS}
+              disabled={busy || !apiKey.trim()}
+              onClick={() => void save()}
+            >
+              Save
+            </button>
           </div>
-        </>
+        </div>
       )}
       {notice && <p className="text-success">{notice}</p>}
       {error && (
