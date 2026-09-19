@@ -10,11 +10,11 @@ export type StatusDotState = AgentStatus | "success";
 const DOT_CLASSES: Record<StatusDotState, string> = {
   idle: "bg-faint",
   ready: "bg-faint",
-  starting: "bg-accent shadow-[0_0_0_2px_rgb(55_148_255/15%)]",
-  running: "bg-accent shadow-[0_0_0_2px_rgb(55_148_255/15%)]",
-  waiting: "bg-warning shadow-[0_0_0_2px_rgb(226_192_141/15%)]",
+  starting: "bg-accent shadow-[0_0_0_2px_rgb(76_154_255/18%)]",
+  running: "bg-accent shadow-[0_0_0_2px_rgb(76_154_255/18%)]",
+  waiting: "bg-warning shadow-[0_0_0_2px_rgb(232_193_95/18%)]",
   error: "bg-error",
-  success: "bg-success shadow-[0_0_0_2px_rgb(137_209_133/15%)]",
+  success: "bg-success shadow-[0_0_0_2px_rgb(60_192_96/18%)]",
 };
 
 /** Base dot shape plus the color for one state. */

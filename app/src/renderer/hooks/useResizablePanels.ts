@@ -10,10 +10,10 @@ import {
 import { DEFAULT_APP_KEYBINDINGS, matchesKey } from "../keybindings";
 
 // These values preserve a usable view while allowing panels to collapse fully.
-/** Minimum expanded width for a side panel in pixels. */
-export const MIN_SIDE_WIDTH = 170;
+/** Minimum expanded width for the sidebar in pixels. */
+const MIN_SIDE_WIDTH = 170;
 /** Minimum expanded height for the bottom panel in pixels. */
-export const MIN_PANEL_HEIGHT = 77;
+const MIN_PANEL_HEIGHT = 77;
 /** Collapsed side-panel width in pixels. */
 export const COLLAPSED_SIDE_WIDTH = 0;
 /** Collapsed bottom-panel height in pixels. */
@@ -23,7 +23,7 @@ const MIN_VIEW_WIDTH = 320;
 const MIN_TOP_HEIGHT = 240;
 
 /** Workbench boundary controlled by the resize hook. */
-export type PanelResizeTarget = "left" | "right" | "bottom";
+export type PanelResizeTarget = "left" | "bottom";
 
 type ResizeAxis = "column" | "row";
 
@@ -35,16 +35,13 @@ type ActiveResize = {
 /** Track panel sizes and provide pointer/keyboard resize handlers. */
 export function useResizablePanels() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(240);
-  const [rightPanelWidth, setRightPanelWidth] = useState(280);
   const [expandedPanelHeight, setExpandedPanelHeight] = useState(200);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(true);
   const layoutRef = useRef<HTMLDivElement | null>(null);
   const activeResizeRef = useRef<ActiveResize | undefined>(undefined);
 
   const leftWidth = leftCollapsed ? COLLAPSED_SIDE_WIDTH : leftPanelWidth;
-  const rightWidth = rightCollapsed ? COLLAPSED_SIDE_WIDTH : rightPanelWidth;
   const panelHeight = panelCollapsed
     ? COLLAPSED_PANEL_HEIGHT
     : expandedPanelHeight;
@@ -53,7 +50,7 @@ export function useResizablePanels() {
     const layout = layoutRef.current;
     if (!layout) return;
 
-    // Clamp each panel against the minimum space reserved for its neighbors.
+    // Clamp each panel against the minimum space reserved for the view.
     const bounds = layout.getBoundingClientRect();
 
     if (target === "bottom") {
@@ -68,37 +65,9 @@ export function useResizablePanels() {
       return;
     }
 
-    const availableWidth = bounds.width - MIN_VIEW_WIDTH;
-    const otherWidth = target === "left" ? rightWidth : leftWidth;
-    const maxWidth = Math.max(MIN_SIDE_WIDTH, availableWidth - otherWidth);
-    const nextWidth = Math.min(Math.max(size, MIN_SIDE_WIDTH), maxWidth);
-
-    if (target === "left") {
-      setLeftCollapsed(false);
-      setLeftPanelWidth(nextWidth);
-    } else {
-      setRightCollapsed(false);
-      setRightPanelWidth(nextWidth);
-    }
-  };
-
-  const resizeFromPointer = (
-    target: PanelResizeTarget,
-    clientX: number,
-    clientY: number,
-  ) => {
-    const layout = layoutRef.current;
-    if (!layout) return;
-
-    const bounds = layout.getBoundingClientRect();
-    setPanelSize(
-      target,
-      target === "left"
-        ? clientX - bounds.left
-        : target === "right"
-          ? bounds.right - clientX
-          : bounds.bottom - clientY,
-    );
+    const maxWidth = Math.max(MIN_SIDE_WIDTH, bounds.width - MIN_VIEW_WIDTH);
+    setLeftCollapsed(false);
+    setLeftPanelWidth(Math.min(Math.max(size, MIN_SIDE_WIDTH), maxWidth));
   };
 
   const stopResize = useCallback(() => {
@@ -131,14 +100,23 @@ export function useResizablePanels() {
     }
 
     const axis: ResizeAxis = target === "bottom" ? "row" : "column";
-    const move = (moveEvent: PointerEvent) =>
-      resizeFromPointer(target, moveEvent.clientX, moveEvent.clientY);
+    // Track the drag as a delta from the size at grab time: the panel then
+    // follows the pointer no matter where the handle sits in the layout.
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startSize = target === "bottom" ? panelHeight : leftWidth;
+    const move = (moveEvent: PointerEvent) => {
+      const delta =
+        target === "bottom"
+          ? startY - moveEvent.clientY
+          : moveEvent.clientX - startX;
+      setPanelSize(target, startSize + delta);
+    };
     activeResizeRef.current = { move, stop: stopResize };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", stopResize);
     document.addEventListener("pointercancel", stopResize);
     document.body.classList.add("is-resizing", `is-${axis}-resizing`);
-    resizeFromPointer(target, event.clientX, event.clientY);
   };
 
   const handleKeyDown = (
@@ -161,19 +139,12 @@ export function useResizablePanels() {
       return;
     }
 
-    setPanelSize(
-      target,
-      target === "left"
-        ? leftWidth + direction * 16
-        : rightWidth - direction * 16,
-    );
+    setPanelSize("left", leftWidth + direction * 16);
   };
 
   const toggleCollapsed = (target: PanelResizeTarget) => {
     if (target === "left") {
       setLeftCollapsed((collapsed) => !collapsed);
-    } else if (target === "right") {
-      setRightCollapsed((collapsed) => !collapsed);
     } else {
       setPanelCollapsed((collapsed) => !collapsed);
     }
@@ -192,13 +163,11 @@ export function useResizablePanels() {
     leftWidth,
     panelCollapsed,
     panelHeight,
-    rightCollapsed,
-    rightWidth,
     setLayout,
     startResize,
     toggleCollapsed,
   };
 }
 
-/** Panel state shared by the workbench screen and the menu bar. */
+/** Panel state shared by the app shell and the sidebar controls. */
 export type ResizablePanels = ReturnType<typeof useResizablePanels>;

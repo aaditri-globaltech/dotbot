@@ -35,32 +35,40 @@ function writeOpenedWorkspaces(workspaces: string[]) {
 
 const initialWorkspaces = readOpenedWorkspaces();
 
-/** Screens selectable from the activity bar. */
+/** Screens selectable from the primary sidebar. */
 export type Screen = "dashboard" | "workbench" | "manage";
+
+/** What the sidebar shows below its navigation rows. */
+type SidebarMode = "tasks" | "files";
 
 /** Pages selectable from the manage sidebar. */
 export type ManagePage = "general" | "providers";
 
 type WorkspaceStore = {
   screen: Screen;
+  sidebarMode: SidebarMode;
   managePage: ManagePage;
   workspaces: string[];
   selectedWorkspace?: string;
   setScreen: (screen: Screen) => void;
+  setSidebarMode: (mode: SidebarMode) => void;
   setManagePage: (page: ManagePage) => void;
   rememberWorkspace: (cwd: string) => void;
   selectWorkspace: (cwd: string) => void;
   selectInitialWorkspace: (cwd: string) => void;
 };
 
-/** Workbench-level workspace selection shared by Explorer, Source Control, and sessions. */
+/** Workbench-level workspace selection shared by the file tree, Source Control, and sessions. */
 export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   screen: "dashboard",
+  sidebarMode: "tasks",
   managePage: "general",
   workspaces: initialWorkspaces,
   selectedWorkspace: initialWorkspaces.at(-1),
 
   setScreen: (screen) => set({ screen }),
+
+  setSidebarMode: (mode) => set({ sidebarMode: mode }),
 
   setManagePage: (page) => set({ managePage: page }),
 
@@ -76,7 +84,6 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     get().rememberWorkspace(cwd);
     set({ selectedWorkspace: cwd });
   },
-
   selectInitialWorkspace: (cwd) => {
     if (!get().selectedWorkspace) get().selectWorkspace(cwd);
   },

@@ -61,7 +61,7 @@ export interface DotbotApi {
   activity: {
     getStats: () => Promise<ActivityStatsResult>;
   };
-  /** Workspace picker, Explorer, and Git operations. */
+  /** File tree, workspace picking, and Git operations. */
   workspace: {
     pick: () => Promise<string | undefined>;
     readDirectory: (cwd: string, path?: string) => Promise<ExplorerEntry[]>;

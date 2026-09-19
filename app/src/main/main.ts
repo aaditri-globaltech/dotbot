@@ -188,7 +188,7 @@ ipcMain.handle("providers:add", (_event, value: unknown) =>
 
 ipcMain.handle("activity:get-stats", () => activityStats.computeStats());
 
-// Workspace picking uses the native dialog; Explorer and Git stay in packages.
+// Workspace picking uses the native dialog; file reads and Git stay in packages.
 ipcMain.handle("workspace:pick", async () => {
   const result = await dialog.showOpenDialog({
     title: "Open workspace",

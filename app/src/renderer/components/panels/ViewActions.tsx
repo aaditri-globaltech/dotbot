@@ -4,10 +4,8 @@ import { ICON_BUTTON_CLASS } from "./panel-classes";
 export type ViewActionsProps = {
   onTogglePanel: () => void;
   onTogglePrimarySidebar: () => void;
-  onToggleSecondarySidebar: () => void;
   panelCollapsed: boolean;
   primarySidebarCollapsed: boolean;
-  secondarySidebarCollapsed: boolean;
 };
 
 // Keep the icon direction consistent with the action's current collapsed state.
@@ -17,7 +15,7 @@ const iconClass = (
   collapsedIcon: string,
 ) => `codicon ${collapsed ? collapsedIcon : expandedIcon}`;
 
-/** Toolbar for toggling the three resizable workbench regions. */
+/** Toolbar for toggling the sidebar and the bottom panel. */
 export function ViewActions(props: ViewActionsProps) {
   return (
     <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
@@ -26,8 +24,8 @@ export function ViewActions(props: ViewActionsProps) {
         type="button"
         dotbot-label={
           props.primarySidebarCollapsed
-            ? "Expand Primary Side Bar"
-            : "Collapse Primary Side Bar"
+            ? "Expand Side Bar"
+            : "Collapse Side Bar"
         }
         dotbot-expanded={String(!props.primarySidebarCollapsed)}
         onClick={props.onTogglePrimarySidebar}
@@ -53,26 +51,6 @@ export function ViewActions(props: ViewActionsProps) {
             props.panelCollapsed,
             "codicon-layout-panel",
             "codicon-layout-panel-off",
-          )}
-          dotbot-hidden="true"
-        />
-      </button>
-      <button
-        className={ICON_BUTTON_CLASS}
-        type="button"
-        dotbot-label={
-          props.secondarySidebarCollapsed
-            ? "Expand Secondary Side Bar"
-            : "Collapse Secondary Side Bar"
-        }
-        dotbot-expanded={String(!props.secondarySidebarCollapsed)}
-        onClick={props.onToggleSecondarySidebar}
-      >
-        <span
-          className={iconClass(
-            props.secondarySidebarCollapsed,
-            "codicon-layout-sidebar-right",
-            "codicon-layout-sidebar-right-off",
           )}
           dotbot-hidden="true"
         />

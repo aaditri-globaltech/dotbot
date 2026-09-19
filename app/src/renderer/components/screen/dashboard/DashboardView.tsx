@@ -6,9 +6,12 @@
 import type { AgentSessionSummary } from "@dotbot/agent-core";
 import { useMemo, useState } from "react";
 import { api } from "../../../api";
+import { useWorkspaceCwd } from "../../../hooks/useWorkspaceCwd";
+import { relativeTime } from "../../../relative-time";
 import { useAgentStore } from "../../../stores/agent-store";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
-import { workspaceName } from "../../panels/ExplorerSidebar";
+import { workspaceName } from "../../../workspace-name";
+import { Hero } from "../../panels/Hero";
 import { PanelHeader } from "../../panels/PanelHeader";
 import { ActivityStatsPanel } from "./ActivityStatsPanel";
 
@@ -17,21 +20,28 @@ const MAX_RECENT_SESSIONS = 5;
 
 /** Shared presentation for recent workspace and session rows. */
 const ROW_CLASS =
-  "flex w-full cursor-pointer items-center gap-3 rounded-md border border-border " +
-  "bg-card/40 px-3 py-2 text-left hover:border-border-strong-hover " +
+  "flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border " +
+  "bg-card px-3 py-2 text-left hover:border-border-strong-hover " +
   "hover:bg-surface-hover focus-visible:border-border-strong-hover " +
   "focus-visible:bg-surface-hover";
 
 /** Shared presentation for the two launcher actions. */
 const ACTION_CLASS =
-  "flex cursor-pointer items-center gap-3 rounded-md border border-border-strong " +
-  "bg-card px-4 py-3 text-left hover:border-border-strong-hover " +
+  "flex cursor-pointer items-center gap-3 rounded-xl border border-border-strong " +
+  "bg-card px-4 py-3.5 text-left hover:border-border-strong-hover " +
   "hover:bg-surface-hover focus-visible:border-border-strong-hover " +
   "focus-visible:bg-surface-hover";
 
-/** Newest activity first; sessions without activity come last. */
+/** Icon chip used by the launcher actions. */
+const ACTION_ICON_CLASS =
+  "grid size-8 shrink-0 place-items-center rounded-lg bg-elevated text-base text-secondary";
+
+/** Small muted heading above the recent lists. */
+const SECTION_TITLE_CLASS = "mb-2 text-[11px] font-medium text-muted";
+
+/** Newest activity first. */
 function byRecentActivity(a: AgentSessionSummary, b: AgentSessionSummary) {
-  return (b.lastActivity ?? "").localeCompare(a.lastActivity ?? "");
+  return b.lastActivity.localeCompare(a.lastActivity);
 }
 
 /** Home launcher: stats, recent sessions, and recent workspaces. */
@@ -40,15 +50,12 @@ export function DashboardView() {
   const createSession = useAgentStore((state) => state.createSession);
   const openSession = useAgentStore((state) => state.openSession);
   const workspaces = useWorkspaceStore((state) => state.workspaces);
-  const selectedWorkspace = useWorkspaceStore(
-    (state) => state.selectedWorkspace,
-  );
   const selectWorkspace = useWorkspaceStore((state) => state.selectWorkspace);
   const setScreen = useWorkspaceStore((state) => state.setScreen);
 
   const [busy, setBusy] = useState(false);
 
-  const workspaceCwd = selectedWorkspace ?? workspaces[workspaces.length - 1];
+  const workspaceCwd = useWorkspaceCwd();
 
   // Workspaces are remembered in open order, so the newest are at the end.
   const recentWorkspaces = useMemo(
@@ -96,22 +103,18 @@ export function DashboardView() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-surface">
-      <PanelHeader title="DASHBOARD" />
+      <PanelHeader title="Dashboard" />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div
           className={`mx-auto max-w-[952px] px-8 py-12${
             busy ? " pointer-events-none opacity-60" : ""
           }`}
         >
-          <header className="mb-6 flex flex-col items-center text-center">
-            <span
-              className="codicon codicon-hubot text-[48px] text-accent"
-              dotbot-hidden="true"
+          <header className="mb-6">
+            <Hero
+              title="Dotbot"
+              hint="Open a project or pick up where you left off."
             />
-            <h2 className="mt-3 text-2xl font-semibold text-primary">Dotbot</h2>
-            <p className="mt-1 text-[13px] text-muted">
-              Open a workspace or pick up where you left off.
-            </p>
           </header>
 
           <div className="mb-6 grid grid-cols-2 gap-3">
@@ -121,15 +124,15 @@ export function DashboardView() {
               onClick={() => run(openFolder)}
             >
               <span
-                className="codicon codicon-folder-opened shrink-0 text-lg text-secondary"
+                className={`${ACTION_ICON_CLASS} codicon codicon-folder-opened`}
                 dotbot-hidden="true"
               />
               <span className="flex min-w-0 flex-col">
                 <span className="text-[13px] font-medium text-primary">
-                  Open Folder
+                  Open project
                 </span>
                 <span className="truncate text-xs text-muted">
-                  Browse for a project to open as a workspace
+                  Pick a folder to work in
                 </span>
               </span>
             </button>
@@ -140,12 +143,12 @@ export function DashboardView() {
               onClick={() => run(newSession)}
             >
               <span
-                className="codicon codicon-add shrink-0 text-lg text-secondary"
+                className={`${ACTION_ICON_CLASS} codicon codicon-add`}
                 dotbot-hidden="true"
               />
               <span className="flex min-w-0 flex-col">
                 <span className="text-[13px] font-medium text-primary">
-                  New Session
+                  New task
                 </span>
                 <span className="truncate text-xs text-muted">
                   {workspaceCwd
@@ -160,11 +163,9 @@ export function DashboardView() {
 
           <div className="grid grid-cols-2 items-start gap-6">
             <section>
-              <h3 className="mb-2 text-xs font-medium tracking-[0.04em] text-muted uppercase">
-                Recent Sessions
-              </h3>
+              <h3 className={SECTION_TITLE_CLASS}>Recent tasks</h3>
               {recentSessions.length === 0 ? (
-                <p className="text-xs text-dim">No sessions yet.</p>
+                <p className="text-xs text-dim">No tasks yet.</p>
               ) : (
                 <div className="flex flex-col gap-1.5">
                   {recentSessions.map((session) => (
@@ -187,6 +188,9 @@ export function DashboardView() {
                           {workspaceName(session.cwd)}
                         </span>
                       </span>
+                      <span className="shrink-0 text-[10px] text-faint tabular-nums">
+                        {relativeTime(session.lastActivity)}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -194,11 +198,9 @@ export function DashboardView() {
             </section>
 
             <section>
-              <h3 className="mb-2 text-xs font-medium tracking-[0.04em] text-muted uppercase">
-                Recent Workspaces
-              </h3>
+              <h3 className={SECTION_TITLE_CLASS}>Recent projects</h3>
               {recentWorkspaces.length === 0 ? (
-                <p className="text-xs text-dim">No workspaces yet.</p>
+                <p className="text-xs text-dim">No projects yet.</p>
               ) : (
                 <div className="flex flex-col gap-1.5">
                   {recentWorkspaces.map((cwd) => (
@@ -221,7 +223,7 @@ export function DashboardView() {
                           {cwd}
                         </span>
                       </span>
-                      {cwd === selectedWorkspace && (
+                      {cwd === workspaceCwd && (
                         <span className="shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">
                           current
                         </span>

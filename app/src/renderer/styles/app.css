@@ -1,8 +1,8 @@
 :root {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   color-scheme: dark;
-  background: #181818;
-  color: #d4d4d4;
+  background: #111113;
+  color: #c8ced6;
 }
 
 * {
@@ -30,11 +30,11 @@
 }
 
 *:hover {
-  scrollbar-color: #424242 transparent;
+  scrollbar-color: #34363b transparent;
 }
 
 *:hover::-webkit-scrollbar-thumb {
-  background-color: #424242;
+  background-color: #34363b;
 }
 
 html,
@@ -49,49 +49,78 @@ body {
   overflow: hidden;
 }
 
-.workspace-layout {
+.app-shell {
+  position: relative;
   display: grid;
-  grid-template-columns: var(--left-panel-width) minmax(320px, 1fr) var(
-      --right-panel-width
-    );
+  grid-template-columns: var(--sidebar-width) minmax(320px, 1fr);
   min-width: 0;
   min-height: 0;
   width: 100%;
   height: 100%;
-  background: #1e1e1e;
+  background: #111113;
+}
+
+.app-shell.is-sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+/* Chrome is a raised panel and the view a recessed one; they meet flush so no
+   separator line is drawn between them. */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1;
+  grid-row: 1;
+  margin: 6px 0 6px 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #1a1e23;
+}
+
+.main-column {
+  display: grid;
+  grid-template-rows: 34px minmax(0, 1fr);
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: 6px 6px 6px 0;
+  overflow: hidden;
+  border-radius: 0 10px 10px 0;
+  background: #111113;
+}
+
+.app-shell.is-sidebar-collapsed .main-column {
+  margin-left: 6px;
+  border-radius: 10px;
+}
+
+/* Drag region shared by the sidebar brand row and the main title strip. */
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.main-view {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
 }
 
 .view-area {
   position: relative;
   display: grid;
-  grid-column: 2;
-  grid-row: 1;
   grid-template-rows: minmax(240px, 1fr) var(--panel-height);
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .panel {
   min-width: 0;
   min-height: 0;
   overflow: auto;
-}
-
-.left-panel {
-  display: flex;
-  flex-direction: column;
-  grid-column: 1;
-  grid-row: 1;
-  overflow: hidden;
-}
-
-.right-panel {
-  grid-column: 3;
-  grid-row: 1;
-}
-
-.session-panel {
-  overflow: hidden;
 }
 
 .view-panel {
@@ -120,24 +149,17 @@ body {
   touch-action: none;
 }
 
+/* The resize handle sits on the sidebar's right border: a 9px grab area with
+   no line of its own. `height` is explicit because the preflight zeroes `hr`. */
 .left-panel-border {
-  grid-column: 1;
-  grid-row: 1;
-  justify-self: end;
-  width: 8px;
-  height: 100%;
-  cursor: col-resize;
-  transform: translateX(50%);
-}
-
-.right-panel-border {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: start;
-  width: 8px;
-  height: 100%;
-  cursor: col-resize;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--sidebar-width);
+  width: 9px;
+  height: auto;
   transform: translateX(-50%);
+  cursor: col-resize;
 }
 
 .bottom-panel-border {
@@ -151,17 +173,17 @@ body {
   transform: translateY(-50%);
 }
 
-.workspace-layout.is-primary-sidebar-collapsed .left-panel-border,
-.workspace-layout.is-secondary-sidebar-collapsed .right-panel-border {
+.app-shell.is-sidebar-collapsed .left-panel-border {
   display: none;
 }
 
+/* The separator only paints while its handle is hovered or focused. */
 .panel-border::after {
   position: absolute;
   inset: 0 auto 0 50%;
   width: 1px;
   border-radius: 999px;
-  background: #2b2b2b;
+  background: transparent;
   content: "";
   transform: translateX(-50%);
   transition: background 120ms ease;
@@ -176,13 +198,13 @@ body {
 
 .panel-border:hover::after,
 .panel-border:focus-visible::after {
-  background: #3794ff;
+  background: #4c9aff;
 }
 
 .panel-border:focus-visible {
   box-shadow:
-    0 0 0 1px #181818,
-    0 0 0 2px #3794ff;
+    0 0 0 1px #141517,
+    0 0 0 2px #4c9aff;
 }
 
 body.is-resizing {
@@ -223,7 +245,7 @@ body.is-row-resizing {
 .agent-markdown-text h5,
 .agent-markdown-text h6 {
   margin: 12px 0 6px;
-  color: #d4d4d4;
+  color: #ccd2d9;
   line-height: 1.3;
 }
 
@@ -286,26 +308,26 @@ body.is-row-resizing {
 .agent-markdown-text blockquote {
   margin: 0 0 10px;
   padding-left: 10px;
-  border-left: 2px solid #454545;
-  color: #a6a6a6;
+  border-left: 2px solid #34363b;
+  color: #9ba3ab;
 }
 
 .agent-markdown-text strong {
-  color: #f0f0f0;
+  color: #eef2f7;
   font-weight: 600;
 }
 
 .agent-markdown-text em {
-  color: #d4d4d4;
+  color: #ccd2d9;
 }
 
 .agent-markdown-text del {
-  color: #858585;
+  color: #7a828a;
 }
 
 .agent-markdown-text input[type="checkbox"] {
   margin: 0 5px 0 0;
-  accent-color: #3794ff;
+  accent-color: #4c9aff;
 }
 
 .agent-markdown-text img {
@@ -316,8 +338,8 @@ body.is-row-resizing {
 
 .agent-markdown-text code {
   padding: 1px 4px;
-  border-radius: 3px;
-  background: #2b2b2b;
+  border-radius: 4px;
+  background: #24262a;
   color: #d7ba7d;
   font:
     12px / 1.45 ui-monospace,
@@ -330,9 +352,9 @@ body.is-row-resizing {
   margin: 0 0 10px;
   padding: 10px;
   overflow: auto;
-  border: 1px solid #2b2b2b;
-  border-radius: 4px;
-  background: #1e1e1e;
+  border: 1px solid #26272a;
+  border-radius: 8px;
+  background: #141517;
 }
 
 .agent-markdown-text pre code {
@@ -343,7 +365,7 @@ body.is-row-resizing {
 }
 
 .agent-markdown-text a {
-  color: #3794ff;
+  color: #4c9aff;
   overflow-wrap: anywhere;
   text-decoration: none;
 }
@@ -355,7 +377,7 @@ body.is-row-resizing {
 .agent-markdown-text hr {
   margin: 12px 0;
   border: 0;
-  border-top: 1px solid #3b3b3b;
+  border-top: 1px solid #34363b;
 }
 
 .agent-markdown-text table {
@@ -369,13 +391,13 @@ body.is-row-resizing {
 .agent-markdown-text th,
 .agent-markdown-text td {
   padding: 5px 7px;
-  border: 1px solid #3b3b3b;
+  border: 1px solid #34363b;
   text-align: left;
 }
 
 .agent-markdown-text th {
-  color: #d4d4d4;
-  background: #252526;
+  color: #ccd2d9;
+  background: #1f2123;
 }
 
 .agent-markdown-text input[type="checkbox"]:disabled {
@@ -386,14 +408,14 @@ body.is-row-resizing {
   min-height: 18px;
   margin-bottom: 6px;
   overflow: hidden;
-  color: #858585;
+  color: #7a828a;
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .agent-status-error {
-  color: #f48771;
+  color: #f05454;
 }
 
 @keyframes agent-blink {

@@ -39,7 +39,7 @@ const MODEL_COLORS = [
   "bg-[#8b949e]",
 ];
 
-const TAB_CLASS = "cursor-pointer rounded px-2.5 py-1 text-xs font-medium";
+const TAB_CLASS = "cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium";
 
 /** Compact token and message counts: 6600000 -> "6.6M", 847 -> "847". */
 function formatCompact(value: number): string {
@@ -99,10 +99,8 @@ function bucketTokens(days: ActivityStatsDay[]): TokenBucket[] {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-md bg-card px-3 py-2.5">
-      <div className="text-[11px] tracking-[0.04em] text-muted uppercase">
-        {label}
-      </div>
+    <div className="min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5">
+      <div className="text-[11px] text-muted">{label}</div>
       <div
         className="mt-0.5 truncate text-lg font-semibold text-primary"
         title={value}
@@ -321,7 +319,7 @@ export function ActivityStatsPanel() {
   );
 
   return (
-    <section className="mb-6 rounded-lg border border-border bg-card/50 p-4">
+    <section className="mb-6 rounded-xl border border-border bg-card p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex gap-0.5">
           {(["overview", "models"] as Tab[]).map((name) => (
@@ -332,7 +330,7 @@ export function ActivityStatsPanel() {
               className={`${TAB_CLASS} ${
                 tab === name
                   ? "bg-elevated text-primary"
-                  : "bg-transparent text-muted hover:text-primary"
+                  : "bg-transparent text-muted hover:bg-surface-hover hover:text-primary"
               }`}
               onClick={() => setTab(name)}
             >
@@ -341,7 +339,7 @@ export function ActivityStatsPanel() {
           ))}
         </div>
 
-        <div className="flex gap-0.5 rounded bg-card p-0.5">
+        <div className="flex gap-0.5 rounded-full bg-surface p-0.5">
           {RANGE_LABELS.map(({ key, label }) => (
             <button
               key={key}
@@ -350,7 +348,7 @@ export function ActivityStatsPanel() {
               className={`${TAB_CLASS} ${
                 range === key
                   ? "bg-elevated text-primary"
-                  : "bg-transparent text-muted hover:text-primary"
+                  : "bg-transparent text-muted hover:bg-surface-hover hover:text-primary"
               }`}
               onClick={() => setRange(key)}
             >
@@ -363,10 +361,7 @@ export function ActivityStatsPanel() {
       {tab === "overview" ? (
         <>
           <div className="mb-4 grid grid-cols-4 gap-2">
-            <StatCard
-              label="Sessions"
-              value={summary.sessions.toLocaleString()}
-            />
+            <StatCard label="Tasks" value={summary.sessions.toLocaleString()} />
             <StatCard
               label="Messages"
               value={summary.messages.toLocaleString()}
