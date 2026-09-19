@@ -49,13 +49,6 @@ export async function readDirectory(
     });
 }
 
-/** Paths that never need watching; mirrors VS Code's default watcher excludes. */
-const WATCH_IGNORES = [
-  "**/.git/objects/**",
-  "**/.git/subtree-cache/**",
-  "**/.hg/store/**",
-];
-
 /** Receives normalized, directory-relative paths changed on disk. */
 export type WatchDirectoryListener = (paths: string[]) => void;
 
@@ -73,17 +66,13 @@ export async function watchDirectory(
   onError?: (error: unknown) => void,
 ): Promise<() => Promise<void>> {
   const cwd = await validateDirectory(cwdValue);
-  const subscription = await watcher.subscribe(
-    cwd,
-    (error, events) => {
-      if (error) {
-        onError?.(error);
-        return;
-      }
-      listener(events.map((event) => normalizeChange(cwd, event.path)));
-    },
-    { ignore: WATCH_IGNORES },
-  );
+  const subscription = await watcher.subscribe(cwd, (error, events) => {
+    if (error) {
+      onError?.(error);
+      return;
+    }
+    listener(events.map((event) => normalizeChange(cwd, event.path)));
+  });
 
   return () => subscription.unsubscribe();
 }
