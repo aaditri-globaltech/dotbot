@@ -77,8 +77,12 @@ From the repository root, install dependencies and start the development app:
 ```sh
 npm install --ignore-scripts
 npm run prepare
+npm run patch
 npm run dev
 ```
+
+`prepare` and `patch` are skipped when installing with lifecycle scripts
+enabled; plain `npm install` runs them automatically.
 
 Open a project in Files, create a session, and send prompts. Sessions
 persist between runs.

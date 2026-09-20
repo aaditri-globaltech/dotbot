@@ -36,7 +36,6 @@ let isQuitting = false;
 const agentManager = new AgentManager({ onEvent: sendEvent });
 const providers = new ProviderRegistry(() => agentManager.getModelRuntime());
 
-// Constructed after the manager so the agent data directory has been resolved.
 const usageStats = new UsageStatsStore({
   sessionsRoot: getSessionsDir(),
   storePath: join(app.getPath("userData"), "usage-stats.json"),

@@ -8,8 +8,7 @@
 
 import { randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import {
   clampThinkingLevel,
   getSupportedThinkingLevels,
@@ -173,9 +172,6 @@ export class AgentManager {
   private modelRuntimePromise?: Promise<ModelRuntime>;
 
   constructor(options: AgentManagerOptions = {}) {
-    // Pi's data (auth, models, sessions) lives in Dotbot's own directory; an
-    // explicit PI_CODING_AGENT_DIR still wins.
-    process.env.PI_CODING_AGENT_DIR ??= join(homedir(), ".bot", "agent");
     this.onEvent = options.onEvent;
     this.createSession = options.createSession ?? createAgentSession;
     this.injectedModelRuntime = options.modelRuntime;

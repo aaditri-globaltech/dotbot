@@ -14,6 +14,8 @@
     "./types": "./src/types.ts"
   },
   "scripts": {
+    "patch": "node scripts/patch.ts",
+    "postinstall": "node scripts/patch.ts",
     "test": "vitest --run",
     "typecheck": "tsgo --noEmit"
   },

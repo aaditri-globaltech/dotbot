@@ -1,6 +1,13 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+
+- Branded the embedded Pi runtime as "bot" with the `.bot` config directory via an idempotent patch script in `@dotbot/agent-core` (`npm run patch`), run as its postinstall hook and explicitly in CI.
+
+### Changed
+
+- Moved the agent data directory rule into the runtime branding so Pi resolves `~/.bot/agent` itself instead of relying on `PI_CODING_AGENT_DIR`.
 
 ## [0.1.5] - 2026-08-27
 ### Added

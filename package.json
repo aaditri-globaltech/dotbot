@@ -20,6 +20,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "check": "biome check --write --error-on-warnings app packages package.json tsconfig.base.json biome.json && npm run typecheck",
+    "patch": "npm run patch --workspace @dotbot/agent-core",
     "prepare": "husky"
   },
   "devDependencies": {

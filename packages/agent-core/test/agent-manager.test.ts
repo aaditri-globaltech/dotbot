@@ -1,5 +1,5 @@
 import { mkdtempSync, readFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fauxAssistantMessage, fauxText } from "@earendil-works/pi-ai";
 import {
@@ -273,23 +273,5 @@ describe("AgentManager", () => {
     );
     expect(error?.type === "session_error" && error.message).toBe("boom");
     sessions.stopAll();
-  });
-
-  it("defaults the Pi data directory to Dotbot's own agent directory", () => {
-    const previous = process.env.PI_CODING_AGENT_DIR;
-    delete process.env.PI_CODING_AGENT_DIR;
-    try {
-      new AgentManager();
-      expect(process.env.PI_CODING_AGENT_DIR).toBe(
-        join(homedir(), ".bot", "agent"),
-      );
-
-      process.env.PI_CODING_AGENT_DIR = "/tmp/explicit-agent-dir";
-      new AgentManager();
-      expect(process.env.PI_CODING_AGENT_DIR).toBe("/tmp/explicit-agent-dir");
-    } finally {
-      if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
-      else process.env.PI_CODING_AGENT_DIR = previous;
-    }
   });
 });

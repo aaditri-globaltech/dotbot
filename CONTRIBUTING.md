@@ -15,6 +15,7 @@ Use Node 24 or a compatible version, then install dependencies without running l
 ```sh
 npm install --ignore-scripts
 npm run prepare
+npm run patch
 npm run dev
 ```
 

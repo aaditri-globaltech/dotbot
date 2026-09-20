@@ -11,7 +11,7 @@ import type { AgentManagerEvent } from "../src/types";
 /** Agent data directory shared by every agent-core test. */
 export const agentDir = mkdtempSync(join(tmpdir(), "dotbot-agent-test-"));
 
-process.env.PI_CODING_AGENT_DIR = agentDir;
+process.env.BOT_CODING_AGENT_DIR = agentDir;
 
 /** Pi runtime with one faux provider, backed by the test agent directory. */
 export async function createFauxRuntime() {
