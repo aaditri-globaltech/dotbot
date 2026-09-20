@@ -14,10 +14,10 @@ npm run prepare
 npm run dev
 ```
 
-Choose a workspace with the Explorer folder action, then use the session pane
+Open a project with the Files folder action, then use the session pane
 to create or open an agent session. New sessions use the label `new session`
-until their first prompt supplies a fallback title. Git is optional for
-Explorer and required for Source Control. The agent runtime is bundled through
+until their first prompt supplies a fallback title. Git is optional for Files
+and required for the Git panel. The agent runtime is bundled through
 `@dotbot/agent-core`; no separate install is required.
 
 ## Responsibilities
@@ -25,10 +25,10 @@ Explorer and required for Source Control. The agent runtime is bundled through
 - Render the workspace UI with React and Zustand.
 - Own windows, custom controls, tray behavior, and native folder selection.
 - Expose the narrow typed `window.dotbot` bridge to the renderer.
-- Run one `AgentSessionManager` and forward only Agent manager events to the renderer.
+- Run one `AgentManager` and one `ProviderRegistry`, and forward Agent manager events to the renderer.
 
-Filesystem and Git logic belongs in `@dotbot/workspace` and
-`@dotbot/source-control`, not in Electron or the renderer.
+Filesystem and Git logic belongs in `@dotbot/files` and
+`@dotbot/git`, not in Electron or the renderer.
 
 ## Chat rendering
 
@@ -42,7 +42,7 @@ collapsible.
 `edit` output uses diff highlighting. Tool cards update their arguments and
 output while the agent streams them. These tool outputs show line numbers; `read`
 starts at its requested offset. Errors remain unnumbered. The transcript
-follows streamed output while the user is at the bottom, loads older history on
+follows streamed output while the user is at the bottom, loads older transcript items on
 demand, and offers a jump-to-latest control after the user scrolls away.
 
 ## Styling
@@ -95,7 +95,7 @@ Two details worth knowing:
 
 ## Session behavior
 
-Opening a session creates one in-process agent session and loads its history
+Opening a session creates one in-process agent session and loads its transcript
 and state. A completed turn changes the session to idle but keeps that session
 available while the tab is open. Accepted prompts show `Working…` immediately;
 while a turn is running, the composer can send a message as `Steer` before the
@@ -143,5 +143,5 @@ npm run check:browser-smoke
 ## Related packages
 
 - [`../packages/agent-core`](../packages/agent-core)
-- [`../packages/workspace`](../packages/workspace)
-- [`../packages/source-control`](../packages/source-control)
+- [`../packages/files`](../packages/files)
+- [`../packages/git`](../packages/git)

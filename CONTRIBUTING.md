@@ -3,8 +3,8 @@
 ## Before contributing
 
 Dotbot is an npm workspace monorepo containing an Electron client and three
-support packages. Read the root `README.md` and `AGENTS.md` before making
-changes.
+support packages. Read the root `README.md`, `AGENTS.md`, and `GLOSSARY.md`
+before making changes.
 
 Keep changes focused and understand the behavior and interactions of every change, including changes produced with AI assistance.
 
@@ -18,15 +18,15 @@ npm run prepare
 npm run dev
 ```
 
-Git is required for Source Control features. The agent runtime is provided by
+Git is required for the Git panel. The agent runtime is provided by
 `packages/agent-core`; no separate install is required.
 
 ## Repository structure
 
 - `app/` — Electron main process, preload bridge, and React/Zustand renderer.
-- `packages/agent-core/` — agent runtime re-exports and the in-process session manager.
-- `packages/workspace/` — Explorer filesystem access.
-- `packages/source-control/` — Git status, staging, and commit operations.
+- `packages/agent-core/` — agent runtime re-exports, the in-process agent manager, and the provider registry.
+- `packages/files/` — project filesystem access and the file watcher.
+- `packages/git/` — Git status, staging, and commit operations.
 
 Keep agent session behavior in `agent-core` and filesystem or Git behavior in
 the matching package rather than in Electron or the renderer.

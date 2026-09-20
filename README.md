@@ -15,17 +15,17 @@ Dotbot is an npm workspace monorepo. The Electron main process embeds the agent
 runtime directly; there is no separate host process.
 
 - `app/` — Electron shell, preload bridge, and React/Vite renderer.
-- `packages/agent-core/` — named re-exports of the agent runtime plus Dotbot's in-process session manager.
-- `packages/workspace/` — Explorer filesystem access.
-- `packages/source-control/` — Git status, staging, and commit operations.
+- `packages/agent-core/` — named re-exports of the agent runtime plus Dotbot's in-process agent manager and provider registry.
+- `packages/files/` — project filesystem access and the file watcher.
+- `packages/git/` — Git status, staging, and commit operations.
 
 ### Runtime flow
 
-1. Electron starts and creates one `AgentSessionManager` in the main process.
+1. Electron starts and creates one `AgentManager` and one `ProviderRegistry` in the main process.
 2. The renderer asks the preload bridge to create or open a session.
-3. The manager creates an `AgentSession` in-process with the workspace as its `cwd`.
+3. The manager creates an `AgentSession` in-process with the project directory as its `cwd`.
 4. Agent events stream through the manager to the renderer over `agent:event` IPC.
-5. Explorer and Source Control calls run against the workspace and Git packages through validated IPC.
+5. Files and Git calls run against the files and git packages through validated IPC.
 
 Renderer code is type-only when it imports from the packages; all Node and
 agent-runtime work stays in the main process. The main bundle keeps the agent
@@ -36,16 +36,16 @@ Before contributing, read [`CONTRIBUTING.md`](CONTRIBUTING.md).
 ## Features
 
 - Workspace-based agent sessions grouped in the session sidebar, with session tabs and streamed assistant output.
-- Inline thinking, user prompts, tool calls, status updates, and extension feedback dialogs.
+- Inline thinking, user prompts, tool calls, status updates, and extension dialogs.
 - Model and thinking-level selection, stop controls, and steer/follow-up prompts while a turn is running.
 - Open sessions reuse their in-process agent session after a turn settles; the selected and other workspace session lists scroll independently.
-- VS Code-style activity views with an expandable Explorer and local Git Source Control for the active workspace.
+- Dashboard, Workbench, and Manage screens with an expandable file tree and local Git for the active project.
 - Resizable workbench panels, system-tray minimize/restore, and Linux AppImage/deb and Windows NSIS packaging.
 
 ### Keyboard defaults
 
 - `Enter` submits a prompt; `Shift+Enter` inserts a newline.
-- `Ctrl+Enter` commits a Source Control message.
+- `Ctrl+Enter` commits a Git message.
 - Arrow keys resize the focused panel.
 
 ### Transcript rendering
@@ -55,7 +55,7 @@ Before contributing, read [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - Bash and other generic tools render as `$` command blocks with streamed arguments and output.
 - Every tool card is collapsible; `read`, `edit`, and `write` render without `$` and show the workspace path.
 - `read` shows its requested line range; `edit` displays the agent's line-numbered diff; `write` displays the content written.
-- The transcript and tool output follow streamed content until the user scrolls away, while older session history loads in pages.
+- The transcript and tool output follow streamed content until the user scrolls away, while older transcript items load in pages.
 
 ### Session behavior
 
@@ -65,7 +65,7 @@ Before contributing, read [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Prerequisite
 
-Git is optional for the Explorer but required for Source Control; install Git
+Git is optional for Files but required for the Git panel; install Git
 and put it on `PATH` if you want branch, status, staging, and commit actions.
 The agent runtime is a dependency of `packages/agent-core`; no separate install
 is required.
@@ -80,7 +80,7 @@ npm run prepare
 npm run dev
 ```
 
-Choose a workspace in Explorer, create a session, and send prompts. Sessions
+Open a project in Files, create a session, and send prompts. Sessions
 persist between runs.
 
 ## Development
