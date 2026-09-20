@@ -10,7 +10,7 @@ import type {
 } from "@dotbot/agent-core";
 import type { FileEntry } from "@dotbot/files";
 import type { GitStatus } from "@dotbot/git";
-import type { ActivityStatsResult } from "../shared/activity-stats";
+import type { UsageStats } from "../shared/usage-stats";
 
 /** Filesystem change batch reported for the watched project. */
 export type FilesChanged = {
@@ -68,9 +68,9 @@ export interface DotbotApi {
     remove: (providerId: string) => Promise<AgentProviderSummary>;
     add: (provider: AgentCustomProviderInput) => Promise<AgentProviderSummary>;
   };
-  /** Dashboard activity statistics derived from persisted sessions. */
-  activity: {
-    getStats: () => Promise<ActivityStatsResult>;
+  /** Dashboard usage statistics derived from persisted sessions. */
+  stats: {
+    get: () => Promise<UsageStats>;
   };
   /** Project picking, file tree access, and Git operations. */
   projects: {

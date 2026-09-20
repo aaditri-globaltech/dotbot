@@ -22,8 +22,8 @@ import {
   nativeImage,
   Tray,
 } from "electron";
-import { ActivityStatsStore } from "./activity-stats";
 import { createFileWatch } from "./file-watch";
+import { UsageStatsStore } from "./usage-stats";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 
@@ -34,9 +34,9 @@ let isQuitting = false;
 const sessions = new AgentSessionManager({ onEvent: sendEvent });
 
 // Constructed after the manager so the agent data directory has been resolved.
-const activityStats = new ActivityStatsStore({
+const usageStats = new UsageStatsStore({
   sessionsRoot: getSessionsDir(),
-  storePath: join(app.getPath("userData"), "activity-stats.json"),
+  storePath: join(app.getPath("userData"), "usage-stats.json"),
 });
 
 const fileWatch = createFileWatch(watchDirectory);
@@ -192,7 +192,7 @@ ipcMain.handle("providers:add", (_event, value: unknown) =>
   sessions.addCustomProvider(value),
 );
 
-ipcMain.handle("activity:get-stats", () => activityStats.computeStats());
+ipcMain.handle("stats:get", () => usageStats.computeStats());
 
 // Project picking uses the native dialog; file reads and Git stay in packages.
 ipcMain.handle("project:pick", async () => {

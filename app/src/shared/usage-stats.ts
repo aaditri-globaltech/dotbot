@@ -1,5 +1,5 @@
 /**
- * Activity statistics contract shared by the main process (which computes the
+ * Usage statistics contract shared by the main process (which computes the
  * numbers from the agent's persisted session files), the preload bridge, and
  * the dashboard.
  */
@@ -17,10 +17,10 @@ export const RANGE_DAYS = {
 } as const;
 
 /** Range identifiers accepted by the dashboard toggle. */
-export type ActivityRangeKey = keyof typeof RANGE_DAYS;
+export type UsageRangeKey = keyof typeof RANGE_DAYS;
 
-/** One calendar day of activity, in local time. */
-export interface ActivityStatsDay {
+/** One calendar day of usage, in local time. */
+export interface UsageStatsDay {
   /** Local `YYYY-MM-DD`. */
   date: string;
   /** User and assistant messages sent that day. */
@@ -32,14 +32,14 @@ export interface ActivityStatsDay {
 }
 
 /** Token totals for one model over a range. */
-export interface ActivityModelUsage {
+export interface UsageModelUsage {
   model: string;
   input: number;
   output: number;
 }
 
 /** Summary numbers for one range window. */
-export interface ActivityRangeStats {
+export interface UsageRangeStats {
   /** Sessions with at least one message inside the window. */
   sessions: number;
   messages: number;
@@ -52,12 +52,12 @@ export interface ActivityRangeStats {
   /** Busiest local hour (0-23), or `null` when the range has no activity. */
   peakHour: number | null;
   /** Models used in the window, descending by input plus output. */
-  models: ActivityModelUsage[];
+  models: UsageModelUsage[];
 }
 
 /** Full dashboard payload: the day series plus every range summary. */
-export interface ActivityStatsResult {
+export interface UsageStats {
   /** Ascending, length `WINDOW_DAYS`, zero-filled. */
-  days: ActivityStatsDay[];
-  ranges: Record<ActivityRangeKey, ActivityRangeStats>;
+  days: UsageStatsDay[];
+  ranges: Record<UsageRangeKey, UsageRangeStats>;
 }

@@ -1,5 +1,5 @@
 /**
- * Dashboard activity statistics, computed from the agent's persisted
+ * Dashboard usage statistics, computed from the agent's persisted
  * session files.
  *
  * Each session file is reduced to a per-day rollup and kept in a small JSON
@@ -18,13 +18,13 @@ import {
 } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import {
-  type ActivityRangeKey,
-  type ActivityRangeStats,
-  type ActivityStatsDay,
-  type ActivityStatsResult,
   RANGE_DAYS,
+  type UsageRangeKey,
+  type UsageRangeStats,
+  type UsageStats,
+  type UsageStatsDay,
   WINDOW_DAYS,
-} from "../shared/activity-stats";
+} from "../shared/usage-stats";
 
 const RETENTION_DAYS = 400; // prune sessions idle for ~13 months
 const STORE_VERSION = 1;
@@ -56,7 +56,7 @@ interface StoreShape {
   sessions: Record<string, SessionEntry>; // sessionId -> entry
 }
 
-/** Pooled activity for one day across every retained session. */
+/** Pooled usage for one day across every retained session. */
 interface PooledDay {
   messages: number;
   tokens: number;
@@ -65,7 +65,7 @@ interface PooledDay {
   sessions: Set<string>;
 }
 
-export type ActivityStatsStoreOptions = {
+export type UsageStatsStoreOptions = {
   /** Directory holding persisted session files (searched recursively). */
   sessionsRoot: string;
   /** JSON file keeping reduced aggregates between runs. */
@@ -182,15 +182,15 @@ async function collectSessionFiles(
   }
 }
 
-/** Persisted activity statistics for the dashboard. */
-export class ActivityStatsStore {
+/** Persisted usage statistics for the dashboard. */
+export class UsageStatsStore {
   private readonly sessionsRoot: string;
   private readonly storePath: string;
   private store: StoreShape = { version: STORE_VERSION, sessions: {} };
   private loaded = false;
   private dirty = false;
 
-  constructor(options: ActivityStatsStoreOptions) {
+  constructor(options: UsageStatsStoreOptions) {
     this.sessionsRoot = options.sessionsRoot;
     this.storePath = options.storePath;
   }
@@ -263,7 +263,7 @@ export class ActivityStatsStore {
   }
 
   /** Scan session files and aggregate everything into a dashboard payload. */
-  async computeStats(now: Date = new Date()): Promise<ActivityStatsResult> {
+  async computeStats(now: Date = new Date()): Promise<UsageStats> {
     await this.refresh(now);
     return this.aggregate(now);
   }
@@ -287,7 +287,7 @@ export class ActivityStatsStore {
   }
 
   /** Pool every retained session into per-day activity, then summarise ranges. */
-  private aggregate(now: Date): ActivityStatsResult {
+  private aggregate(now: Date): UsageStats {
     const todayMidnight = new Date(
       now.getFullYear(),
       now.getMonth(),
@@ -335,7 +335,7 @@ export class ActivityStatsStore {
     }
 
     // Zero-filled ascending series so the heatmap and token chart stay dense.
-    const days: ActivityStatsDay[] = [];
+    const days: UsageStatsDay[] = [];
     for (let i = WINDOW_DAYS - 1; i >= 0; i--) {
       const key = localDayKey(
         new Date(todayMidnight.getTime() - i * MS_PER_DAY),
@@ -355,8 +355,8 @@ export class ActivityStatsStore {
       });
     }
 
-    const ranges = {} as Record<ActivityRangeKey, ActivityRangeStats>;
-    for (const key of Object.keys(RANGE_DAYS) as ActivityRangeKey[]) {
+    const ranges = {} as Record<UsageRangeKey, UsageRangeStats>;
+    for (const key of Object.keys(RANGE_DAYS) as UsageRangeKey[]) {
       ranges[key] = this.aggregateRange(perDay, todayMidnight, RANGE_DAYS[key]);
     }
 
@@ -367,7 +367,7 @@ export class ActivityStatsStore {
     perDay: Map<string, PooledDay>,
     todayMidnight: Date,
     rangeDays: number,
-  ): ActivityRangeStats {
+  ): UsageRangeStats {
     const todayKey = localDayKey(todayMidnight);
     const startKey = localDayKey(
       new Date(todayMidnight.getTime() - (rangeDays - 1) * MS_PER_DAY),
@@ -436,7 +436,7 @@ export class ActivityStatsStore {
       await rename(temporary, this.storePath);
     } catch (error) {
       this.dirty = true; // Retry on the next scan.
-      console.error("Failed to save activity stats:", error);
+      console.error("Failed to save usage stats:", error);
     }
   }
 }

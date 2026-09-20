@@ -1,22 +1,22 @@
 /**
- * Activity statistics panel for the dashboard, backed by the main process's
+ * Usage statistics panel for the dashboard, backed by the main process's
  * reduced session data.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  type ActivityModelUsage,
-  type ActivityRangeKey,
-  type ActivityStatsDay,
-  type ActivityStatsResult,
   RANGE_DAYS,
-} from "../../../../shared/activity-stats";
+  type UsageModelUsage,
+  type UsageRangeKey,
+  type UsageStats,
+  type UsageStatsDay,
+} from "../../../../shared/usage-stats";
 import { api } from "../../../api";
 import { intensityClass } from "./heatmap-intensity";
 
 type Tab = "overview" | "models";
 
-const RANGE_LABELS: { key: ActivityRangeKey; label: string }[] = [
+const RANGE_LABELS: { key: UsageRangeKey; label: string }[] = [
   { key: "365", label: "1y" },
   { key: "180", label: "6mo" },
   { key: "90", label: "3mo" },
@@ -69,7 +69,7 @@ interface TokenBucket {
 }
 
 /** Bucket a day slice into at most `MAX_BARS` bars, trimming leading quiet days. */
-function bucketTokens(days: ActivityStatsDay[]): TokenBucket[] {
+function bucketTokens(days: UsageStatsDay[]): TokenBucket[] {
   let start = 0;
   while (start < days.length && days[start].tokens === 0) start += 1;
 
@@ -115,7 +115,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
  * Message counts per day, laid out as week columns: the grid flows down seven
  * weekday rows first, and `gridRowStart` puts each day on its own weekday.
  */
-function Heatmap({ days }: { days: ActivityStatsDay[] }) {
+function Heatmap({ days }: { days: UsageStatsDay[] }) {
   const maxCount = useMemo(
     () => days.reduce((max, day) => Math.max(max, day.messages), 0),
     [days],
@@ -143,7 +143,7 @@ function TokenChart({
   orderedModels,
   modelColor,
 }: {
-  days: ActivityStatsDay[];
+  days: UsageStatsDay[];
   /** Largest first, also the stacking order. */
   orderedModels: string[];
   modelColor: Map<string, string>;
@@ -229,7 +229,7 @@ function ModelLegend({
   models,
   modelColor,
 }: {
-  models: ActivityModelUsage[];
+  models: UsageModelUsage[];
   modelColor: Map<string, string>;
 }) {
   const grandTotal = models.reduce(
@@ -273,19 +273,19 @@ function ModelLegend({
 }
 
 /**
- * Activity overview with a range toggle. Renders nothing until there is
+ * Usage overview with a range toggle. Renders nothing until there is
  * activity, so a fresh install shows only the launcher.
  */
-export function ActivityStatsPanel() {
-  const [stats, setStats] = useState<ActivityStatsResult | null>(null);
+export function UsageStatsPanel() {
+  const [stats, setStats] = useState<UsageStats | null>(null);
   const [failed, setFailed] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
-  const [range, setRange] = useState<ActivityRangeKey>("365");
+  const [range, setRange] = useState<UsageRangeKey>("365");
 
   useEffect(() => {
     let cancelled = false;
-    api.activity
-      .getStats()
+    api.stats
+      .get()
       .then((result) => {
         if (!cancelled) setStats(result);
       })
@@ -304,7 +304,7 @@ export function ActivityStatsPanel() {
   }, [stats, range]);
 
   if (failed) {
-    return <p className="text-muted">Activity statistics are unavailable.</p>;
+    return <p className="text-muted">Usage statistics are unavailable.</p>;
   }
   if (!stats || stats.ranges["365"].messages === 0) return null;
 
@@ -361,7 +361,10 @@ export function ActivityStatsPanel() {
       {tab === "overview" ? (
         <>
           <div className="mb-4 grid grid-cols-4 gap-2">
-            <StatCard label="Tasks" value={summary.sessions.toLocaleString()} />
+            <StatCard
+              label="Sessions"
+              value={summary.sessions.toLocaleString()}
+            />
             <StatCard
               label="Messages"
               value={summary.messages.toLocaleString()}

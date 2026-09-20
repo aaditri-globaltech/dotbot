@@ -12,7 +12,7 @@ import { useAgentStore } from "../../../stores/agent-store";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
 import { Hero } from "../../panels/Hero";
 import { PanelHeader } from "../../panels/PanelHeader";
-import { ActivityStatsPanel } from "./ActivityStatsPanel";
+import { UsageStatsPanel } from "./UsageStatsPanel";
 
 const MAX_RECENT_PROJECTS = 6;
 const MAX_RECENT_SESSIONS = 5;
@@ -152,7 +152,7 @@ export function DashboardView() {
             </button>
           </div>
 
-          <ActivityStatsPanel />
+          <UsageStatsPanel />
 
           <div className="grid grid-cols-2 items-start gap-6">
             <section>

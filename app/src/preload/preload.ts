@@ -19,7 +19,7 @@ import type {
   DotbotApi,
   FilesChanged,
 } from "../renderer/api";
-import type { ActivityStatsResult } from "../shared/activity-stats";
+import type { UsageStats } from "../shared/usage-stats";
 
 const api: DotbotApi = {
   ping: () => "pong",
@@ -93,9 +93,8 @@ const api: DotbotApi = {
         provider,
       ) as Promise<AgentProviderSummary>,
   },
-  activity: {
-    getStats: () =>
-      ipcRenderer.invoke("activity:get-stats") as Promise<ActivityStatsResult>,
+  stats: {
+    get: () => ipcRenderer.invoke("stats:get") as Promise<UsageStats>,
   },
   // Filesystem and Git operations stay in the main process behind validated IPC.
   projects: {

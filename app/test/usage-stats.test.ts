@@ -9,8 +9,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ActivityStatsStore } from "../src/main/activity-stats";
-import { WINDOW_DAYS } from "../src/shared/activity-stats";
+import { UsageStatsStore } from "../src/main/usage-stats";
+import { WINDOW_DAYS } from "../src/shared/usage-stats";
 
 /** Fixed reference instant so day and range math stays deterministic. */
 const NOW = new Date("2026-07-05T12:00:00");
@@ -67,7 +67,7 @@ async function makeStore(): Promise<{
   const base = await mkdtemp(join(tmpdir(), "dotbot-stats-"));
   tempDirs.push(base);
   const root = join(base, "sessions");
-  const storePath = join(base, "activity-stats.json");
+  const storePath = join(base, "usage-stats.json");
 
   const create = async (
     sessionId: string,
@@ -90,7 +90,7 @@ afterEach(async () => {
   }
 });
 
-describe("ActivityStatsStore", () => {
+describe("UsageStatsStore", () => {
   it("aggregates messages, tokens, models, and sessions across files", async () => {
     const { root, storePath, create } = await makeStore();
     await create(
@@ -115,7 +115,7 @@ describe("ActivityStatsStore", () => {
       }),
     ]);
 
-    const stats = await new ActivityStatsStore({
+    const stats = await new UsageStatsStore({
       sessionsRoot: root,
       storePath,
     }).computeStats(NOW);
@@ -134,7 +134,7 @@ describe("ActivityStatsStore", () => {
     const { root, storePath, create } = await makeStore();
     await create("s1", [messageLine("2026-07-04")]);
 
-    const { days } = await new ActivityStatsStore({
+    const { days } = await new UsageStatsStore({
       sessionsRoot: root,
       storePath,
     }).computeStats(NOW);
@@ -167,7 +167,7 @@ describe("ActivityStatsStore", () => {
       messageLine(dayOffset(0), { hour: 14 }),
     ]);
 
-    const { ranges } = await new ActivityStatsStore({
+    const { ranges } = await new UsageStatsStore({
       sessionsRoot: root,
       storePath,
     }).computeStats(NOW);
@@ -194,7 +194,7 @@ describe("ActivityStatsStore", () => {
     ]);
 
     const year = (
-      await new ActivityStatsStore({
+      await new UsageStatsStore({
         sessionsRoot: root,
         storePath,
       }).computeStats(NOW)
@@ -209,7 +209,7 @@ describe("ActivityStatsStore", () => {
   it("re-parses a session file after it changes", async () => {
     const { root, storePath, create } = await makeStore();
     const file = await create("s1", [messageLine("2026-07-04")]);
-    const store = new ActivityStatsStore({ sessionsRoot: root, storePath });
+    const store = new UsageStatsStore({ sessionsRoot: root, storePath });
 
     expect((await store.computeStats(NOW)).ranges["365"].messages).toBe(1);
 
@@ -228,13 +228,13 @@ describe("ActivityStatsStore", () => {
     const { root, storePath, create } = await makeStore();
     const file = await create("s1", [messageLine("2026-07-04")]);
 
-    await new ActivityStatsStore({
+    await new UsageStatsStore({
       sessionsRoot: root,
       storePath,
     }).computeStats(NOW);
     await rm(file);
 
-    const stats = await new ActivityStatsStore({
+    const stats = await new UsageStatsStore({
       sessionsRoot: root,
       storePath,
     }).computeStats(NOW);
@@ -248,7 +248,7 @@ describe("ActivityStatsStore", () => {
     await create("s1", [messageLine("2026-07-04")]);
     await writeFile(storePath, "{ not json");
 
-    const stats = await new ActivityStatsStore({
+    const stats = await new UsageStatsStore({
       sessionsRoot: root,
       storePath,
     }).computeStats(NOW);
@@ -274,7 +274,7 @@ describe("ActivityStatsStore", () => {
       }),
     );
 
-    const stats = await new ActivityStatsStore({
+    const stats = await new UsageStatsStore({
       sessionsRoot: root,
       storePath,
     }).computeStats(NOW);
@@ -286,7 +286,7 @@ describe("ActivityStatsStore", () => {
     const { root, storePath, create } = await makeStore();
     await create("old", [messageLine(dayOffset(-500))]);
 
-    await new ActivityStatsStore({
+    await new UsageStatsStore({
       sessionsRoot: root,
       storePath,
     }).computeStats(NOW);
