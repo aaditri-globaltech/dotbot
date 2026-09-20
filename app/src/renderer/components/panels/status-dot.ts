@@ -1,7 +1,7 @@
-import type { AgentStatus } from "@dotbot/agent-core";
+import type { SessionStatus } from "@dotbot/agent-core";
 
 /** Tool and session states that render as a status dot. */
-export type StatusDotState = AgentStatus | "success";
+export type StatusDotState = SessionStatus | "success";
 
 /**
  * Status dots for sessions, tabs, and tool calls. Literal class strings so
@@ -9,7 +9,6 @@ export type StatusDotState = AgentStatus | "success";
  */
 const DOT_CLASSES: Record<StatusDotState, string> = {
   idle: "bg-faint",
-  ready: "bg-faint",
   starting: "bg-accent shadow-[0_0_0_2px_rgb(76_154_255/18%)]",
   running: "bg-accent shadow-[0_0_0_2px_rgb(76_154_255/18%)]",
   waiting: "bg-warning shadow-[0_0_0_2px_rgb(232_193_95/18%)]",

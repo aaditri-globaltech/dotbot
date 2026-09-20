@@ -1,15 +1,14 @@
-/** Render the normalized chat stream, controls, and extension feedback dialog. */
+/** Render the normalized chat stream, controls, and extension dialog. */
 
 import type {
-  AgentChatItem,
-  AgentCommand,
-  AgentFeedbackRequest,
-  AgentFeedbackResponse,
-  AgentModel,
-  AgentSessionSummary,
-  AgentStreamingBehavior,
-  AgentThinkingLevel,
-  AgentToolCall,
+  ExtensionRequest,
+  ExtensionResponse,
+  ModelSummary,
+  ModelThinkingLevel,
+  SessionSummary,
+  StreamingBehavior,
+  ToolCall,
+  TranscriptItem,
 } from "@dotbot/agent-core";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -25,17 +24,17 @@ import {
   matchesKey,
 } from "../../keybindings";
 import { projectName } from "../../project-name";
+import { ChatMarkdown, MarkdownText } from "./ChatMarkdown";
+import { CodeHighlight } from "./CodeHighlight";
+import { Dropdown } from "./Dropdown";
+import { Hero } from "./Hero";
 import {
   isErrorNotice,
   isThinking,
   isToolCall,
   modelKey,
   type SessionClientState,
-} from "./agent-session-state";
-import { ChatMarkdown, MarkdownText } from "./ChatMarkdown";
-import { CodeHighlight } from "./CodeHighlight";
-import { Dropdown } from "./Dropdown";
-import { Hero } from "./Hero";
+} from "./session-state";
 import { statusDotClass } from "./status-dot";
 import {
   bashCommand,
@@ -66,7 +65,7 @@ const TOOL_COMMAND_CLASS =
   "focus-visible:ring-focus before:flex-none before:text-dim " +
   "before:content-['▸'] group-open:before:content-['▾']";
 
-/** Composer and feedback-dialog controls. */
+/** Composer and extension-dialog controls. */
 const CHAT_INPUT_CLASS =
   "block w-full rounded-md border border-border-strong bg-surface " +
   "text-secondary outline-0 focus:border-focus";
@@ -79,23 +78,23 @@ const PRIMARY_BUTTON_CLASS =
   "min-w-[52px] cursor-pointer rounded-md border border-transparent " +
   "bg-secondary px-2.5 py-1 text-[11px] text-app hover:bg-primary";
 
-function statusLabel(session: AgentSessionSummary) {
-  if (session.status === "waiting") return "Waiting for feedback";
+function statusLabel(session: SessionSummary) {
+  if (session.status === "waiting") return "Waiting for input";
   if (session.status === "running") return "Working…";
-  if (session.status === "starting") return "Starting assistant…";
+  if (session.status === "starting") return "Starting session…";
   if (session.status === "error") return "Error";
-  return session.status === "ready" ? "Ready" : "Idle";
+  return "Idle";
 }
 
 /** Status text color, so waiting and failures stand out from idle. */
-function statusTextClass(status: AgentSessionSummary["status"]) {
+function statusTextClass(status: SessionSummary["status"]) {
   if (status === "waiting") return "text-warning";
   if (status === "error") return "text-error";
   return "text-dim";
 }
 
 /** Keep the latest transcript window responsive; older items load on demand. */
-const MAX_HISTORY_ITEMS = 80;
+const MAX_TRANSCRIPT_ITEMS = 80;
 
 /** Diff markers and line numbers hidden when a tool card shows an edit. */
 const EDIT_OUTPUT_CLASS =
@@ -104,7 +103,7 @@ const EDIT_OUTPUT_CLASS =
   "[&_.hljs-deletion]:px-px [&_.hljs-deletion]:bg-[#3a2424] " +
   "[&_.hljs-deletion]:text-[#d49a92]";
 
-function ToolOutput({ tool }: { tool: AgentToolCall }) {
+function ToolOutput({ tool }: { tool: ToolCall }) {
   const output = toolOutput(tool);
   const language = toolOutputLanguage(tool);
   const lineNumberStart = tool.name === "read" ? readToolOffset(tool) : 1;
@@ -128,7 +127,13 @@ function ToolOutput({ tool }: { tool: AgentToolCall }) {
   );
 }
 
-function ChatItem({ item, cwd }: { item: AgentChatItem; cwd: string }) {
+function ChatItem({
+  item,
+  projectDir,
+}: {
+  item: TranscriptItem;
+  projectDir: string;
+}) {
   if (isErrorNotice(item)) {
     return (
       <div
@@ -150,7 +155,8 @@ function ChatItem({ item, cwd }: { item: AgentChatItem; cwd: string }) {
 
   if (isToolCall(item)) {
     const tool = item;
-    const path = tool.name === "bash" ? bashCommand(tool) : toolPath(tool, cwd);
+    const path =
+      tool.name === "bash" ? bashCommand(tool) : toolPath(tool, projectDir);
     const range = tool.name === "read" ? readToolRange(tool) : "";
     const argument =
       tool.name === "bash"
@@ -219,9 +225,9 @@ function ChatItem({ item, cwd }: { item: AgentChatItem; cwd: string }) {
 }
 
 /** Adapt the agent's extension request contract to native form controls. */
-function FeedbackDialog(props: {
-  request: AgentFeedbackRequest;
-  onRespond: (response: AgentFeedbackResponse) => void;
+function ExtensionDialog(props: {
+  request: ExtensionRequest;
+  onRespond: (response: ExtensionResponse) => void;
 }) {
   const [value, setValue] = useState("");
 
@@ -354,28 +360,26 @@ function FeedbackDialog(props: {
 }
 
 /** Inputs for the selected Agent transcript and controls. */
-export type AgentViewProps = {
-  selectedSession?: AgentSessionSummary;
+export type SessionViewProps = {
+  selectedSession?: SessionSummary;
   state?: SessionClientState;
-  /** Whether the composer shows the new-task template instead of a session. */
+  /** Whether the composer shows the new session draft instead of a session. */
   drafting: boolean;
   /** Projects offered by the composer's project menu. */
   projects: string[];
-  /** Project the selected session or template runs in. */
+  /** Project the selected session or newSession runs in. */
   projectDir?: string;
-  onSelectProject: (cwd: string) => void;
+  onSelectProject: (projectDir: string) => void;
   onDraft: (value: string) => void;
-  onPrompt: (
-    message: string,
-    streamingBehavior?: AgentStreamingBehavior,
-  ) => void;
+  onPrompt: (message: string, streamingBehavior?: StreamingBehavior) => void;
   onAbort: () => void;
-  onCommand: (command: AgentCommand) => void;
-  onRespond: (response: AgentFeedbackResponse) => void;
+  onSetModel: (provider: string, modelId: string) => void;
+  onSetThinkingLevel: (level: ModelThinkingLevel) => void;
+  onRespond: (response: ExtensionResponse) => void;
 };
 
 /** Render session tabs, transcript controls, and the prompt composer. */
-export function AgentView(props: AgentViewProps) {
+export function SessionView(props: SessionViewProps) {
   const status = props.selectedSession?.status;
   const gitStatus = useGitStatus(props.projectDir);
   // Only a real repository has a branch to show next to the project.
@@ -384,28 +388,36 @@ export function AgentView(props: AgentViewProps) {
     status === "starting" || status === "running" || status === "waiting";
   const running = status === "running";
   const inputDisabled = status === "waiting";
-  const feedback = props.selectedSession?.waiting;
+  const extensionRequest = props.selectedSession?.waiting;
   const [streamingBehavior, setStreamingBehavior] =
-    useState<AgentStreamingBehavior>("steer");
-  const [historyPages, setHistoryPages] = useState<Record<string, number>>({});
-  const messages = props.state?.messages ?? [];
+    useState<StreamingBehavior>("steer");
+  const [transcriptPages, setTranscriptPages] = useState<
+    Record<string, number>
+  >({});
+  const transcript = props.state?.transcript ?? [];
   const sessionId = props.selectedSession?.id;
-  const pages = sessionId ? (historyPages[sessionId] ?? 0) : 0;
-  const start = Math.max(0, messages.length - MAX_HISTORY_ITEMS * (pages + 1));
-  const historyWindow = { messages: messages.slice(start), older: start };
-  const loadOlderMessages = () => {
+  const pages = sessionId ? (transcriptPages[sessionId] ?? 0) : 0;
+  const start = Math.max(
+    0,
+    transcript.length - MAX_TRANSCRIPT_ITEMS * (pages + 1),
+  );
+  const transcriptWindow = {
+    transcript: transcript.slice(start),
+    older: start,
+  };
+  const loadOlderItems = () => {
     const id = props.selectedSession?.id;
     if (!id) return;
-    setHistoryPages((current) => ({
+    setTranscriptPages((current) => ({
       ...current,
       [id]: (current[id] ?? 0) + 1,
     }));
   };
   const messageScroll = useAutoScroll<HTMLElement>(
-    props.state?.messages,
+    props.state?.transcript,
     props.selectedSession?.id,
   );
-  // The composer only renders for a session or the template, both of which have state.
+  // The composer only renders for a session or the newSession, both of which have state.
   const composerState =
     props.drafting || props.selectedSession ? props.state : undefined;
 
@@ -435,15 +447,11 @@ export function AgentView(props: AgentViewProps) {
     // Select values are provider/modelId pairs produced by modelKey().
     const separator = value.indexOf("/");
     if (separator === -1) return;
-    props.onCommand({
-      type: "set_model",
-      provider: value.slice(0, separator),
-      modelId: value.slice(separator + 1),
-    });
+    props.onSetModel(value.slice(0, separator), value.slice(separator + 1));
   };
 
-  const selectThinkingLevel = (level: AgentThinkingLevel) =>
-    props.onCommand({ type: "set_thinking_level", level });
+  const selectThinkingLevel = (level: ModelThinkingLevel) =>
+    props.onSetThinkingLevel(level);
 
   return (
     <section
@@ -452,8 +460,8 @@ export function AgentView(props: AgentViewProps) {
     >
       {props.drafting ? (
         <Hero
-          title={`Start a task in ${projectName(props.projectDir ?? "")}`}
-          hint="Describe the change, question, or task you want help with."
+          title={`Start a session in ${projectName(props.projectDir ?? "")}`}
+          hint="Describe what you want help with."
         />
       ) : props.selectedSession &&
         props.state &&
@@ -464,33 +472,33 @@ export function AgentView(props: AgentViewProps) {
             className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-5 py-4"
             onScroll={messageScroll.onScroll}
           >
-            {messages.length === 0 ? (
+            {transcript.length === 0 ? (
               <Hero
-                title={`Start a task in ${projectName(props.projectDir ?? "")}`}
-                hint="Describe the change, question, or task you want help with."
+                title={`Start a session in ${projectName(props.projectDir ?? "")}`}
+                hint="Describe what you want help with."
               />
             ) : (
               <>
-                {historyWindow.older > 0 && (
+                {transcriptWindow.older > 0 && (
                   <button
                     className="cursor-pointer self-center rounded-md border border-border-strong bg-card px-2.5 py-1 text-[11px] text-muted hover:border-focus hover:text-secondary"
                     type="button"
-                    onClick={loadOlderMessages}
+                    onClick={loadOlderItems}
                   >
-                    Load older messages
+                    Load older items
                   </button>
                 )}
-                {historyWindow.messages.map((item) => (
+                {transcriptWindow.transcript.map((item) => (
                   <ChatItem
                     key={item.id}
                     item={item}
-                    cwd={props.selectedSession?.cwd ?? ""}
+                    projectDir={props.selectedSession?.projectDir ?? ""}
                   />
                 ))}
               </>
             )}
           </div>
-          {!messageScroll.isFollowing && messages.length > 0 && (
+          {!messageScroll.isFollowing && transcript.length > 0 && (
             <button
               className="absolute bottom-3 left-1/2 z-2 grid size-[26px] -translate-x-1/2 cursor-pointer place-items-center rounded-full border border-border-strong bg-card text-secondary shadow-[0_2px_8px_rgb(0_0_0/35%)] hover:border-focus hover:text-primary focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-offset-2"
               type="button"
@@ -507,12 +515,12 @@ export function AgentView(props: AgentViewProps) {
         </div>
       ) : props.selectedSession ? (
         <div className="grid flex-1 place-items-center text-xs text-dim">
-          Starting assistant…
+          Starting session…
         </div>
       ) : (
         <Hero
-          title="No task open"
-          hint="Pick one from the sidebar, or start a new task."
+          title="No session open"
+          hint="Pick one from the sidebar, or start a new session."
         />
       )}
 
@@ -525,7 +533,7 @@ export function AgentView(props: AgentViewProps) {
               send(composerState.draft);
             }}
           >
-            {/* Project and branch the task runs against, before a session exists. */}
+            {/* Project and branch a session runs against, before one exists. */}
             {props.drafting && (
               <div className="mb-2 flex min-w-0 items-center gap-1.5 text-[12px] text-secondary">
                 <Dropdown
@@ -556,7 +564,7 @@ export function AgentView(props: AgentViewProps) {
             )}
             <textarea
               className="block field-sizing-content max-h-[220px] min-h-[52px] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-[13px] leading-[1.5] text-secondary outline-0 placeholder:text-faint focus:outline-none disabled:opacity-60"
-              dotbot-label="Message assistant"
+              dotbot-label="Send message"
               placeholder="Ask Dotbot…"
               rows={3}
               value={composerState.draft}
@@ -614,7 +622,7 @@ export function AgentView(props: AgentViewProps) {
                 }
                 disabled={busy || composerState.models.length === 0}
                 onChange={selectModel}
-                options={composerState.models.map((model: AgentModel) => ({
+                options={composerState.models.map((model: ModelSummary) => ({
                   value: modelKey(model),
                   label: model.name,
                   description: model.provider,
@@ -654,8 +662,11 @@ export function AgentView(props: AgentViewProps) {
           </form>
         </div>
       )}
-      {feedback && (
-        <FeedbackDialog request={feedback} onRespond={props.onRespond} />
+      {extensionRequest && (
+        <ExtensionDialog
+          request={extensionRequest}
+          onRespond={props.onRespond}
+        />
       )}
     </section>
   );

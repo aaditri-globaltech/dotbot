@@ -3,12 +3,12 @@
 import type { CSSProperties } from "react";
 import { useProjectDir } from "../../../hooks/useProjectDir";
 import type { ResizablePanels } from "../../../hooks/useResizablePanels";
-import { useAgentStore } from "../../../stores/agent-store";
+import { useSessionStore } from "../../../stores/session-store";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
-import { AgentView } from "../../panels/AgentView";
 import { GitSidebar } from "../../panels/GitSidebar";
 import { PanelHeader } from "../../panels/PanelHeader";
 import { PanelResizer } from "../../panels/PanelResizer";
+import { SessionView } from "../../panels/SessionView";
 
 type WorkbenchViewProps = {
   panels: ResizablePanels;
@@ -17,15 +17,16 @@ type WorkbenchViewProps = {
 /** Agent transcript and composer, with the Git panel docked below. */
 export function WorkbenchView(props: WorkbenchViewProps) {
   const { panels } = props;
-  const sessions = useAgentStore((state) => state.sessions);
-  const selectedId = useAgentStore((state) => state.selectedId);
-  const states = useAgentStore((state) => state.states);
-  const template = useAgentStore((state) => state.template);
-  const prompt = useAgentStore((state) => state.prompt);
-  const abort = useAgentStore((state) => state.abort);
-  const command = useAgentStore((state) => state.command);
-  const respond = useAgentStore((state) => state.respond);
-  const setDraft = useAgentStore((state) => state.setDraft);
+  const sessions = useSessionStore((state) => state.sessions);
+  const selectedId = useSessionStore((state) => state.selectedId);
+  const states = useSessionStore((state) => state.states);
+  const newSession = useSessionStore((state) => state.newSession);
+  const prompt = useSessionStore((state) => state.prompt);
+  const abort = useSessionStore((state) => state.abort);
+  const setModel = useSessionStore((state) => state.setModel);
+  const setThinkingLevel = useSessionStore((state) => state.setThinkingLevel);
+  const respond = useSessionStore((state) => state.respond);
+  const setDraft = useSessionStore((state) => state.setDraft);
   const projects = useWorkspaceStore((state) => state.projects);
   const selectProject = useWorkspaceStore((state) => state.selectProject);
 
@@ -39,17 +40,18 @@ export function WorkbenchView(props: WorkbenchViewProps) {
       className="view-area"
       style={{ "--panel-height": `${panels.panelHeight}px` } as CSSProperties}
     >
-      <AgentView
+      <SessionView
         selectedSession={selectedSession}
-        state={template ?? selectedState}
-        drafting={template !== undefined}
+        state={newSession ?? selectedState}
+        drafting={newSession !== undefined}
         projects={projects}
         projectDir={projectDir}
         onSelectProject={selectProject}
         onDraft={setDraft}
         onPrompt={prompt}
         onAbort={abort}
-        onCommand={command}
+        onSetModel={setModel}
+        onSetThinkingLevel={setThinkingLevel}
         onRespond={respond}
       />
 

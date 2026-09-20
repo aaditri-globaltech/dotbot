@@ -1,13 +1,13 @@
 /**
- * In-process Pi session manager backing the Dotbot desktop app.
+ * In-process agent manager backing the Dotbot desktop app.
  *
  * Owns one `AgentSession` per workspace session, forwards Pi's streamed events
  * to the renderer, exposes model/thinking controls, and bridges Pi extension
- * dialogs to renderer feedback requests.
+ * dialogs to renderer extension requests.
  */
 
 import { randomUUID } from "node:crypto";
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import {
@@ -21,61 +21,55 @@ import {
   type CreateAgentSessionResult,
   createAgentSession,
   type ExtensionUIContext,
-  getAgentDir,
   ModelRuntime,
   type SessionInfo,
   SessionManager,
   SettingsManager,
   type Theme,
 } from "@earendil-works/pi-coding-agent";
-import { compactAgentHistory } from "./history";
+import { requireText } from "./text";
+import { buildTranscript } from "./transcript";
 import type {
-  AgentCommand,
-  AgentCustomProviderInput,
-  AgentFeedbackPayload,
-  AgentFeedbackRequest,
-  AgentFeedbackResponse,
   AgentManagerEvent,
-  AgentModel,
-  AgentProviderApi,
-  AgentProviderSummary,
-  AgentSessionState,
-  AgentSessionSummary,
-  AgentStatus,
-  AgentStreamingBehavior,
-  AgentThinkingLevel,
+  ExtensionRequest,
+  ExtensionRequestPayload,
+  ExtensionResponse,
+  ModelSummary,
+  ModelThinkingLevel,
+  SessionControls,
+  SessionStatus,
+  SessionSummary,
+  StreamingBehavior,
 } from "./types";
-import { AGENT_PROVIDER_APIS } from "./types";
 
-/** Limit initial history notifications so the renderer stays responsive. */
-const HISTORY_CHUNK_SIZE = 8;
+/** Limit initial transcript notifications so the renderer stays responsive. */
+const TRANSCRIPT_CHUNK_SIZE = 8;
 
 type JsonObject = Record<string, unknown>;
 
 /** Resolves one pending extension dialog when the renderer answers or it expires. */
-type PendingFeedback = (value: string | boolean | undefined) => void;
+type PendingExtension = (value: string | boolean | undefined) => void;
 
 type SessionRecord = {
   id: string;
-  cwd: string;
+  projectDir: string;
   path?: string;
-  piSessionId?: string;
   title: string;
   name?: string;
-  status: AgentStatus;
+  status: SessionStatus;
   active: boolean;
   /** Whether the UI still has this session open. */
   opened: boolean;
   /** Whether Pi has finished the current turn. */
   settled: boolean;
-  waiting?: AgentFeedbackRequest;
+  waiting?: ExtensionRequest;
   lastActivity: string;
   session?: AgentSession;
   /** Reserved session manager for a record that has not started yet. */
   sessionManager?: SessionManager;
   unsubscribe?: () => void;
   starting?: Promise<void>;
-  pendingFeedback: Map<string, PendingFeedback>;
+  pendingExtensions: Map<string, PendingExtension>;
 };
 
 /** Pi's session factory; injectable so tests can provide a faux-provider session. */
@@ -84,7 +78,7 @@ export type CreateSessionFunction = (
 ) => Promise<CreateAgentSessionResult>;
 
 /** Configuration for the in-process session manager. */
-export type AgentSessionManagerOptions = {
+export type AgentManagerOptions = {
   /** Receives app-facing session and stream events. */
   onEvent?: (event: AgentManagerEvent) => void;
   /** Overrides Pi's session factory. Defaults to `createAgentSession`. */
@@ -99,11 +93,10 @@ function asObject(value: unknown): JsonObject | undefined {
     : undefined;
 }
 
-function summary(record: SessionRecord): AgentSessionSummary {
+function summary(record: SessionRecord): SessionSummary {
   return {
     id: record.id,
-    piSessionId: record.piSessionId,
-    cwd: record.cwd,
+    projectDir: record.projectDir,
     title: record.title,
     name: record.name,
     status: record.status,
@@ -117,7 +110,7 @@ function summary(record: SessionRecord): AgentSessionSummary {
 /** Project the runtime's model list into the renderer's selector shape. */
 function modelOptions(
   models: readonly { provider: string; id: string; name: string }[],
-): AgentModel[] {
+): ModelSummary[] {
   return models.map(({ provider, id, name }) => ({ provider, id, name }));
 }
 
@@ -132,7 +125,7 @@ function titleForSession(info: SessionInfo): string {
   );
 }
 
-function isThinkingLevel(value: unknown): value is AgentThinkingLevel {
+function isThinkingLevel(value: unknown): value is ModelThinkingLevel {
   return (
     value === "off" ||
     value === "minimal" ||
@@ -144,36 +137,7 @@ function isThinkingLevel(value: unknown): value is AgentThinkingLevel {
   );
 }
 
-/** Validate commands crossing the renderer-to-Pi boundary. */
-function validateCommand(value: unknown): AgentCommand {
-  const command = asObject(value);
-  if (command?.type === "set_model") {
-    if (
-      typeof command.provider !== "string" ||
-      !command.provider.trim() ||
-      typeof command.modelId !== "string" ||
-      !command.modelId.trim()
-    ) {
-      throw new Error("Model selection is invalid");
-    }
-    return {
-      type: "set_model",
-      provider: command.provider,
-      modelId: command.modelId,
-    };
-  }
-
-  if (
-    command?.type === "set_thinking_level" &&
-    isThinkingLevel(command.level)
-  ) {
-    return { type: "set_thinking_level", level: command.level };
-  }
-
-  throw new Error("Unsupported agent command");
-}
-
-function isFeedbackResponse(value: unknown): value is AgentFeedbackResponse {
+function isExtensionResponse(value: unknown): value is ExtensionResponse {
   const response = asObject(value);
   if (
     response?.type !== "extension_ui_response" ||
@@ -188,79 +152,27 @@ function isFeedbackResponse(value: unknown): value is AgentFeedbackResponse {
   return Number(hasValue) + Number(hasConfirmation) + Number(cancelled) === 1;
 }
 
-async function validateDirectory(value: unknown): Promise<string> {
+async function validateProjectDir(value: unknown): Promise<string> {
   if (typeof value !== "string" || !value.trim()) {
-    throw new Error("Workspace must be a directory");
+    throw new Error("Project directory does not exist");
   }
-  const cwd = resolve(value);
-  const info = await stat(cwd).catch(() => undefined);
-  if (!info?.isDirectory()) throw new Error("Workspace must be a directory");
-  return cwd;
-}
-
-/** Message shown when Pi needs more than a single key prompt for a provider. */
-const UNSUPPORTED_PROVIDER_SETUP =
-  "This provider requires additional setup that Dotbot does not support yet";
-
-function requireText(value: unknown, message: string): string {
-  if (typeof value !== "string" || !value.trim()) throw new Error(message);
-  return value;
-}
-
-function isProviderApi(value: unknown): value is AgentProviderApi {
-  return AGENT_PROVIDER_APIS.some((api) => api === value);
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return (
-    Array.isArray(value) && value.every((entry) => typeof entry === "string")
-  );
-}
-
-function summarizeProvider(
-  provider: { id: string; name: string },
-  configured: boolean,
-): AgentProviderSummary {
-  return { id: provider.id, name: provider.name, configured };
-}
-
-function isMissingFile(error: unknown): boolean {
-  return error instanceof Error && "code" in error && error.code === "ENOENT";
-}
-
-function validateCustomProvider(value: unknown): AgentCustomProviderInput {
-  const input = asObject(value) ?? {};
-  const id = requireText(input.id, "Provider id is required");
-  if (/\s/.test(id)) {
-    throw new Error("Provider id must not contain whitespace");
+  const projectDir = resolve(value);
+  const info = await stat(projectDir).catch(() => undefined);
+  if (!info?.isDirectory()) {
+    throw new Error("Project directory does not exist");
   }
-  const baseUrl = requireText(input.baseUrl, "Base URL is required");
-  const api = input.api;
-  if (!isProviderApi(api)) {
-    throw new Error("Provider API type is not supported");
-  }
-  const modelIds = input.models;
-  if (!isStringArray(modelIds)) {
-    throw new Error("Model ids must be a list of strings");
-  }
-  const models = [
-    ...new Set(modelIds.map((model) => model.trim()).filter(Boolean)),
-  ];
-  if (models.length === 0) {
-    throw new Error("At least one model id is required");
-  }
-  return { id, baseUrl, api, models };
+  return projectDir;
 }
 
 /** Owns the in-process Pi sessions and emits app-facing manager events. */
-export class AgentSessionManager {
+export class AgentManager {
   private readonly onEvent?: (event: AgentManagerEvent) => void;
   private readonly createSession: CreateSessionFunction;
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly injectedModelRuntime?: ModelRuntime;
   private modelRuntimePromise?: Promise<ModelRuntime>;
 
-  constructor(options: AgentSessionManagerOptions = {}) {
+  constructor(options: AgentManagerOptions = {}) {
     // Pi's data (auth, models, sessions) lives in Dotbot's own directory; an
     // explicit PI_CODING_AGENT_DIR still wins.
     process.env.PI_CODING_AGENT_DIR ??= join(homedir(), ".bot", "agent");
@@ -270,7 +182,7 @@ export class AgentSessionManager {
   }
 
   /** List persisted sessions plus sessions created in this process. */
-  async list(): Promise<AgentSessionSummary[]> {
+  async list(): Promise<SessionSummary[]> {
     await this.refreshPersistedSessions();
     return [...this.sessions.values()]
       .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity))
@@ -281,10 +193,10 @@ export class AgentSessionManager {
    * Model and thinking choices a project would start a session with, without
    * creating one. `provider`/`modelId` preview another model's levels.
    */
-  async getDefaults(value: unknown): Promise<AgentSessionState> {
+  async getSessionControls(value: unknown): Promise<SessionControls> {
     const input = asObject(value);
-    const cwd = await validateDirectory(input?.cwd);
-    const settings = SettingsManager.create(cwd);
+    const projectDir = await validateProjectDir(input?.projectDir);
+    const settings = SettingsManager.create(projectDir);
     const modelRuntime = await this.getModelRuntime();
     const available = await modelRuntime.getAvailable();
     const requested =
@@ -314,20 +226,19 @@ export class AgentSessionManager {
     };
   }
 
-  /** Create an idle session for an existing workspace directory. */
-  async create(cwdValue: unknown): Promise<AgentSessionSummary> {
-    const cwd = await validateDirectory(cwdValue);
+  /** Create an idle session for an existing project directory. */
+  async create(projectDirValue: unknown): Promise<SessionSummary> {
+    const projectDir = await validateProjectDir(projectDirValue);
     // Reserve Pi's session id up front so the record is identified by it from the start.
-    const sessionManager = SessionManager.create(cwd);
-    const record = this.insertRecord(sessionManager.getSessionId(), cwd);
+    const sessionManager = SessionManager.create(projectDir);
+    const record = this.insertRecord(sessionManager.getSessionId(), projectDir);
     record.sessionManager = sessionManager;
-    record.piSessionId = record.id;
     this.emitSessionUpdate(record);
     return summary(record);
   }
 
   /** Open a session, creating its in-process Pi session on first use. */
-  async open(id: unknown): Promise<AgentSessionSummary> {
+  async open(id: unknown): Promise<SessionSummary> {
     const record = this.getRecord(id);
     record.opened = true;
     await this.ensureSession(record);
@@ -341,8 +252,8 @@ export class AgentSessionManager {
     if (record.session && record.settled) this.disposeRecord(record);
   }
 
-  /** Remove a session that was never prompted, releasing its in-process resources. */
-  remove(id: unknown): void {
+  /** Discard a session that was never prompted, releasing its in-process resources. */
+  discard(id: unknown): void {
     const record = this.getRecord(id);
     this.disposeRecord(record);
     this.sessions.delete(record.id);
@@ -369,7 +280,7 @@ export class AgentSessionManager {
     if (!session) throw new Error("Session is not running");
 
     const message = input.message.trim();
-    if (!record.name && record.title === "new task") {
+    if (!record.name && record.title === "new session") {
       record.title = truncate(message);
       this.emitSessionUpdate(record);
     }
@@ -383,8 +294,7 @@ export class AgentSessionManager {
         message,
         input.streamingBehavior
           ? {
-              streamingBehavior:
-                input.streamingBehavior as AgentStreamingBehavior,
+              streamingBehavior: input.streamingBehavior as StreamingBehavior,
             }
           : {},
       )
@@ -399,155 +309,55 @@ export class AgentSessionManager {
     });
   }
 
-  /** Apply a model or thinking-level command and persist it for new sessions. */
-  async command(value: unknown): Promise<void> {
+  /** Change a running session's model and persist it for new sessions. */
+  async setModel(value: unknown): Promise<void> {
     const input = asObject(value);
-    const command = validateCommand(input?.command);
     const record = this.getRecord(input?.sessionId);
+    const provider = requireText(input?.provider, "Model selection is invalid");
+    const modelId = requireText(input?.modelId, "Model selection is invalid");
     await this.ensureSession(record);
     const session = record.session;
     if (!session) throw new Error("Session is not running");
 
-    if (command.type === "set_thinking_level") {
-      session.setThinkingLevel(command.level);
-      session.settingsManager.setDefaultThinkingLevel(command.level);
-      await session.settingsManager.flush();
-    } else {
-      const modelRuntime = await this.getModelRuntime();
-      const model = modelRuntime.getModel(command.provider, command.modelId);
-      if (!model) throw new Error("Model was not found");
-      await session.setModel(model);
-      session.settingsManager.setDefaultModelAndProvider(
-        command.provider,
-        command.modelId,
-      );
-      await session.settingsManager.flush();
-    }
+    const modelRuntime = await this.getModelRuntime();
+    const model = modelRuntime.getModel(provider, modelId);
+    if (!model) throw new Error("Model was not found");
+    await session.setModel(model);
+    session.settingsManager.setDefaultModelAndProvider(provider, modelId);
+    await session.settingsManager.flush();
 
-    await this.emitState(record);
+    await this.emitControls(record);
   }
 
-  /** Answer the feedback request currently pending for a session. */
+  /** Change a running session's thinking level and persist it for new sessions. */
+  async setThinkingLevel(value: unknown): Promise<void> {
+    const input = asObject(value);
+    const record = this.getRecord(input?.sessionId);
+    if (!isThinkingLevel(input?.level)) {
+      throw new Error("Thinking level is invalid");
+    }
+    await this.ensureSession(record);
+    const session = record.session;
+    if (!session) throw new Error("Session is not running");
+
+    session.setThinkingLevel(input.level);
+    session.settingsManager.setDefaultThinkingLevel(input.level);
+    await session.settingsManager.flush();
+
+    await this.emitControls(record);
+  }
+
+  /** Answer the extension request currently pending for a session. */
   respond(value: unknown): void {
     const input = asObject(value);
     const record = this.getRecord(input?.sessionId);
-    const response = this.validateFeedbackResponse(input?.response, record);
-    const resolve = record.pendingFeedback.get(response.id);
-    if (!resolve) throw new Error("Feedback request is no longer pending");
+    const response = this.validateExtensionResponse(input?.response, record);
+    const resolve = record.pendingExtensions.get(response.id);
+    if (!resolve) throw new Error("Extension request is no longer pending");
 
     if ("cancelled" in response) resolve(undefined);
     else if ("confirmed" in response) resolve(response.confirmed);
     else resolve(response.value);
-  }
-
-  /** List Pi providers that can be configured with an API key. */
-  async listProviders(): Promise<AgentProviderSummary[]> {
-    const runtime = await this.getModelRuntime();
-    return runtime
-      .getProviders()
-      .filter((provider) => provider.auth.apiKey)
-      .map((provider) =>
-        summarizeProvider(
-          provider,
-          runtime.getProviderAuthStatus(provider.id).configured,
-        ),
-      )
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }
-
-  /** Save an API key for a provider through Pi's login flow. */
-  async setProviderApiKey(value: unknown): Promise<AgentProviderSummary> {
-    const input = asObject(value);
-    const providerId = requireText(
-      input?.providerId,
-      "Provider id is required",
-    );
-    const apiKey = requireText(input?.apiKey, "API key is required");
-    const runtime = await this.getModelRuntime();
-    const provider = runtime.getProvider(providerId);
-    if (!provider?.auth.apiKey?.login) {
-      throw new Error("Provider does not support API key setup");
-    }
-
-    // Pi's login flow starts with the key for most providers; method choices or
-    // extra fields are out of scope, and nothing is persisted when this throws.
-    let promptCount = 0;
-    await runtime.login(providerId, "api_key", {
-      prompt: async (prompt) => {
-        promptCount += 1;
-        if (promptCount > 1 || prompt.type !== "secret") {
-          throw new Error(UNSUPPORTED_PROVIDER_SETUP);
-        }
-        return apiKey;
-      },
-      notify: () => {},
-    });
-    return summarizeProvider(
-      provider,
-      runtime.getProviderAuthStatus(providerId).configured,
-    );
-  }
-
-  /** Remove a provider's stored credential. */
-  async removeProviderApiKey(value: unknown): Promise<AgentProviderSummary> {
-    const providerId = requireText(value, "Provider id is required");
-    const runtime = await this.getModelRuntime();
-    const provider = runtime.getProvider(providerId);
-    if (!provider?.auth.apiKey) {
-      throw new Error("Provider does not support API key setup");
-    }
-    await runtime.logout(providerId);
-    return summarizeProvider(
-      provider,
-      runtime.getProviderAuthStatus(providerId).configured,
-    );
-  }
-
-  /** Add a custom provider entry to the agent's models.json. */
-  async addCustomProvider(value: unknown): Promise<AgentProviderSummary> {
-    const input = validateCustomProvider(value);
-    const runtime = await this.getModelRuntime();
-    if (runtime.getProvider(input.id)) {
-      throw new Error(`Provider "${input.id}" already exists`);
-    }
-
-    const modelsPath = join(getAgentDir(), "models.json");
-    let config: Record<string, unknown> = {};
-    try {
-      const parsed = asObject(JSON.parse(await readFile(modelsPath, "utf-8")));
-      if (!parsed) throw new Error("models.json must contain an object");
-      config = { ...parsed };
-    } catch (error) {
-      if (!isMissingFile(error)) throw error;
-    }
-
-    const providers: Record<string, unknown> = {
-      ...(asObject(config.providers) ?? {}),
-    };
-    if (providers[input.id]) {
-      throw new Error(`Provider "${input.id}" already exists`);
-    }
-    providers[input.id] = {
-      baseUrl: input.baseUrl,
-      api: input.api,
-      models: input.models.map((id) => ({ id })),
-    };
-    config.providers = providers;
-
-    // ponytail: plain merge-and-write; add locking if multiple processes edit models.json.
-    await writeFile(
-      modelsPath,
-      `${JSON.stringify(config, null, 2)}\n`,
-      "utf-8",
-    );
-    await runtime.refresh();
-
-    const provider = runtime.getProvider(input.id);
-    if (!provider) throw new Error("Custom provider could not be loaded");
-    return summarizeProvider(
-      provider,
-      runtime.getProviderAuthStatus(input.id).configured,
-    );
   }
 
   /** Stop every active Pi session owned by this manager. */
@@ -563,7 +373,7 @@ export class AgentSessionManager {
     this.emit({ type: "session_update", session: summary(record) });
   }
 
-  private setStatus(record: SessionRecord, status: AgentStatus): void {
+  private setStatus(record: SessionRecord, status: SessionStatus): void {
     record.status = status;
     record.lastActivity = new Date().toISOString();
     this.emitSessionUpdate(record);
@@ -573,33 +383,30 @@ export class AgentSessionManager {
     record.waiting = undefined;
     this.setStatus(record, "error");
     this.emit({
-      type: "session_event",
+      type: "session_error",
       sessionId: record.id,
-      event: {
-        type: "error",
-        message: error instanceof Error ? error.message : String(error),
-      },
+      message: error instanceof Error ? error.message : String(error),
     });
   }
 
-  private getModelRuntime(): Promise<ModelRuntime> {
+  getModelRuntime(): Promise<ModelRuntime> {
     this.modelRuntimePromise ??= this.injectedModelRuntime
       ? Promise.resolve(this.injectedModelRuntime)
       : ModelRuntime.create();
     return this.modelRuntimePromise;
   }
 
-  private insertRecord(id: string, cwd: string): SessionRecord {
+  private insertRecord(id: string, projectDir: string): SessionRecord {
     const record: SessionRecord = {
       id,
-      cwd,
-      title: "new task",
+      projectDir,
+      title: "new session",
       status: "idle",
       active: false,
       opened: false,
       settled: true,
       lastActivity: new Date().toISOString(),
-      pendingFeedback: new Map(),
+      pendingExtensions: new Map(),
     };
     this.sessions.set(record.id, record);
     return record;
@@ -621,11 +428,10 @@ export class AgentSessionManager {
 
     for (const info of persisted) {
       const existing = [...this.sessions.values()].find(
-        (record) => record.path === info.path || record.piSessionId === info.id,
+        (record) => record.path === info.path || record.id === info.id,
       );
       if (existing) {
         existing.path = info.path;
-        existing.piSessionId = info.id;
         existing.name = info.name;
         if (!existing.session) existing.title = titleForSession(info);
         existing.lastActivity = info.modified.toISOString();
@@ -634,7 +440,6 @@ export class AgentSessionManager {
 
       const record = this.insertRecord(info.id, info.cwd);
       record.path = info.path;
-      record.piSessionId = info.id;
       record.name = info.name;
       record.title = titleForSession(info);
       record.lastActivity = info.modified.toISOString();
@@ -655,7 +460,7 @@ export class AgentSessionManager {
     return record.starting;
   }
 
-  /** Create the in-process Pi session and publish its history and state. */
+  /** Create the in-process Pi session and publish its transcript and state. */
   private async startSession(record: SessionRecord): Promise<void> {
     record.status = "starting";
     this.emitSessionUpdate(record);
@@ -665,16 +470,15 @@ export class AgentSessionManager {
         record.sessionManager ??
         (record.path
           ? SessionManager.open(record.path)
-          : SessionManager.create(record.cwd));
+          : SessionManager.create(record.projectDir));
       record.sessionManager = undefined;
       const modelRuntime = await this.getModelRuntime();
       const { session } = await this.createSession({
-        cwd: record.cwd,
+        cwd: record.projectDir,
         sessionManager,
         modelRuntime,
       });
       record.session = session;
-      record.piSessionId = session.sessionId;
       record.path = session.sessionFile;
       record.active = true;
       record.settled = !session.isStreaming;
@@ -687,10 +491,10 @@ export class AgentSessionManager {
       });
       if (record.session !== session) return;
 
-      this.emitHistory(record);
-      await this.emitState(record);
+      this.emitTranscript(record);
+      await this.emitControls(record);
       if (!record.waiting && record.status === "starting") {
-        this.setStatus(record, "ready");
+        this.setStatus(record, "idle");
       }
       if (!record.opened) this.disposeRecord(record);
     } catch (error) {
@@ -726,7 +530,7 @@ export class AgentSessionManager {
         if (!record.opened) this.disposeRecord(record);
         break;
       case "thinking_level_changed":
-        void this.emitState(record);
+        void this.emitControls(record);
         break;
       case "session_info_changed":
         record.name = event.name;
@@ -737,27 +541,27 @@ export class AgentSessionManager {
         break;
     }
 
-    this.emit({ type: "session_event", sessionId: record.id, event });
+    this.emit({ type: "session_activity", sessionId: record.id, event });
   }
 
-  private emitHistory(record: SessionRecord): void {
-    const items = compactAgentHistory(record.session?.messages);
-    for (let index = 0; index < items.length; index += HISTORY_CHUNK_SIZE) {
+  private emitTranscript(record: SessionRecord): void {
+    const items = buildTranscript(record.session?.messages);
+    for (let index = 0; index < items.length; index += TRANSCRIPT_CHUNK_SIZE) {
       this.emit({
-        type: "session_history",
+        type: "session_transcript",
         sessionId: record.id,
-        items: items.slice(index, index + HISTORY_CHUNK_SIZE),
+        items: items.slice(index, index + TRANSCRIPT_CHUNK_SIZE),
       });
     }
   }
 
-  private async emitState(record: SessionRecord): Promise<void> {
+  private async emitControls(record: SessionRecord): Promise<void> {
     const session = record.session;
     const modelRuntime = await this.getModelRuntime();
     const available = await modelRuntime.getAvailable();
     if (record.session !== session) return;
 
-    const state: AgentSessionState = {
+    const controls: SessionControls = {
       models: modelOptions(available),
       selectedModel: session?.model
         ? `${session.model.provider}/${session.model.id}`
@@ -765,7 +569,7 @@ export class AgentSessionManager {
       thinkingLevel: session?.thinkingLevel ?? "medium",
       thinkingLevels: session ? [...session.getAvailableThinkingLevels()] : [],
     };
-    this.emit({ type: "session_state", sessionId: record.id, state });
+    this.emit({ type: "session_controls", sessionId: record.id, controls });
   }
 
   private disposeRecord(record: SessionRecord): void {
@@ -776,7 +580,7 @@ export class AgentSessionManager {
     record.active = false;
     record.unsubscribe?.();
     record.unsubscribe = undefined;
-    for (const resolve of record.pendingFeedback.values()) {
+    for (const resolve of record.pendingExtensions.values()) {
       resolve(undefined);
     }
     record.waiting = undefined;
@@ -784,15 +588,15 @@ export class AgentSessionManager {
     if (record.status !== "error") this.setStatus(record, "idle");
   }
 
-  private validateFeedbackResponse(
+  private validateExtensionResponse(
     value: unknown,
     record: SessionRecord,
-  ): AgentFeedbackResponse {
-    if (!isFeedbackResponse(value)) {
-      throw new Error("Invalid feedback response");
+  ): ExtensionResponse {
+    if (!isExtensionResponse(value)) {
+      throw new Error("Invalid extension response");
     }
     if (!record.waiting || record.waiting.id !== value.id) {
-      throw new Error("Feedback request is no longer pending");
+      throw new Error("Extension request is no longer pending");
     }
     if ("cancelled" in value && value.cancelled === true) return value;
 
@@ -812,16 +616,16 @@ export class AgentSessionManager {
   }
 
   /** Resolve one extension dialog through the renderer. */
-  private openFeedback(
+  private openExtensionRequest(
     record: SessionRecord,
-    request: AgentFeedbackPayload,
+    request: ExtensionRequestPayload,
     options?: { signal?: AbortSignal; timeout?: number },
   ): Promise<string | boolean | undefined> {
     const id = randomUUID();
-    const pending: AgentFeedbackRequest = { ...request, id };
+    const pending: ExtensionRequest = { ...request, id };
     return new Promise((resolve) => {
       const finish = (value: string | boolean | undefined) => {
-        if (!record.pendingFeedback.delete(id)) return;
+        if (!record.pendingExtensions.delete(id)) return;
         // A timeout or abort dismisses the renderer dialog as well.
         if (record.waiting?.id === id) {
           record.waiting = undefined;
@@ -829,7 +633,7 @@ export class AgentSessionManager {
         }
         resolve(value);
       };
-      record.pendingFeedback.set(id, finish);
+      record.pendingExtensions.set(id, finish);
       if (options?.timeout !== undefined) {
         setTimeout(() => finish(undefined), options.timeout);
       }
@@ -840,7 +644,7 @@ export class AgentSessionManager {
       record.settled = false;
       this.setStatus(record, "waiting");
       this.emit({
-        type: "feedback_request",
+        type: "extension_request",
         sessionId: record.id,
         request: pending,
       });
@@ -850,18 +654,18 @@ export class AgentSessionManager {
   /**
    * Pi extension UI context for a session.
    *
-   * Dialogs map to renderer feedback requests. Terminal-only capabilities
+   * Dialogs map to renderer extension requests. Terminal-only capabilities
    * (widgets, custom components, themes) are inert in the desktop UI.
    */
   private createUiContext(record: SessionRecord): ExtensionUIContext {
-    const feedback = (
-      request: AgentFeedbackPayload,
+    const openRequest = (
+      request: ExtensionRequestPayload,
       options?: { signal?: AbortSignal; timeout?: number },
-    ) => this.openFeedback(record, request, options);
+    ) => this.openExtensionRequest(record, request, options);
 
     return {
       select: async (title, options, dialog) => {
-        const value = await feedback(
+        const value = await openRequest(
           {
             method: "select",
             title,
@@ -875,7 +679,7 @@ export class AgentSessionManager {
         return typeof value === "string" ? value : undefined;
       },
       confirm: async (title, message, dialog) => {
-        const value = await feedback(
+        const value = await openRequest(
           {
             method: "confirm",
             title,
@@ -889,7 +693,7 @@ export class AgentSessionManager {
         return value === true;
       },
       input: async (title, placeholder, dialog) => {
-        const value = await feedback(
+        const value = await openRequest(
           {
             method: "input",
             title,
@@ -903,7 +707,7 @@ export class AgentSessionManager {
         return typeof value === "string" ? value : undefined;
       },
       editor: async (title, prefill) => {
-        const value = await feedback({
+        const value = await openRequest({
           method: "editor",
           title,
           ...(prefill !== undefined ? { prefill } : {}),

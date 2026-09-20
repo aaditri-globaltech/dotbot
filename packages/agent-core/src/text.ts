@@ -1,5 +1,5 @@
 /**
- * Tolerant JSON and text extraction shared by history compaction and the
+ * Tolerant JSON and text extraction shared by transcript compaction and the
  * renderer transcript. This module must stay free of runtime dependencies so
  * the renderer can import it without pulling the Pi runtime into the
  * browser bundle.
@@ -9,6 +9,12 @@ export function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+/** Throw unless the value is a non-empty string, returning it unchanged. */
+export function requireText(value: unknown, message: string): string {
+  if (typeof value !== "string" || !value.trim()) throw new Error(message);
+  return value;
 }
 
 export function formatValue(value: unknown): string {

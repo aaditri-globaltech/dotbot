@@ -1,11 +1,11 @@
 // Deliberately tiny browser entrypoint: this catches bundler/module regressions.
-import type { AgentSessionSummary } from "@dotbot/agent-core";
+import type { SessionSummary } from "@dotbot/agent-core";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
-const session: AgentSessionSummary = {
+const session: SessionSummary = {
   id: "smoke",
-  cwd: "/tmp",
+  projectDir: "/tmp",
   title: "smoke",
   status: "idle",
   active: false,

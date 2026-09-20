@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compactAgentHistory } from "../src/history";
+import { buildTranscript } from "../src/transcript";
 
-describe("compactAgentHistory", () => {
+describe("buildTranscript", () => {
   it("keeps user and assistant text, thinking, and tool calls in order", () => {
-    const items = compactAgentHistory([
+    const items = buildTranscript([
       { role: "user", content: [{ type: "text", text: "run it" }] },
       {
         role: "assistant",
@@ -28,17 +28,17 @@ describe("compactAgentHistory", () => {
     ]);
 
     expect(items).toEqual([
-      { id: "history-0", role: "user", text: "run it" },
+      { id: "transcript-0", role: "user", text: "run it" },
       {
         kind: "thinking",
-        id: "history-thinking-1-0",
+        id: "transcript-thinking-1-0",
         text: "thinking about it",
         status: "done",
       },
-      { id: "history-1-text-1", role: "assistant", text: "on it" },
+      { id: "transcript-1-text-1", role: "assistant", text: "on it" },
       {
         kind: "tool",
-        id: "history-tool-call-1",
+        id: "transcript-tool-call-1",
         name: "bash",
         arguments: '{\n  "command": "ls"\n}',
         output: "a.txt",
@@ -48,7 +48,7 @@ describe("compactAgentHistory", () => {
   });
 
   it("marks failed tool results and preserves Pi diffs", () => {
-    const items = compactAgentHistory([
+    const items = buildTranscript([
       {
         role: "assistant",
         content: [
@@ -67,7 +67,7 @@ describe("compactAgentHistory", () => {
     expect(items).toEqual([
       {
         kind: "tool",
-        id: "history-tool-call-2",
+        id: "transcript-tool-call-2",
         name: "edit",
         arguments: "{}",
         output: "- old\n+ new",
@@ -77,9 +77,9 @@ describe("compactAgentHistory", () => {
   });
 
   it("ignores non-conversation messages", () => {
-    expect(
-      compactAgentHistory([{ role: "system", content: "hidden" }]),
-    ).toEqual([]);
-    expect(compactAgentHistory(undefined)).toEqual([]);
+    expect(buildTranscript([{ role: "system", content: "hidden" }])).toEqual(
+      [],
+    );
+    expect(buildTranscript(undefined)).toEqual([]);
   });
 });

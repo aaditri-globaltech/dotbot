@@ -1,10 +1,12 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  AgentManager,
   type AgentManagerEvent,
-  AgentSessionManager,
   getSessionsDir,
+  ProviderRegistry,
 } from "@dotbot/agent-core";
+import { asRecord } from "@dotbot/agent-core/text";
 import { readDirectory, watchDirectory } from "@dotbot/files";
 import {
   type GitStatus,
@@ -31,7 +33,8 @@ let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let isQuitting = false;
 
-const sessions = new AgentSessionManager({ onEvent: sendEvent });
+const agentManager = new AgentManager({ onEvent: sendEvent });
+const providers = new ProviderRegistry(() => agentManager.getModelRuntime());
 
 // Constructed after the manager so the agent data directory has been resolved.
 const usageStats = new UsageStatsStore({
@@ -49,12 +52,6 @@ function sendToRenderer(channel: string, payload: unknown) {
 
 function sendEvent(event: AgentManagerEvent) {
   sendToRenderer("agent:event", event);
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
 }
 
 /** Embedded PNG keeps the tray icon visible on Linux Electron builds. */
@@ -156,40 +153,45 @@ ipcMain.on("window:close", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close();
 });
 
-ipcMain.handle("agent:list", () => sessions.list());
-ipcMain.handle("agent:defaults", (_event, value: unknown) =>
-  sessions.getDefaults(value),
+ipcMain.handle("agent:list", () => agentManager.list());
+ipcMain.handle("agent:controls", (_event, value: unknown) =>
+  agentManager.getSessionControls(value),
 );
-ipcMain.handle("agent:create", (_event, cwd: unknown) => sessions.create(cwd));
-ipcMain.handle("agent:open", (_event, id: unknown) => sessions.open(id));
+ipcMain.handle("agent:create", (_event, projectDir: unknown) =>
+  agentManager.create(projectDir),
+);
+ipcMain.handle("agent:open", (_event, id: unknown) => agentManager.open(id));
 ipcMain.handle("agent:close", (_event, id: unknown) => {
-  sessions.close(id);
+  agentManager.close(id);
 });
-ipcMain.handle("agent:remove", (_event, id: unknown) => {
-  sessions.remove(id);
+ipcMain.handle("agent:discard", (_event, id: unknown) => {
+  agentManager.discard(id);
 });
 ipcMain.handle("agent:prompt", (_event, value: unknown) =>
-  sessions.prompt(value),
+  agentManager.prompt(value),
 );
 ipcMain.handle("agent:abort", (_event, id: unknown) => {
-  sessions.abort(id);
+  agentManager.abort(id);
 });
-ipcMain.handle("agent:command", (_event, value: unknown) =>
-  sessions.command(value),
+ipcMain.handle("agent:set-model", (_event, value: unknown) =>
+  agentManager.setModel(value),
+);
+ipcMain.handle("agent:set-thinking-level", (_event, value: unknown) =>
+  agentManager.setThinkingLevel(value),
 );
 ipcMain.handle("agent:respond", (_event, value: unknown) => {
-  sessions.respond(value);
+  agentManager.respond(value);
 });
 
-ipcMain.handle("providers:list", () => sessions.listProviders());
+ipcMain.handle("providers:list", () => providers.list());
 ipcMain.handle("providers:set-key", (_event, value: unknown) =>
-  sessions.setProviderApiKey(value),
+  providers.setApiKey(value),
 );
 ipcMain.handle("providers:remove", (_event, id: unknown) =>
-  sessions.removeProviderApiKey(id),
+  providers.removeApiKey(id),
 );
 ipcMain.handle("providers:add", (_event, value: unknown) =>
-  sessions.addCustomProvider(value),
+  providers.addCustom(value),
 );
 
 ipcMain.handle("stats:get", () => usageStats.computeStats());
@@ -246,7 +248,7 @@ app.on("before-quit", () => {
   isQuitting = true;
   void fileWatch.stop();
   // Agent sessions run in-process, so shutdown only needs to dispose them.
-  sessions.stopAll();
+  agentManager.stopAll();
 });
 
 void app

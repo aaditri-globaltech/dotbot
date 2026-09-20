@@ -3,12 +3,13 @@
  * projects, and recent sessions.
  */
 
-import type { AgentSessionSummary } from "@dotbot/agent-core";
+import type { SessionSummary } from "@dotbot/agent-core";
 import { useMemo, useState } from "react";
 import { useProjectDir } from "../../../hooks/useProjectDir";
 import { projectName } from "../../../project-name";
 import { relativeTime } from "../../../relative-time";
-import { useAgentStore } from "../../../stores/agent-store";
+import { useNavigationStore } from "../../../stores/navigation-store";
+import { useSessionStore } from "../../../stores/session-store";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
 import { Hero } from "../../panels/Hero";
 import { PanelHeader } from "../../panels/PanelHeader";
@@ -39,19 +40,19 @@ const ACTION_ICON_CLASS =
 const SECTION_TITLE_CLASS = "mb-2 text-[11px] font-medium text-muted";
 
 /** Newest activity first. */
-function byRecentActivity(a: AgentSessionSummary, b: AgentSessionSummary) {
+function byRecentActivity(a: SessionSummary, b: SessionSummary) {
   return b.lastActivity.localeCompare(a.lastActivity);
 }
 
 /** Home launcher: stats, recent sessions, and recent projects. */
 export function DashboardView() {
-  const sessions = useAgentStore((state) => state.sessions);
-  const startNewTask = useAgentStore((state) => state.startNewTask);
-  const pickProject = useAgentStore((state) => state.pickProject);
-  const openSession = useAgentStore((state) => state.openSession);
+  const sessions = useSessionStore((state) => state.sessions);
+  const startNewSession = useSessionStore((state) => state.startNewSession);
+  const pickProject = useSessionStore((state) => state.pickProject);
+  const openSession = useSessionStore((state) => state.openSession);
   const projects = useWorkspaceStore((state) => state.projects);
   const selectProject = useWorkspaceStore((state) => state.selectProject);
-  const setScreen = useWorkspaceStore((state) => state.setScreen);
+  const setScreen = useNavigationStore((state) => state.setScreen);
 
   const [busy, setBusy] = useState(false);
 
@@ -81,11 +82,11 @@ export function DashboardView() {
   };
 
   const newSession = async () => {
-    await startNewTask(projectDir);
+    await startNewSession(projectDir);
   };
 
-  const showProject = (cwd: string) => {
-    selectProject(cwd);
+  const showProject = (projectDir: string) => {
+    selectProject(projectDir);
     setScreen("workbench");
   };
 
@@ -141,7 +142,7 @@ export function DashboardView() {
               />
               <span className="flex min-w-0 flex-col">
                 <span className="text-[13px] font-medium text-primary">
-                  New task
+                  New session
                 </span>
                 <span className="truncate text-xs text-muted">
                   {projectDir
@@ -156,9 +157,9 @@ export function DashboardView() {
 
           <div className="grid grid-cols-2 items-start gap-6">
             <section>
-              <h3 className={SECTION_TITLE_CLASS}>Recent tasks</h3>
+              <h3 className={SECTION_TITLE_CLASS}>Recent sessions</h3>
               {recentSessions.length === 0 ? (
-                <p className="text-xs text-dim">No tasks yet.</p>
+                <p className="text-xs text-dim">No sessions yet.</p>
               ) : (
                 <div className="flex flex-col gap-1.5">
                   {recentSessions.map((session) => (
@@ -178,7 +179,7 @@ export function DashboardView() {
                           {session.name ?? session.title}
                         </span>
                         <span className="truncate text-[11px] text-dim">
-                          {projectName(session.cwd)}
+                          {projectName(session.projectDir)}
                         </span>
                       </span>
                       <span className="shrink-0 text-[10px] text-faint tabular-nums">
@@ -196,13 +197,13 @@ export function DashboardView() {
                 <p className="text-xs text-dim">No projects yet.</p>
               ) : (
                 <div className="flex flex-col gap-1.5">
-                  {recentProjects.map((cwd) => (
+                  {recentProjects.map((recentProject) => (
                     <button
-                      key={cwd}
+                      key={recentProject}
                       type="button"
                       className={ROW_CLASS}
-                      title={cwd}
-                      onClick={() => showProject(cwd)}
+                      title={recentProject}
+                      onClick={() => showProject(recentProject)}
                     >
                       <span
                         className="codicon codicon-layers shrink-0 text-sm text-muted"
@@ -210,13 +211,13 @@ export function DashboardView() {
                       />
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-[13px] text-secondary">
-                          {projectName(cwd)}
+                          {projectName(recentProject)}
                         </span>
                         <span className="truncate text-[11px] text-dim">
-                          {cwd}
+                          {recentProject}
                         </span>
                       </span>
-                      {cwd === projectDir && (
+                      {recentProject === projectDir && (
                         <span className="shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">
                           current
                         </span>

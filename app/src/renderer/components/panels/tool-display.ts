@@ -1,8 +1,8 @@
 /** Pure formatting helpers for tool cards in the agent transcript. */
 
-import type { AgentToolCall } from "@dotbot/agent-core";
+import type { ToolCall } from "@dotbot/agent-core";
 
-function parsedArguments(tool: AgentToolCall) {
+function parsedArguments(tool: ToolCall) {
   try {
     const value: unknown = JSON.parse(tool.arguments);
     return typeof value === "object" && value !== null
@@ -13,33 +13,37 @@ function parsedArguments(tool: AgentToolCall) {
   }
 }
 
-function displayToolPath(path: string, cwd: string) {
+function displayToolPath(path: string, projectDir: string) {
   const normalizedPath = path.replaceAll("\\", "/");
-  const normalizedCwd = cwd.replaceAll("\\", "/").replace(/\/$/, "");
+  const normalizedProjectDir = projectDir
+    .replaceAll("\\", "/")
+    .replace(/\/$/, "");
   const absolutePath =
     normalizedPath === "~" ||
     normalizedPath.startsWith("~/") ||
     normalizedPath.startsWith("/") ||
     /^[A-Za-z]:\//.test(normalizedPath)
       ? normalizedPath
-      : normalizedCwd
-        ? `${normalizedCwd}/${normalizedPath}`
+      : normalizedProjectDir
+        ? `${normalizedProjectDir}/${normalizedPath}`
         : normalizedPath;
   return absolutePath.replace(/^\/home\/[^/]+/, "~");
 }
 
-export function toolPath(tool: AgentToolCall, cwd: string) {
+export function toolPath(tool: ToolCall, projectDir: string) {
   const args = parsedArguments(tool);
   const path = args?.path ?? args?.filePath ?? args?.file_path;
-  return typeof path === "string" ? displayToolPath(path, cwd) : undefined;
+  return typeof path === "string"
+    ? displayToolPath(path, projectDir)
+    : undefined;
 }
 
-export function bashCommand(tool: AgentToolCall) {
+export function bashCommand(tool: ToolCall) {
   const command = parsedArguments(tool)?.command;
   return typeof command === "string" ? command : undefined;
 }
 
-export function readToolOffset(tool: AgentToolCall): number {
+export function readToolOffset(tool: ToolCall): number {
   const offset = parsedArguments(tool)?.offset;
   return typeof offset === "number" && Number.isFinite(offset)
     ? Math.max(1, Math.trunc(offset))
@@ -47,7 +51,7 @@ export function readToolOffset(tool: AgentToolCall): number {
 }
 
 /** Format a read tool's offset and limit as a compact line range. */
-export function readToolRange(tool: AgentToolCall): string {
+export function readToolRange(tool: ToolCall): string {
   const args = parsedArguments(tool);
   if (!args || (args.offset === undefined && args.limit === undefined)) {
     return "";
@@ -66,7 +70,7 @@ export function readToolRange(tool: AgentToolCall): string {
  * Select the text rendered below a tool card. The agent's write result only
  * reports success, so the written content from the tool arguments is preferred.
  */
-export function toolOutput(tool: AgentToolCall) {
+export function toolOutput(tool: ToolCall) {
   if (tool.name === "write" && tool.status !== "error") {
     const content = parsedArguments(tool)?.content;
     if (typeof content === "string") return content;
@@ -83,7 +87,7 @@ function languageForFile(path: string): string {
   return extension && extension !== filename ? extension : "";
 }
 
-export function toolOutputLanguage(tool: AgentToolCall) {
+export function toolOutputLanguage(tool: ToolCall) {
   if (tool.status === "error") return "";
   if (tool.name === "edit") return "diff";
   if (tool.name !== "read" && tool.name !== "write") return "";
@@ -93,13 +97,13 @@ export function toolOutputLanguage(tool: AgentToolCall) {
   return typeof path === "string" ? languageForFile(path) : "";
 }
 
-export function toolStatusColor(status: AgentToolCall["status"]) {
+export function toolStatusColor(status: ToolCall["status"]) {
   if (status === "error") return "error";
   if (status === "done") return "success";
   return "running";
 }
 
-export function toolStatusText(status: AgentToolCall["status"]) {
+export function toolStatusText(status: ToolCall["status"]) {
   if (status === "error") return "Error";
   if (status === "done") return "Success";
   return "Running";

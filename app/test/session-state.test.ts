@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  applySessionEvent,
+  applySessionError,
   createSessionClientState,
-} from "../src/renderer/components/panels/agent-session-state";
+} from "../src/renderer/components/panels/session-state";
 
-describe("applySessionEvent", () => {
+describe("applySessionError", () => {
   it("appends a transcript notice for session failures", () => {
     const state = createSessionClientState();
-    const next = applySessionEvent(state, { type: "error", message: "boom" });
+    const next = applySessionError(state, "boom");
 
-    expect(state.messages).toEqual([]);
-    expect(next.messages).toEqual([
+    expect(state.transcript).toEqual([]);
+    expect(next.transcript).toEqual([
       { kind: "error", id: expect.any(String), text: "boom" },
     ]);
   });

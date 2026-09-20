@@ -48,7 +48,7 @@
   --radius-xl: 14px;
   --radius-2xl: 17px;
 
-  /* Display serif, used for headline copy such as the new-task hero. */
+  /* Display serif, used for headline copy such as the new-session hero. */
   --font-serif: ui-serif, Georgia, "Noto Serif", "Liberation Serif", serif;
 
   --shadow-card: 0 8px 30px rgb(0 0 0 / 35%);

@@ -1,6 +1,6 @@
 /** Navigation rows for the primary sidebar. */
 
-import { useWorkspaceStore } from "../../stores/workspace-store";
+import { useNavigationStore } from "../../stores/navigation-store";
 import {
   CHROME_BUTTON_CLASS,
   NAV_ROW_CLASS,
@@ -8,13 +8,13 @@ import {
   NAV_ROW_SELECTED_CLASS,
 } from "../panels/panel-classes";
 
-/** Render the screen rows plus the new-task action, or its icon rail. */
+/** Render the screen rows plus the new-session action, or its icon rail. */
 export function SidebarNav(props: {
   onNewSession: () => void;
   collapsed: boolean;
 }) {
-  const screen = useWorkspaceStore((state) => state.screen);
-  const setScreen = useWorkspaceStore((state) => state.setScreen);
+  const screen = useNavigationStore((state) => state.screen);
+  const setScreen = useNavigationStore((state) => state.setScreen);
   const onDashboard = screen === "dashboard";
 
   if (props.collapsed) {
@@ -26,8 +26,8 @@ export function SidebarNav(props: {
         <button
           className={`size-7 ${CHROME_BUTTON_CLASS}`}
           type="button"
-          dotbot-label="New task"
-          title="New task"
+          dotbot-label="New session"
+          title="New session"
           onClick={props.onNewSession}
         >
           <span
@@ -59,14 +59,14 @@ export function SidebarNav(props: {
       <button
         className={`${NAV_ROW_CLASS} ${NAV_ROW_IDLE_CLASS}`}
         type="button"
-        dotbot-label="New task"
+        dotbot-label="New session"
         onClick={props.onNewSession}
       >
         <span
           className="codicon codicon-add text-[15px]"
           dotbot-hidden="true"
         />
-        New task
+        New session
       </button>
       <button
         className={`${NAV_ROW_CLASS} ${

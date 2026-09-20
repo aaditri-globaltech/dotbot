@@ -7,49 +7,53 @@
  */
 
 import type {
-  AgentChatItem,
-  AgentCommand,
-  AgentEvent,
-  AgentFeedbackResponse,
   AgentManagerEvent,
-  AgentSessionSummary,
-  AgentStreamingBehavior,
+  AgentSessionEvent,
+  ExtensionResponse,
+  ModelThinkingLevel,
+  SessionSummary,
+  StreamingBehavior,
+  TranscriptItem,
 } from "@dotbot/agent-core";
 import { create } from "zustand";
 import { api } from "../api";
 import {
-  applySessionEvent,
-  applySessionState,
+  applySessionActivity,
+  applySessionControls,
+  applySessionError,
   createSessionClientState,
   type SessionClientState,
-} from "../components/panels/agent-session-state";
+} from "../components/panels/session-state";
+import { useNavigationStore } from "./navigation-store";
 import { useWorkspaceStore } from "./workspace-store";
 
-/** Preserve event order while coalescing streamed events and history chunks. */
+/** Preserve event order while coalescing streamed events and transcript chunks. */
 type PendingStateUpdate =
-  | { kind: "event"; event: AgentEvent }
-  | { kind: "history"; items: AgentChatItem[] };
+  | { kind: "activity"; event: AgentSessionEvent }
+  | { kind: "error"; message: string }
+  | { kind: "transcript"; items: TranscriptItem[] };
 
-type AgentStore = {
-  sessions: AgentSessionSummary[];
+type SessionStore = {
+  sessions: SessionSummary[];
   tabs: string[];
   selectedId?: string;
   states: Record<string, SessionClientState>;
-  /** New-task template state, present until its first keystroke starts a session. */
-  template?: SessionClientState;
+  /** New session draft state, present until its first keystroke starts a session. */
+  newSession?: SessionClientState;
   subscribe: () => () => void;
   loadSessions: () => Promise<void>;
   selectSession: (id?: string) => void;
   openSession: (id: string) => void;
   closeTab: (id: string) => void;
-  /** Open the new-task template; picks a project when none is given. */
-  startNewTask: (projectDir?: string) => Promise<void>;
+  /** Open a new session draft; picks a project when none is given. */
+  startNewSession: (projectDir?: string) => Promise<void>;
   /** Pick a project directory and make it the current project. */
   pickProject: () => Promise<string | undefined>;
-  prompt: (message: string, streamingBehavior?: AgentStreamingBehavior) => void;
+  prompt: (message: string, streamingBehavior?: StreamingBehavior) => void;
   abort: () => void;
-  command: (command: AgentCommand) => void;
-  respond: (response: AgentFeedbackResponse) => void;
+  setModel: (provider: string, modelId: string) => void;
+  setThinkingLevel: (level: ModelThinkingLevel) => void;
+  respond: (response: ExtensionResponse) => void;
   setDraft: (value: string) => void;
 };
 
@@ -57,12 +61,9 @@ function reportError(error: unknown) {
   console.error(error);
 }
 
-function sameSummary(
-  left: AgentSessionSummary,
-  right: AgentSessionSummary,
-): boolean {
+function sameSummary(left: SessionSummary, right: SessionSummary): boolean {
   return (
-    left.cwd === right.cwd &&
+    left.projectDir === right.projectDir &&
     left.title === right.title &&
     left.name === right.name &&
     left.status === right.status &&
@@ -73,12 +74,12 @@ function sameSummary(
 }
 
 /** Agent sessions, transcripts, and controls for every open tab. */
-export const useAgentStore = create<AgentStore>((set, get) => {
+export const useSessionStore = create<SessionStore>((set, get) => {
   const pendingStateEvents = new Map<string, PendingStateUpdate[]>();
   let stateFlushScheduled = false;
-  let templateSeq = 0;
-  let templateCreation: Promise<string> | undefined;
-  // Sessions created by the template that have not been prompted yet.
+  let newSessionSeq = 0;
+  let newSessionCreation: Promise<string> | undefined;
+  // Sessions created by the new session draft that have not been prompted yet.
   const unprompted = new Set<string>();
 
   const flushStateEvents = () => {
@@ -87,26 +88,30 @@ export const useAgentStore = create<AgentStore>((set, get) => {
 
     const pending = new Map(pendingStateEvents);
     pendingStateEvents.clear();
-    // History arrives in small chunks; apply each session's batch once per frame.
+    // Transcript chunks arrive in small pieces; apply each session's batch once per frame.
     const nextStates: Record<string, SessionClientState> = {};
     for (const [id, updates] of pending) {
       let state = get().states[id] ?? createSessionClientState();
-      let history: AgentChatItem[] = [];
-      const flushHistory = () => {
-        if (history.length === 0) return;
-        state = { ...state, messages: [...state.messages, ...history] };
-        history = [];
+      let transcript: TranscriptItem[] = [];
+      const flushTranscript = () => {
+        if (transcript.length === 0) return;
+        state = { ...state, transcript: [...state.transcript, ...transcript] };
+        transcript = [];
       };
 
       for (const update of updates) {
-        if (update.kind === "history") {
-          history.push(...update.items);
+        if (update.kind === "transcript") {
+          transcript.push(...update.items);
           continue;
         }
-        flushHistory();
-        state = applySessionEvent(state, update.event);
+        flushTranscript();
+        if (update.kind === "error") {
+          state = applySessionError(state, update.message);
+          continue;
+        }
+        state = applySessionActivity(state, update.event);
       }
-      flushHistory();
+      flushTranscript();
       nextStates[id] = state;
     }
 
@@ -124,21 +129,14 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     }
   };
 
-  const queueStateEvent = (id: string, event: AgentEvent) => {
+  const queueStateUpdate = (id: string, update: PendingStateUpdate) => {
     const updates = pendingStateEvents.get(id) ?? [];
-    updates.push({ kind: "event", event });
+    updates.push(update);
     pendingStateEvents.set(id, updates);
     scheduleStateFlush();
   };
 
-  const queueHistory = (id: string, items: AgentChatItem[]) => {
-    const updates = pendingStateEvents.get(id) ?? [];
-    updates.push({ kind: "history", items });
-    pendingStateEvents.set(id, updates);
-    scheduleStateFlush();
-  };
-
-  const updateSession = (session: AgentSessionSummary) => {
+  const updateSession = (session: SessionSummary) => {
     set((current) => {
       const entry = current.sessions.find(
         (candidate) => candidate.id === session.id,
@@ -157,46 +155,34 @@ export const useAgentStore = create<AgentStore>((set, get) => {
 
   const handleEvent = (event: AgentManagerEvent) => {
     // Main-process events are the source of truth; client state only decorates them.
-    if (event.type === "sessions") {
-      set((current) => {
-        const unread = new Map(
-          current.sessions.map((session) => [session.id, session.unread]),
-        );
-        return {
-          sessions: event.sessions.map((session) => ({
-            ...session,
-            unread: unread.get(session.id) ?? false,
-          })),
-        };
-      });
-      return;
-    }
-
     if (event.type === "session_update") {
       updateSession(event.session);
       return;
     }
 
-    if (event.type === "session_state") {
+    if (event.type === "session_controls") {
       set((current) => {
         const state =
           current.states[event.sessionId] ?? createSessionClientState();
         return {
           states: {
             ...current.states,
-            [event.sessionId]: applySessionState(state, event.state),
+            [event.sessionId]: applySessionControls(state, event.controls),
           },
         };
       });
       return;
     }
 
-    if (event.type === "session_history") {
-      queueHistory(event.sessionId, event.items);
+    if (event.type === "session_transcript") {
+      queueStateUpdate(event.sessionId, {
+        kind: "transcript",
+        items: event.items,
+      });
       return;
     }
 
-    if (event.type === "feedback_request") {
+    if (event.type === "extension_request") {
       set((current) => ({
         sessions: current.sessions.map((session) =>
           session.id === event.sessionId
@@ -212,8 +198,11 @@ export const useAgentStore = create<AgentStore>((set, get) => {
       return;
     }
 
-    if (event.type === "session_event") {
-      queueStateEvent(event.sessionId, event.event);
+    if (event.type === "session_activity") {
+      queueStateUpdate(event.sessionId, {
+        kind: "activity",
+        event: event.event,
+      });
       if (event.sessionId !== get().selectedId) {
         set((current) => ({
           sessions: current.sessions.map((session) =>
@@ -223,12 +212,20 @@ export const useAgentStore = create<AgentStore>((set, get) => {
           ),
         }));
       }
+      return;
+    }
+
+    if (event.type === "session_error") {
+      queueStateUpdate(event.sessionId, {
+        kind: "error",
+        message: event.message,
+      });
     }
   };
 
   const selectSession = (id?: string) => {
     set((current) => ({
-      template: undefined,
+      newSession: undefined,
       selectedId: id,
       sessions: id
         ? current.sessions.map((session) =>
@@ -258,7 +255,7 @@ export const useAgentStore = create<AgentStore>((set, get) => {
         return {
           states: {
             ...current.states,
-            [id]: { ...state, messages: [] },
+            [id]: { ...state, transcript: [] },
           },
         };
       });
@@ -283,23 +280,10 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     selectSession(replacement);
   };
 
-  const updateSelectedState = (
-    update: (state: SessionClientState) => SessionClientState,
-  ) => {
-    const id = get().selectedId;
-    if (!id) return;
-    set((current) => ({
-      states: {
-        ...current.states,
-        [id]: update(current.states[id] ?? createSessionClientState()),
-      },
-    }));
-  };
-
   /** Drop an unprompted session from the manager and every renderer list. */
   const discardSession = (id: string) => {
     unprompted.delete(id);
-    void api.agent.remove(id).catch(reportError);
+    void api.agent.discard(id).catch(reportError);
     set((current) => {
       const states = { ...current.states };
       delete states[id];
@@ -315,7 +299,7 @@ export const useAgentStore = create<AgentStore>((set, get) => {
   const sendPrompt = (
     id: string,
     message: string,
-    streamingBehavior?: AgentStreamingBehavior,
+    streamingBehavior?: StreamingBehavior,
   ) => {
     unprompted.delete(id);
     // Optimistically render the user's message while the agent streams its response.
@@ -327,8 +311,8 @@ export const useAgentStore = create<AgentStore>((set, get) => {
           [id]: {
             ...state,
             draft: "",
-            messages: [
-              ...state.messages,
+            transcript: [
+              ...state.transcript,
               { id: crypto.randomUUID(), role: "user", text: message },
             ],
           },
@@ -339,15 +323,15 @@ export const useAgentStore = create<AgentStore>((set, get) => {
   };
 
   /**
-   * Start the template's session on its first keystroke. A template abandoned or
+   * Start the new session on its first keystroke. A draft abandoned or
    * replaced before the session opens has that session discarded.
    */
-  const ensureTemplateSession = (): Promise<string> | undefined => {
-    if (templateCreation) return templateCreation;
+  const ensureNewSession = (): Promise<string> | undefined => {
+    if (newSessionCreation) return newSessionCreation;
     const projectDir = useWorkspaceStore.getState().selectedProject;
-    if (!get().template || !projectDir) return undefined;
+    if (!get().newSession || !projectDir) return undefined;
 
-    const seq = templateSeq;
+    const seq = newSessionSeq;
     const creation = (async () => {
       const session = await api.agent.create(projectDir);
       updateSession(session);
@@ -357,30 +341,27 @@ export const useAgentStore = create<AgentStore>((set, get) => {
         return session.id;
       };
 
-      if (!get().template || templateSeq !== seq) return discard();
+      if (!get().newSession || newSessionSeq !== seq) return discard();
 
-      // Open first so the manager keeps the session, then apply the template
+      // Open first so the manager keeps the session, then apply the new session
       // choices before publishing it as the selected session.
       await api.agent.open(session.id);
-      const stillActive = get().template;
-      if (!stillActive || templateSeq !== seq) return discard();
+      const stillActive = get().newSession;
+      if (!stillActive || newSessionSeq !== seq) return discard();
 
       const separator = stillActive.selectedModel.indexOf("/");
       if (separator !== -1) {
-        await api.agent.command(session.id, {
-          type: "set_model",
-          provider: stillActive.selectedModel.slice(0, separator),
-          modelId: stillActive.selectedModel.slice(separator + 1),
-        });
+        await api.agent.setModel(
+          session.id,
+          stillActive.selectedModel.slice(0, separator),
+          stillActive.selectedModel.slice(separator + 1),
+        );
       }
-      await api.agent.command(session.id, {
-        type: "set_thinking_level",
-        level: stillActive.thinkingLevel,
-      });
-      const latest = get().template;
-      if (!latest || templateSeq !== seq) return discard();
+      await api.agent.setThinkingLevel(session.id, stillActive.thinkingLevel);
+      const latest = get().newSession;
+      if (!latest || newSessionSeq !== seq) return discard();
 
-      // Hand the template's draft to the session the composer now shows.
+      // Hand the new session draft to the session the composer now shows.
       set((current) => ({
         states: {
           ...current.states,
@@ -393,9 +374,9 @@ export const useAgentStore = create<AgentStore>((set, get) => {
       openSession(session.id);
       return session.id;
     })();
-    templateCreation = creation;
+    newSessionCreation = creation;
     const clear = () => {
-      if (templateCreation === creation) templateCreation = undefined;
+      if (newSessionCreation === creation) newSessionCreation = undefined;
     };
     void creation.then(clear, clear);
     return creation;
@@ -412,7 +393,7 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     }
   };
 
-  const startNewTask = async (projectDir?: string) => {
+  const startNewSession = async (projectDir?: string) => {
     let target = projectDir ?? useWorkspaceStore.getState().selectedProject;
     if (!target) {
       target = await pickProject();
@@ -420,18 +401,18 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     }
 
     useWorkspaceStore.getState().selectProject(target);
-    templateSeq += 1;
-    templateCreation = undefined;
-    const seq = templateSeq;
-    set({ template: createSessionClientState(), selectedId: undefined });
-    useWorkspaceStore.getState().setScreen("workbench");
+    newSessionSeq += 1;
+    newSessionCreation = undefined;
+    const seq = newSessionSeq;
+    set({ newSession: createSessionClientState(), selectedId: undefined });
+    useNavigationStore.getState().setScreen("workbench");
 
     try {
-      const defaults = await api.agent.defaults({ cwd: target });
-      if (templateSeq !== seq) return;
+      const controls = await api.agent.controls({ projectDir: target });
+      if (newSessionSeq !== seq) return;
       set((current) =>
-        current.template
-          ? { template: applySessionState(current.template, defaults) }
+        current.newSession
+          ? { newSession: applySessionControls(current.newSession, controls) }
           : current,
       );
     } catch (error) {
@@ -439,40 +420,31 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     }
   };
 
-  const command = (command: AgentCommand) => {
-    const template = get().template;
-    if (template) {
-      if (command.type === "set_thinking_level") {
-        set({ template: { ...template, thinkingLevel: command.level } });
-        return;
-      }
-
+  const setModel = (provider: string, modelId: string) => {
+    const newSession = get().newSession;
+    if (newSession) {
       set({
-        template: {
-          ...template,
-          selectedModel: `${command.provider}/${command.modelId}`,
+        newSession: {
+          ...newSession,
+          selectedModel: `${provider}/${modelId}`,
         },
       });
       const projectDir = useWorkspaceStore.getState().selectedProject;
       if (!projectDir) return;
       // Previewing another model also changes the supported thinking levels.
       void api.agent
-        .defaults({
-          cwd: projectDir,
-          provider: command.provider,
-          modelId: command.modelId,
-        })
+        .controls({ projectDir, provider, modelId })
         .then((next) => {
           set((current) => {
-            if (!current.template) return current;
-            const applied = applySessionState(current.template, next);
+            if (!current.newSession) return current;
+            const applied = applySessionControls(current.newSession, next);
             return {
-              template: {
+              newSession: {
                 ...applied,
                 thinkingLevel: applied.thinkingLevels.includes(
-                  current.template.thinkingLevel,
+                  current.newSession.thinkingLevel,
                 )
-                  ? current.template.thinkingLevel
+                  ? current.newSession.thinkingLevel
                   : applied.thinkingLevel,
               },
             };
@@ -483,7 +455,18 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     }
 
     const id = get().selectedId;
-    if (id) void api.agent.command(id, command).catch(reportError);
+    if (id) void api.agent.setModel(id, provider, modelId).catch(reportError);
+  };
+
+  const setThinkingLevel = (level: ModelThinkingLevel) => {
+    const newSession = get().newSession;
+    if (newSession) {
+      set({ newSession: { ...newSession, thinkingLevel: level } });
+      return;
+    }
+
+    const id = get().selectedId;
+    if (id) void api.agent.setThinkingLevel(id, level).catch(reportError);
   };
 
   return {
@@ -491,7 +474,7 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     tabs: [],
     selectedId: undefined,
     states: {},
-    template: undefined,
+    newSession: undefined,
 
     subscribe: () => api.agent.onEvent(handleEvent),
 
@@ -505,13 +488,13 @@ export const useAgentStore = create<AgentStore>((set, get) => {
 
     closeTab,
 
-    startNewTask,
+    startNewSession,
 
     pickProject,
 
     prompt: (message, streamingBehavior) => {
-      if (get().template) {
-        const pending = ensureTemplateSession();
+      if (get().newSession) {
+        const pending = ensureNewSession();
         if (pending) {
           void pending
             .then((id) => sendPrompt(id, message, streamingBehavior))
@@ -529,7 +512,9 @@ export const useAgentStore = create<AgentStore>((set, get) => {
       if (id) void api.agent.abort(id).catch(reportError);
     },
 
-    command,
+    setModel,
+
+    setThinkingLevel,
 
     respond: (response) => {
       const id = get().selectedId;
@@ -537,16 +522,27 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     },
 
     setDraft: (value) => {
-      const template = get().template;
-      if (template) {
-        set({ template: { ...template, draft: value } });
+      const newSession = get().newSession;
+      if (newSession) {
+        set({ newSession: { ...newSession, draft: value } });
         if (value) {
-          const pending = ensureTemplateSession();
+          const pending = ensureNewSession();
           if (pending) void pending.catch(reportError);
         }
         return;
       }
-      updateSelectedState((state) => ({ ...state, draft: value }));
+
+      const id = get().selectedId;
+      if (!id) return;
+      set((current) => ({
+        states: {
+          ...current.states,
+          [id]: {
+            ...(current.states[id] ?? createSessionClientState()),
+            draft: value,
+          },
+        },
+      }));
     },
   };
 });

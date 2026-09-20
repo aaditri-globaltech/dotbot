@@ -1,31 +1,32 @@
 /** Primary sidebar: navigation, the workspace section, and the model row. */
 
 import { useProjectDir } from "../../hooks/useProjectDir";
-import { useAgentStore } from "../../stores/agent-store";
+import { useNavigationStore } from "../../stores/navigation-store";
+import { useSessionStore } from "../../stores/session-store";
 import { useWorkspaceStore } from "../../stores/workspace-store";
-import { modelKey } from "../panels/agent-session-state";
 import { FileTreePanel } from "../panels/FileTreePanel";
 import {
   CHROME_BUTTON_CLASS,
   ICON_BUTTON_CLASS,
 } from "../panels/panel-classes";
+import { modelKey } from "../panels/session-state";
 import { WorkspaceSidebar } from "../panels/WorkspaceSidebar";
 import { SidebarNav } from "./SidebarNav";
 
 /** Render the always-present sidebar shown on every screen except Manage. */
 export function PrimarySidebar(props: { collapsed: boolean }) {
-  const sessions = useAgentStore((state) => state.sessions);
-  const tabs = useAgentStore((state) => state.tabs);
-  const selectedId = useAgentStore((state) => state.selectedId);
-  const states = useAgentStore((state) => state.states);
-  const openSession = useAgentStore((state) => state.openSession);
-  const startNewTask = useAgentStore((state) => state.startNewTask);
-  const pickProject = useAgentStore((state) => state.pickProject);
+  const sessions = useSessionStore((state) => state.sessions);
+  const tabs = useSessionStore((state) => state.tabs);
+  const selectedId = useSessionStore((state) => state.selectedId);
+  const states = useSessionStore((state) => state.states);
+  const openSession = useSessionStore((state) => state.openSession);
+  const startNewSession = useSessionStore((state) => state.startNewSession);
+  const pickProject = useSessionStore((state) => state.pickProject);
   const projects = useWorkspaceStore((state) => state.projects);
-  const sidebarMode = useWorkspaceStore((state) => state.sidebarMode);
-  const setSidebarMode = useWorkspaceStore((state) => state.setSidebarMode);
+  const sidebarMode = useNavigationStore((state) => state.sidebarMode);
+  const setSidebarMode = useNavigationStore((state) => state.setSidebarMode);
   const selectProject = useWorkspaceStore((state) => state.selectProject);
-  const setScreen = useWorkspaceStore((state) => state.setScreen);
+  const setScreen = useNavigationStore((state) => state.setScreen);
   const projectDir = useProjectDir();
   const state = selectedId ? states[selectedId] : undefined;
   const modelName = state?.models.find(
@@ -33,16 +34,16 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
   )?.name;
 
   const newSession = () => {
-    void startNewTask(projectDir);
+    void startNewSession(projectDir);
   };
 
-  const browseFiles = (cwd: string) => {
-    selectProject(cwd);
+  const browseFiles = (projectDir: string) => {
+    selectProject(projectDir);
     setSidebarMode("files");
   };
 
-  // Opening a task must leave whichever screen the sidebar is shown on.
-  const openTask = (id: string) => {
+  // Opening a session must leave whichever screen the sidebar is shown on.
+  const showSession = (id: string) => {
     setScreen("workbench");
     openSession(id);
   };
@@ -77,14 +78,14 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
           <button
             className="mx-1.5 mt-2 flex min-h-[30px] cursor-pointer items-center gap-2 rounded-md border-0 px-2 text-left text-[13px] text-secondary hover:bg-surface-hover focus-visible:bg-surface-hover"
             type="button"
-            dotbot-label="Back to tasks"
-            onClick={() => setSidebarMode("tasks")}
+            dotbot-label="Back to sessions"
+            onClick={() => setSidebarMode("sessions")}
           >
             <span
               className="codicon codicon-arrow-left shrink-0 text-[15px]"
               dotbot-hidden="true"
             />
-            Back to Tasks
+            Back to sessions
           </button>
           <FileTreePanel
             projectDir={projectDir}
@@ -98,7 +99,7 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
             sessions={sessions}
             openTabIds={tabs}
             projects={projects}
-            onOpen={openTask}
+            onOpen={showSession}
             onBrowseFiles={browseFiles}
             selectedSessionId={selectedId}
             projectDir={projectDir}

@@ -1,7 +1,4 @@
-import type {
-  AgentCustomProviderInput,
-  AgentProviderSummary,
-} from "@dotbot/agent-core";
+import type { CustomProviderInput, ProviderSummary } from "@dotbot/agent-core";
 import { useEffect, useState } from "react";
 import { api } from "../../../api";
 import { errorMessage } from "../../../errors";
@@ -17,7 +14,7 @@ import {
 
 /** List providers, manage their API keys, and add custom providers. */
 export function ProvidersPage() {
-  const [providers, setProviders] = useState<AgentProviderSummary[]>([]);
+  const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,7 +39,7 @@ export function ProvidersPage() {
 
   const selected = providers.find((provider) => provider.id === selectedId);
 
-  const replaceProvider = (summary: AgentProviderSummary) => {
+  const replaceProvider = (summary: ProviderSummary) => {
     setProviders((current) =>
       current.map((provider) =>
         provider.id === summary.id ? summary : provider,
@@ -87,7 +84,7 @@ export function ProvidersPage() {
     });
   };
 
-  const addCustom = (provider: AgentCustomProviderInput) =>
+  const addCustom = (provider: CustomProviderInput) =>
     run(async () => {
       const summary = await api.providers.add(provider);
       setProviders(await api.providers.list());

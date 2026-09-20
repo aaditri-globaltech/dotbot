@@ -1,12 +1,13 @@
 import type {
-  AgentCommand,
-  AgentCustomProviderInput,
-  AgentFeedbackResponse,
   AgentManagerEvent,
-  AgentProviderSummary,
-  AgentSessionState,
-  AgentSessionSummary,
-  AgentStreamingBehavior,
+  CustomProviderInput,
+  ExtensionResponse,
+  ModelThinkingLevel,
+  ProviderSummary,
+  SessionControls,
+  SessionControlsInput,
+  SessionSummary,
+  StreamingBehavior,
 } from "@dotbot/agent-core";
 import type { FileEntry } from "@dotbot/files";
 import type { GitStatus } from "@dotbot/git";
@@ -16,14 +17,6 @@ import type { UsageStats } from "../shared/usage-stats";
 export type FilesChanged = {
   projectDir: string;
   paths: string[];
-};
-
-/** Inputs for reading a new task's model and thinking defaults. */
-export type AgentDefaultsInput = {
-  cwd: string;
-  /** Preview another available model's thinking levels. */
-  provider?: string;
-  modelId?: string;
 };
 
 /** Renderer-safe API exposed by the isolated Electron preload. */
@@ -39,34 +32,36 @@ export interface DotbotApi {
   };
   /** Agent session lifecycle, prompts, controls, and streamed events. */
   agent: {
-    list: () => Promise<AgentSessionSummary[]>;
-    defaults: (input: AgentDefaultsInput) => Promise<AgentSessionState>;
-    create: (cwd: string) => Promise<AgentSessionSummary>;
-    open: (sessionId: string) => Promise<AgentSessionSummary>;
+    list: () => Promise<SessionSummary[]>;
+    controls: (input: SessionControlsInput) => Promise<SessionControls>;
+    create: (projectDir: string) => Promise<SessionSummary>;
+    open: (sessionId: string) => Promise<SessionSummary>;
     close: (sessionId: string) => Promise<void>;
-    remove: (sessionId: string) => Promise<void>;
+    discard: (sessionId: string) => Promise<void>;
     prompt: (
       sessionId: string,
       message: string,
-      streamingBehavior?: AgentStreamingBehavior,
+      streamingBehavior?: StreamingBehavior,
     ) => Promise<void>;
     abort: (sessionId: string) => Promise<void>;
-    command: (sessionId: string, command: AgentCommand) => Promise<void>;
-    respond: (
+    setModel: (
       sessionId: string,
-      response: AgentFeedbackResponse,
+      provider: string,
+      modelId: string,
     ) => Promise<void>;
+    setThinkingLevel: (
+      sessionId: string,
+      level: ModelThinkingLevel,
+    ) => Promise<void>;
+    respond: (sessionId: string, response: ExtensionResponse) => Promise<void>;
     onEvent: (listener: (event: AgentManagerEvent) => void) => () => void;
   };
   /** Provider listing and API key management. */
   providers: {
-    list: () => Promise<AgentProviderSummary[]>;
-    setKey: (
-      providerId: string,
-      apiKey: string,
-    ) => Promise<AgentProviderSummary>;
-    remove: (providerId: string) => Promise<AgentProviderSummary>;
-    add: (provider: AgentCustomProviderInput) => Promise<AgentProviderSummary>;
+    list: () => Promise<ProviderSummary[]>;
+    setKey: (providerId: string, apiKey: string) => Promise<ProviderSummary>;
+    remove: (providerId: string) => Promise<ProviderSummary>;
+    add: (provider: CustomProviderInput) => Promise<ProviderSummary>;
   };
   /** Dashboard usage statistics derived from persisted sessions. */
   stats: {

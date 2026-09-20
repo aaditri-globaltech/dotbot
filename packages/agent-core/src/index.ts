@@ -57,34 +57,33 @@ export {
   type Skill,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-
-export { compactAgentHistory } from "./history";
 export {
-  AgentSessionManager,
-  type AgentSessionManagerOptions,
+  AgentManager,
+  type AgentManagerOptions,
   type CreateSessionFunction,
-} from "./manager";
+} from "./agent-manager";
 export { getSessionsDir } from "./paths";
+export { ProviderRegistry } from "./providers";
+export { buildTranscript } from "./transcript";
 export type {
-  AgentChatItem,
-  AgentChatMessage,
-  AgentCommand,
-  AgentCustomProviderInput,
-  AgentErrorNotice,
-  AgentEvent,
-  AgentFeedbackPayload,
-  AgentFeedbackRequest,
-  AgentFeedbackResponse,
   AgentManagerEvent,
-  AgentModel,
-  AgentProviderApi,
-  AgentProviderSummary,
-  AgentSessionState,
-  AgentSessionSummary,
-  AgentStatus,
-  AgentStreamingBehavior,
-  AgentThinkingBlock,
-  AgentThinkingLevel,
-  AgentToolCall,
+  CustomProviderInput,
+  ErrorNotice,
+  ExtensionRequest,
+  ExtensionRequestPayload,
+  ExtensionResponse,
+  ModelSummary,
+  ModelThinkingLevel,
+  ProviderApi,
+  ProviderSummary,
+  SessionControls,
+  SessionControlsInput,
+  SessionStatus,
+  SessionSummary,
+  StreamingBehavior,
+  ThinkingBlock,
+  ToolCall,
+  TranscriptItem,
+  TranscriptMessage,
 } from "./types";
-export { AGENT_PROVIDER_APIS } from "./types";
+export { PROVIDER_APIS } from "./types";

@@ -5,14 +5,14 @@
  */
 
 import type {
-  AgentChatItem,
-  AgentErrorNotice,
-  AgentEvent,
-  AgentModel,
-  AgentSessionState,
-  AgentThinkingBlock,
-  AgentThinkingLevel,
-  AgentToolCall,
+  AgentSessionEvent,
+  ErrorNotice,
+  ModelSummary,
+  ModelThinkingLevel,
+  SessionControls,
+  ThinkingBlock,
+  ToolCall,
+  TranscriptItem,
 } from "@dotbot/agent-core";
 import {
   asRecord,
@@ -23,11 +23,11 @@ import {
 
 /** All renderer state associated with one selected session. */
 export type SessionClientState = {
-  messages: AgentChatItem[];
-  models: AgentModel[];
+  transcript: TranscriptItem[];
+  models: ModelSummary[];
   selectedModel: string;
-  thinkingLevels: AgentThinkingLevel[];
-  thinkingLevel: AgentThinkingLevel;
+  thinkingLevels: ModelThinkingLevel[];
+  thinkingLevel: ModelThinkingLevel;
   draft: string;
   assistantCounter: number;
   thinkingCounter: number;
@@ -37,10 +37,10 @@ export type SessionClientState = {
   toolAliases: Map<string, string>;
 };
 
-/** Create an empty state before the first history response arrives. */
+/** Create an empty state before the first transcript response arrives. */
 export function createSessionClientState(): SessionClientState {
   return {
-    messages: [],
+    transcript: [],
     models: [],
     selectedModel: "",
     thinkingLevels: [],
@@ -54,52 +54,55 @@ export function createSessionClientState(): SessionClientState {
   };
 }
 
-export function isToolCall(item: AgentChatItem): item is AgentToolCall {
+export function isToolCall(item: TranscriptItem): item is ToolCall {
   return "kind" in item && item.kind === "tool";
 }
 
-export function isThinking(item: AgentChatItem): item is AgentThinkingBlock {
+export function isThinking(item: TranscriptItem): item is ThinkingBlock {
   return "kind" in item && item.kind === "thinking";
 }
 
-export function isErrorNotice(item: AgentChatItem): item is AgentErrorNotice {
+export function isErrorNotice(item: TranscriptItem): item is ErrorNotice {
   return "kind" in item && item.kind === "error";
 }
 
 /** Use the same provider/id key for select values and SDK updates. */
-export function modelKey(model: AgentModel) {
+export function modelKey(model: ModelSummary) {
   return `${model.provider}/${model.id}`;
 }
 
 /** Apply the manager's model and thinking selections. */
-export function applySessionState(
+export function applySessionControls(
   state: SessionClientState,
-  sessionState: AgentSessionState,
+  controls: SessionControls,
 ): SessionClientState {
   return {
     ...state,
-    models: sessionState.models,
-    selectedModel: sessionState.selectedModel,
-    thinkingLevel: sessionState.thinkingLevel,
-    thinkingLevels: sessionState.thinkingLevels,
+    models: controls.models,
+    selectedModel: controls.selectedModel,
+    thinkingLevel: controls.thinkingLevel,
+    thinkingLevels: controls.thinkingLevels,
   };
 }
 
-/** Apply one agent event immutably so React can refresh the selected session. */
-export function applySessionEvent(
+/** Append an inline transcript notice for a session failure. */
+export function applySessionError(
   state: SessionClientState,
-  event: AgentEvent,
+  message: string,
 ): SessionClientState {
-  // Session failures are shown inline in the transcript.
-  if (event.type === "error") {
-    const notice: AgentErrorNotice = {
-      kind: "error",
-      id: crypto.randomUUID(),
-      text: event.message,
-    };
-    return { ...state, messages: [...state.messages, notice] };
-  }
+  const notice: ErrorNotice = {
+    kind: "error",
+    id: crypto.randomUUID(),
+    text: message,
+  };
+  return { ...state, transcript: [...state.transcript, notice] };
+}
 
+/** Apply one Pi session event immutably so React can refresh the selected session. */
+export function applySessionActivity(
+  state: SessionClientState,
+  event: AgentSessionEvent,
+): SessionClientState {
   // Clone maps because their contents are mutated while the outer state stays immutable.
   const next: SessionClientState = {
     ...state,
@@ -107,22 +110,22 @@ export function applySessionEvent(
     toolAliases: new Map(state.toolAliases),
   };
 
-  const setMessages = (
-    update: (messages: AgentChatItem[]) => AgentChatItem[],
+  const setTranscript = (
+    update: (transcript: TranscriptItem[]) => TranscriptItem[],
   ) => {
-    next.messages = update(next.messages);
+    next.transcript = update(next.transcript);
   };
 
   const updateThinking = (
     id: string,
-    update: Partial<Pick<AgentThinkingBlock, "text" | "status">>,
+    update: Partial<Pick<ThinkingBlock, "text" | "status">>,
   ) => {
-    const index = next.messages.findIndex(
+    const index = next.transcript.findIndex(
       (message) => isThinking(message) && message.id === id,
     );
     if (index === -1) {
-      next.messages = [
-        ...next.messages,
+      next.transcript = [
+        ...next.transcript,
         {
           kind: "thinking",
           id,
@@ -133,8 +136,8 @@ export function applySessionEvent(
       return;
     }
 
-    setMessages((messages) =>
-      messages.map((message, messageIndex) =>
+    setTranscript((transcript) =>
+      transcript.map((message, messageIndex) =>
         messageIndex === index && isThinking(message)
           ? { ...message, ...update }
           : message,
@@ -144,16 +147,14 @@ export function applySessionEvent(
 
   const updateTool = (
     id: string,
-    update: Partial<
-      Pick<AgentToolCall, "name" | "arguments" | "output" | "status">
-    >,
+    update: Partial<Pick<ToolCall, "name" | "arguments" | "output" | "status">>,
   ) => {
-    const index = next.messages.findIndex(
+    const index = next.transcript.findIndex(
       (message) => isToolCall(message) && message.id === id,
     );
     if (index === -1) {
-      next.messages = [
-        ...next.messages,
+      next.transcript = [
+        ...next.transcript,
         {
           kind: "tool",
           id,
@@ -166,8 +167,8 @@ export function applySessionEvent(
       return;
     }
 
-    setMessages((messages) =>
-      messages.map((message, messageIndex) =>
+    setTranscript((transcript) =>
+      transcript.map((message, messageIndex) =>
         messageIndex === index && isToolCall(message)
           ? { ...message, ...update }
           : message,
@@ -181,8 +182,11 @@ export function applySessionEvent(
       next.currentAssistantId = `assistant-${next.assistantCounter}`;
     }
     const id = next.currentAssistantId;
-    if (!next.messages.some((message) => message.id === id)) {
-      next.messages = [...next.messages, { id, role: "assistant", text: "" }];
+    if (!next.transcript.some((message) => message.id === id)) {
+      next.transcript = [
+        ...next.transcript,
+        { id, role: "assistant", text: "" },
+      ];
     }
     return id;
   };
@@ -222,8 +226,8 @@ export function applySessionEvent(
       const id = beginAssistant();
       next.currentAssistantHasText = true;
       const delta = update.delta;
-      setMessages((messages) =>
-        messages.map((message) =>
+      setTranscript((transcript) =>
+        transcript.map((message) =>
           message.id === id && !isToolCall(message)
             ? { ...message, text: message.text + delta }
             : message,
@@ -239,7 +243,7 @@ export function applySessionEvent(
     ) {
       const id = thinkingIdFor(update.contentIndex);
       if (update.type === "thinking_delta") {
-        const current = next.messages.find(
+        const current = next.transcript.find(
           (message) => isThinking(message) && message.id === id,
         );
         updateThinking(id, {
@@ -290,8 +294,8 @@ export function applySessionEvent(
 
     if (update.type === "toolcall_delta" && partialArguments === undefined) {
       const delta = update.delta;
-      setMessages((messages) =>
-        messages.map((message) =>
+      setTranscript((transcript) =>
+        transcript.map((message) =>
           isToolCall(message) && message.id === id
             ? { ...message, arguments: message.arguments + delta }
             : message,
@@ -317,16 +321,16 @@ export function applySessionEvent(
     if (text && !next.currentAssistantHasText) {
       const id = beginAssistant();
       next.currentAssistantHasText = true;
-      setMessages((messages) =>
-        messages.map((entry) =>
+      setTranscript((transcript) =>
+        transcript.map((entry) =>
           entry.id === id && !isToolCall(entry) ? { ...entry, text } : entry,
         ),
       );
     }
     if (next.thinkingIds.size > 0) {
       const thinkingIds = new Set(next.thinkingIds.values());
-      setMessages((messages) =>
-        messages.map((entry) =>
+      setTranscript((transcript) =>
+        transcript.map((entry) =>
           isThinking(entry) && thinkingIds.has(entry.id)
             ? { ...entry, status: "done" }
             : entry,

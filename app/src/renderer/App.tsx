@@ -10,18 +10,18 @@ import { ManageSidebar } from "./components/screen/manage/ManageSidebar";
 import { ManageView } from "./components/screen/manage/ManageView";
 import { WorkbenchView } from "./components/screen/workbench/WorkbenchView";
 import { useResizablePanels } from "./hooks/useResizablePanels";
-import { useAgentStore } from "./stores/agent-store";
-import { useWorkspaceStore } from "./stores/workspace-store";
+import { useNavigationStore } from "./stores/navigation-store";
+import { useSessionStore } from "./stores/session-store";
 
 /** Root renderer component that owns the app-level panel state. */
 export default function App() {
   const panels = useResizablePanels();
-  const screen = useWorkspaceStore((state) => state.screen);
-  const setScreen = useWorkspaceStore((state) => state.setScreen);
+  const screen = useNavigationStore((state) => state.screen);
+  const setScreen = useNavigationStore((state) => state.setScreen);
 
   useEffect(() => {
     // Subscribe before listing so a fast session update cannot be missed.
-    const store = useAgentStore.getState();
+    const store = useSessionStore.getState();
     const unsubscribe = store.subscribe();
     void store.loadSessions().catch((error: unknown) => console.error(error));
     return unsubscribe;

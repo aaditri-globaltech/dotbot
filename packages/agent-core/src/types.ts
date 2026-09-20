@@ -5,69 +5,56 @@
  * are forwarded unchanged as `AgentSessionEvent` (re-exported by the facade).
  */
 
+import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
-/** Lifecycle state reported for an agent session. */
-export type AgentStatus =
+export type { ModelThinkingLevel };
+
+/** Lifecycle state reported for a session. */
+export type SessionStatus =
   | "starting"
-  | "ready"
   | "running"
   | "waiting"
   | "idle"
   | "error";
 
 /** Model advertised by Pi for the active session. */
-export type AgentModel = {
+export type ModelSummary = {
   provider: string;
   id: string;
   name: string;
 };
 
 /** Pi provider that can be configured with an API key. */
-export type AgentProviderSummary = {
+export type ProviderSummary = {
   id: string;
   name: string;
   configured: boolean;
 };
 
 /** API protocols Pi supports for custom providers. */
-export const AGENT_PROVIDER_APIS = [
+export const PROVIDER_APIS = [
   "openai-completions",
   "openai-responses",
   "anthropic-messages",
   "google-generative-ai",
 ] as const;
 
-export type AgentProviderApi = (typeof AGENT_PROVIDER_APIS)[number];
+export type ProviderApi = (typeof PROVIDER_APIS)[number];
 
 /** Fields Dotbot writes for a custom provider in models.json. */
-export type AgentCustomProviderInput = {
+export type CustomProviderInput = {
   id: string;
   baseUrl: string;
-  api: AgentProviderApi;
+  api: ProviderApi;
   models: string[];
 };
 
-/** Thinking levels accepted by Pi's `set_thinking_level` command. */
-export type AgentThinkingLevel =
-  | "off"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh"
-  | "max";
-
 /** How a prompt sent during a running turn is queued. */
-export type AgentStreamingBehavior = "steer" | "followUp";
+export type StreamingBehavior = "steer" | "followUp";
 
-/** Control command forwarded to the active Pi session. */
-export type AgentCommand =
-  | { type: "set_model"; provider: string; modelId: string }
-  | { type: "set_thinking_level"; level: AgentThinkingLevel };
-
-/** Feedback dialog opened by an extension. */
-export type AgentFeedbackPayload =
+/** Extension dialog opened by an extension. */
+export type ExtensionRequestPayload =
   | {
       method: "select";
       title: string;
@@ -92,33 +79,31 @@ export type AgentFeedbackPayload =
       prefill?: string;
     };
 
-/** Feedback request with the manager-generated id. */
-export type AgentFeedbackRequest = AgentFeedbackPayload & { id: string };
+/** Extension request with the manager-generated id. */
+export type ExtensionRequest = ExtensionRequestPayload & { id: string };
 
-/** Response sent to the pending feedback request. */
-export type AgentFeedbackResponse =
+/** Response sent to the pending extension request. */
+export type ExtensionResponse =
   | { type: "extension_ui_response"; id: string; value: string }
   | { type: "extension_ui_response"; id: string; confirmed: boolean }
   | { type: "extension_ui_response"; id: string; cancelled: true };
 
 /** Session summary returned by manager events. */
-export type AgentSessionSummary = {
+export type SessionSummary = {
   /** Dotbot's session identifier used in event payloads. */
   id: string;
-  /** Pi's persisted session identifier, once a session exists. */
-  piSessionId?: string;
-  /** Workspace directory in which Pi runs. */
-  cwd: string;
+  /** Project directory in which Pi runs. */
+  projectDir: string;
   /** Fallback or persisted display title. */
   title: string;
   /** Optional name assigned by Pi. */
   name?: string;
   /** Current turn state. */
-  status: AgentStatus;
+  status: SessionStatus;
   /** Whether an in-process Pi session is currently active. */
   active: boolean;
-  /** Pending feedback request, when status is `waiting`. */
-  waiting?: AgentFeedbackRequest;
+  /** Pending extension request, when status is `waiting`. */
+  waiting?: ExtensionRequest;
   /** Renderer-owned unread marker. */
   unread: boolean;
   /** ISO timestamp of the latest observed activity. */
@@ -126,23 +111,31 @@ export type AgentSessionSummary = {
 };
 
 /** Model and thinking selections for one session. */
-export type AgentSessionState = {
-  models: AgentModel[];
+export type SessionControls = {
+  models: ModelSummary[];
   /** `provider/id` of the active model; empty when no model is selected. */
   selectedModel: string;
-  thinkingLevel: AgentThinkingLevel;
-  thinkingLevels: AgentThinkingLevel[];
+  thinkingLevel: ModelThinkingLevel;
+  thinkingLevels: ModelThinkingLevel[];
+};
+
+/** Inputs for reading a project's session controls without creating a session. */
+export type SessionControlsInput = {
+  projectDir: string;
+  /** Preview another available model's thinking levels. */
+  provider?: string;
+  modelId?: string;
 };
 
 /** Normalized user or assistant chat message. */
-export type AgentChatMessage = {
+export type TranscriptMessage = {
   id: string;
   role: "user" | "assistant";
   text: string;
 };
 
 /** Normalized tool invocation and its streamed result. */
-export type AgentToolCall = {
+export type ToolCall = {
   kind: "tool";
   id: string;
   name: string;
@@ -152,7 +145,7 @@ export type AgentToolCall = {
 };
 
 /** Normalized streamed thinking block. */
-export type AgentThinkingBlock = {
+export type ThinkingBlock = {
   kind: "thinking";
   id: string;
   text: string;
@@ -160,31 +153,32 @@ export type AgentThinkingBlock = {
 };
 
 /** Transcript notice for a session failure reported by the manager. */
-export type AgentErrorNotice = {
+export type ErrorNotice = {
   kind: "error";
   id: string;
   text: string;
 };
 
 /** One renderable item in a compacted session transcript. */
-export type AgentChatItem =
-  | AgentChatMessage
-  | AgentToolCall
-  | AgentThinkingBlock
-  | AgentErrorNotice;
+export type TranscriptItem =
+  | TranscriptMessage
+  | ToolCall
+  | ThinkingBlock
+  | ErrorNotice;
 
-/** Raw Pi session event, plus manager-generated failure notices. */
-export type AgentEvent = AgentSessionEvent | { type: "error"; message: string };
-
-/** Events published by the session manager to the renderer. */
+/** Events published by the agent manager to the renderer. */
 export type AgentManagerEvent =
-  | { type: "sessions"; sessions: AgentSessionSummary[] }
-  | { type: "session_update"; session: AgentSessionSummary }
-  | { type: "session_state"; sessionId: string; state: AgentSessionState }
-  | { type: "session_event"; sessionId: string; event: AgentEvent }
-  | { type: "session_history"; sessionId: string; items: AgentChatItem[] }
+  | { type: "session_update"; session: SessionSummary }
+  | { type: "session_controls"; sessionId: string; controls: SessionControls }
   | {
-      type: "feedback_request";
+      type: "session_activity";
       sessionId: string;
-      request: AgentFeedbackRequest;
+      event: AgentSessionEvent;
+    }
+  | { type: "session_transcript"; sessionId: string; items: TranscriptItem[] }
+  | { type: "session_error"; sessionId: string; message: string }
+  | {
+      type: "extension_request";
+      sessionId: string;
+      request: ExtensionRequest;
     };

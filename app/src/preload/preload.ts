@@ -2,23 +2,20 @@
 // only the narrow, typed operations it needs through contextBridge.
 
 import type {
-  AgentCommand,
-  AgentCustomProviderInput,
-  AgentFeedbackResponse,
   AgentManagerEvent,
-  AgentProviderSummary,
-  AgentSessionState,
-  AgentSessionSummary,
-  AgentStreamingBehavior,
+  CustomProviderInput,
+  ExtensionResponse,
+  ModelThinkingLevel,
+  ProviderSummary,
+  SessionControls,
+  SessionControlsInput,
+  SessionSummary,
+  StreamingBehavior,
 } from "@dotbot/agent-core";
 import type { FileEntry } from "@dotbot/files";
 import type { GitStatus } from "@dotbot/git";
 import { contextBridge, ipcRenderer } from "electron";
-import type {
-  AgentDefaultsInput,
-  DotbotApi,
-  FilesChanged,
-} from "../renderer/api";
+import type { DotbotApi, FilesChanged } from "../renderer/api";
 import type { UsageStats } from "../shared/usage-stats";
 
 const api: DotbotApi = {
@@ -36,24 +33,20 @@ const api: DotbotApi = {
   },
   // IPC channels are wrapped instead of exposing ipcRenderer directly.
   agent: {
-    list: () =>
-      ipcRenderer.invoke("agent:list") as Promise<AgentSessionSummary[]>,
-    defaults: (input: AgentDefaultsInput) =>
-      ipcRenderer.invoke("agent:defaults", input) as Promise<AgentSessionState>,
-    create: (cwd: string) =>
-      ipcRenderer.invoke("agent:create", cwd) as Promise<AgentSessionSummary>,
+    list: () => ipcRenderer.invoke("agent:list") as Promise<SessionSummary[]>,
+    controls: (input: SessionControlsInput) =>
+      ipcRenderer.invoke("agent:controls", input) as Promise<SessionControls>,
+    create: (projectDir: string) =>
+      ipcRenderer.invoke("agent:create", projectDir) as Promise<SessionSummary>,
     open: (sessionId: string) =>
-      ipcRenderer.invoke(
-        "agent:open",
-        sessionId,
-      ) as Promise<AgentSessionSummary>,
+      ipcRenderer.invoke("agent:open", sessionId) as Promise<SessionSummary>,
     close: (sessionId: string) => ipcRenderer.invoke("agent:close", sessionId),
-    remove: (sessionId: string) =>
-      ipcRenderer.invoke("agent:remove", sessionId),
+    discard: (sessionId: string) =>
+      ipcRenderer.invoke("agent:discard", sessionId),
     prompt: (
       sessionId: string,
       message: string,
-      streamingBehavior?: AgentStreamingBehavior,
+      streamingBehavior?: StreamingBehavior,
     ) =>
       ipcRenderer.invoke("agent:prompt", {
         sessionId,
@@ -61,9 +54,15 @@ const api: DotbotApi = {
         ...(streamingBehavior ? { streamingBehavior } : {}),
       }),
     abort: (sessionId: string) => ipcRenderer.invoke("agent:abort", sessionId),
-    command: (sessionId: string, command: AgentCommand) =>
-      ipcRenderer.invoke("agent:command", { sessionId, command }),
-    respond: (sessionId: string, response: AgentFeedbackResponse) =>
+    setModel: (sessionId: string, provider: string, modelId: string) =>
+      ipcRenderer.invoke("agent:set-model", {
+        sessionId,
+        provider,
+        modelId,
+      }),
+    setThinkingLevel: (sessionId: string, level: ModelThinkingLevel) =>
+      ipcRenderer.invoke("agent:set-thinking-level", { sessionId, level }),
+    respond: (sessionId: string, response: ExtensionResponse) =>
       ipcRenderer.invoke("agent:respond", { sessionId, response }),
     onEvent: (listener: (event: AgentManagerEvent) => void) => {
       const handler = (
@@ -76,22 +75,19 @@ const api: DotbotApi = {
   },
   providers: {
     list: () =>
-      ipcRenderer.invoke("providers:list") as Promise<AgentProviderSummary[]>,
+      ipcRenderer.invoke("providers:list") as Promise<ProviderSummary[]>,
     setKey: (providerId: string, apiKey: string) =>
       ipcRenderer.invoke("providers:set-key", {
         providerId,
         apiKey,
-      }) as Promise<AgentProviderSummary>,
+      }) as Promise<ProviderSummary>,
     remove: (providerId: string) =>
       ipcRenderer.invoke(
         "providers:remove",
         providerId,
-      ) as Promise<AgentProviderSummary>,
-    add: (provider: AgentCustomProviderInput) =>
-      ipcRenderer.invoke(
-        "providers:add",
-        provider,
-      ) as Promise<AgentProviderSummary>,
+      ) as Promise<ProviderSummary>,
+    add: (provider: CustomProviderInput) =>
+      ipcRenderer.invoke("providers:add", provider) as Promise<ProviderSummary>,
   },
   stats: {
     get: () => ipcRenderer.invoke("stats:get") as Promise<UsageStats>,

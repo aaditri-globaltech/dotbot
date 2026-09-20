@@ -1,8 +1,8 @@
-import type { AgentToolCall } from "@dotbot/agent-core";
+import type { ToolCall } from "@dotbot/agent-core";
 import { describe, expect, it } from "vitest";
 import { toolOutput } from "../src/renderer/components/panels/tool-display";
 
-function writeTool(overrides: Partial<AgentToolCall> = {}): AgentToolCall {
+function writeTool(overrides: Partial<ToolCall> = {}): ToolCall {
   return {
     kind: "tool",
     id: "write-1",

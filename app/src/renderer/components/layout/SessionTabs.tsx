@@ -1,18 +1,18 @@
 /** Session tabs shown in the window's top strip while the workbench is open. */
 
 import { useProjectDir } from "../../hooks/useProjectDir";
-import { useAgentStore } from "../../stores/agent-store";
+import { useSessionStore } from "../../stores/session-store";
 import { ICON_BUTTON_CLASS } from "../panels/panel-classes";
 import { statusDotClass } from "../panels/status-dot";
 
-/** Render one tab per open session plus the new-task action. */
+/** Render one tab per open session plus the new-session action. */
 export function SessionTabs() {
-  const sessions = useAgentStore((state) => state.sessions);
-  const tabs = useAgentStore((state) => state.tabs);
-  const selectedId = useAgentStore((state) => state.selectedId);
-  const selectSession = useAgentStore((state) => state.selectSession);
-  const closeTab = useAgentStore((state) => state.closeTab);
-  const startNewTask = useAgentStore((state) => state.startNewTask);
+  const sessions = useSessionStore((state) => state.sessions);
+  const tabs = useSessionStore((state) => state.tabs);
+  const selectedId = useSessionStore((state) => state.selectedId);
+  const selectSession = useSessionStore((state) => state.selectSession);
+  const closeTab = useSessionStore((state) => state.closeTab);
+  const startNewSession = useSessionStore((state) => state.startNewSession);
   const projectDir = useProjectDir();
 
   const sessionById = new Map(sessions.map((session) => [session.id, session]));
@@ -55,9 +55,9 @@ export function SessionTabs() {
       <button
         className={ICON_BUTTON_CLASS}
         type="button"
-        dotbot-label="New task"
-        title="New task"
-        onClick={() => void startNewTask(projectDir)}
+        dotbot-label="New session"
+        title="New session"
+        onClick={() => void startNewSession(projectDir)}
       >
         <span className="codicon codicon-add text-xs" dotbot-hidden="true" />
       </button>

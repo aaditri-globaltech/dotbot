@@ -1,16 +1,16 @@
-/** Reduce Pi history to the fields rendered by the desktop chat. */
+/** Reduce Pi messages to the fields rendered by the session transcript. */
 import { asRecord, formatValue, textFromContent, toolResultText } from "./text";
-import type { AgentChatItem, AgentThinkingBlock, AgentToolCall } from "./types";
+import type { ThinkingBlock, ToolCall, TranscriptItem } from "./types";
 
-function isToolCall(item: AgentChatItem): item is AgentToolCall {
+function isToolCall(item: TranscriptItem): item is ToolCall {
   return "kind" in item && item.kind === "tool";
 }
 
 /** Convert persisted messages into the smaller set of UI chat items. */
-export function compactAgentHistory(messages: unknown): AgentChatItem[] {
+export function buildTranscript(messages: unknown): TranscriptItem[] {
   if (!Array.isArray(messages)) return [];
 
-  const result: AgentChatItem[] = [];
+  const result: TranscriptItem[] = [];
   const toolIndexes = new Map<string, number>();
 
   for (const [index, message] of messages.entries()) {
@@ -33,7 +33,7 @@ export function compactAgentHistory(messages: unknown): AgentChatItem[] {
       } else {
         result.push({
           kind: "tool",
-          id: `history-tool-${record.toolCallId}`,
+          id: `transcript-tool-${record.toolCallId}`,
           name: typeof record.toolName === "string" ? record.toolName : "Tool",
           arguments: "",
           output,
@@ -46,13 +46,13 @@ export function compactAgentHistory(messages: unknown): AgentChatItem[] {
     const content = record?.content;
     if (!Array.isArray(content)) {
       const text = textFromContent(content);
-      if (text) result.push({ id: `history-${index}`, role, text });
+      if (text) result.push({ id: `transcript-${index}`, role, text });
       continue;
     }
 
     if (role === "user") {
       const text = textFromContent(content);
-      if (text) result.push({ id: `history-${index}`, role, text });
+      if (text) result.push({ id: `transcript-${index}`, role, text });
       continue;
     }
 
@@ -63,7 +63,7 @@ export function compactAgentHistory(messages: unknown): AgentChatItem[] {
         typeof blockRecord.text === "string"
       ) {
         result.push({
-          id: `history-${index}-text-${blockIndex}`,
+          id: `transcript-${index}-text-${blockIndex}`,
           role,
           text: blockRecord.text,
         });
@@ -73,9 +73,9 @@ export function compactAgentHistory(messages: unknown): AgentChatItem[] {
         blockRecord?.type === "thinking" &&
         typeof blockRecord.thinking === "string"
       ) {
-        const item: AgentThinkingBlock = {
+        const item: ThinkingBlock = {
           kind: "thinking",
-          id: `history-thinking-${index}-${blockIndex}`,
+          id: `transcript-thinking-${index}-${blockIndex}`,
           text: blockRecord.thinking,
           status: "done",
         };
@@ -89,9 +89,9 @@ export function compactAgentHistory(messages: unknown): AgentChatItem[] {
         continue;
       }
 
-      const item: AgentToolCall = {
+      const item: ToolCall = {
         kind: "tool",
-        id: `history-tool-${blockRecord.id}`,
+        id: `transcript-tool-${blockRecord.id}`,
         name: typeof blockRecord.name === "string" ? blockRecord.name : "Tool",
         arguments: formatValue(blockRecord.arguments),
         output: "",

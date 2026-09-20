@@ -1,7 +1,7 @@
 import {
   type ManagePage,
-  useWorkspaceStore,
-} from "../../../stores/workspace-store";
+  useNavigationStore,
+} from "../../../stores/navigation-store";
 import {
   CHROME_BUTTON_CLASS,
   NAV_ROW_CLASS,
@@ -19,8 +19,8 @@ export function ManageSidebar(props: {
   onBack: () => void;
   collapsed: boolean;
 }) {
-  const managePage = useWorkspaceStore((state) => state.managePage);
-  const setManagePage = useWorkspaceStore((state) => state.setManagePage);
+  const managePage = useNavigationStore((state) => state.managePage);
+  const setManagePage = useNavigationStore((state) => state.setManagePage);
 
   if (props.collapsed) {
     return (
@@ -31,7 +31,7 @@ export function ManageSidebar(props: {
         <button
           className={`size-7 ${CHROME_BUTTON_CLASS} mb-1`}
           type="button"
-          dotbot-label="Back to tasks"
+          dotbot-label="Back to sessions"
           title="Back"
           onClick={props.onBack}
         >
@@ -67,7 +67,7 @@ export function ManageSidebar(props: {
       <button
         type="button"
         className={`${NAV_ROW_CLASS} mb-1 ${NAV_ROW_IDLE_CLASS}`}
-        dotbot-label="Back to tasks"
+        dotbot-label="Back to sessions"
         onClick={props.onBack}
       >
         <span

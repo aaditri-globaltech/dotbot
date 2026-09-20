@@ -1,7 +1,7 @@
 import {
-  AGENT_PROVIDER_APIS,
-  type AgentCustomProviderInput,
-  type AgentProviderApi,
+  type CustomProviderInput,
+  PROVIDER_APIS,
+  type ProviderApi,
 } from "@dotbot/agent-core/types";
 import { useState } from "react";
 import { Dropdown } from "../../panels/Dropdown";
@@ -18,14 +18,14 @@ type CustomProviderFormProps = {
   busy: boolean;
   error?: string;
   onCancel: () => void;
-  onSubmit: (provider: AgentCustomProviderInput) => void;
+  onSubmit: (provider: CustomProviderInput) => void;
 };
 
 /** Collects the fields for a new custom provider entry. */
 export function CustomProviderForm(props: CustomProviderFormProps) {
   const [id, setId] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
-  const [api, setApi] = useState<AgentProviderApi>("openai-completions");
+  const [api, setApi] = useState<ProviderApi>("openai-completions");
   const [modelIds, setModelIds] = useState("");
 
   const models = modelIds
@@ -85,7 +85,7 @@ export function CustomProviderForm(props: CustomProviderFormProps) {
               disabled={props.busy}
               variant="field"
               onChange={setApi}
-              options={AGENT_PROVIDER_APIS.map((entry) => ({
+              options={PROVIDER_APIS.map((entry) => ({
                 value: entry,
                 label: entry,
               }))}
