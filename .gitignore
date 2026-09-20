@@ -9,4 +9,6 @@ release/
 # local
 plans/
 .superpowers/
+superpowers/
+ref-images/
 todo.md
