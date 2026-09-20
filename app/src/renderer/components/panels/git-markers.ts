@@ -1,6 +1,6 @@
 /** Git status letters and directory dots shown in the file tree. */
 
-import type { GitStatus } from "@dotbot/source-control";
+import type { GitStatus } from "@dotbot/git";
 
 /** Letters shown on the right of a changed file, keyed by porcelain code. */
 const LETTERS: Record<string, string> = {

@@ -10,14 +10,14 @@ export type GitChange = {
 
 /** Repository status returned by `gitStatus`. */
 export type GitStatus = {
-  /** Workspace directory supplied to the service. */
-  cwd: string;
-  /** Repository root when `cwd` belongs to a Git repository. */
-  root?: string;
+  /** Project directory supplied to the service. */
+  projectDir: string;
+  /** Repository root when `projectDir` belongs to a Git repository. */
+  repoRoot?: string;
   /** Current branch, or `HEAD detached` when no branch is checked out. */
   branch?: string;
   /** Changed paths parsed from Git porcelain output. */
   changes: GitChange[];
-  /** Non-fatal status error, such as missing Git or a non-repository workspace. */
+  /** Non-fatal status error, such as missing Git or a non-repository project. */
   error?: string;
 };

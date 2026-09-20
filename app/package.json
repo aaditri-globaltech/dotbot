@@ -22,8 +22,8 @@
   },
   "dependencies": {
     "@dotbot/agent-core": "*",
-    "@dotbot/source-control": "*",
-    "@dotbot/workspace": "*"
+    "@dotbot/git": "*",
+    "@dotbot/files": "*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",

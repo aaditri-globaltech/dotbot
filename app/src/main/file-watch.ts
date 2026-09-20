@@ -1,15 +1,15 @@
-/** Serializes workspace watch lifecycle changes so replacements cannot leak a watcher. */
+/** Serializes file watch lifecycle changes so replacements cannot leak a watcher. */
 
 /** Starts a directory watch and resolves with its stop function. */
 type WatchStarter = (
-  cwd: unknown,
+  projectDir: unknown,
   listener: (paths: string[]) => void,
   onError: (error: unknown) => void,
 ) => Promise<() => Promise<void>>;
 
-type WorkspaceWatch = {
+type FileWatch = {
   watch: (
-    cwd: unknown,
+    projectDir: unknown,
     listener: (paths: string[]) => void,
     onError: (error: unknown) => void,
   ) => Promise<void>;
@@ -20,23 +20,23 @@ type WorkspaceWatch = {
  * Run watch operations in order. Concurrent requests would otherwise each start
  * a native watcher and overwrite the stop handle, leaking the earlier watcher.
  */
-export function createWorkspaceWatch(start: WatchStarter): WorkspaceWatch {
+export function createFileWatch(start: WatchStarter): FileWatch {
   let queue: Promise<void> = Promise.resolve();
   let stopCurrent: (() => Promise<void>) | undefined;
 
-  const enqueue = (task: () => Promise<void>) => {
-    const next = queue.then(task);
+  const enqueue = (operation: () => Promise<void>) => {
+    const next = queue.then(operation);
     queue = next.catch(() => {});
     return next;
   };
 
   return {
-    watch: (cwd, listener, onError) =>
+    watch: (projectDir, listener, onError) =>
       enqueue(async () => {
         await stopCurrent?.();
         stopCurrent = undefined;
         try {
-          stopCurrent = await start(cwd, listener, onError);
+          stopCurrent = await start(projectDir, listener, onError);
         } catch (error) {
           onError(error);
         }

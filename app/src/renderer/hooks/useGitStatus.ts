@@ -1,23 +1,25 @@
 /** Read the project Git status, refreshed when the project or files change. */
 
-import type { GitStatus } from "@dotbot/source-control";
+import type { GitStatus } from "@dotbot/git";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 
 /** Current Git status for one project, or undefined while it loads. */
-export function useGitStatus(cwd: string | undefined): GitStatus | undefined {
+export function useGitStatus(
+  projectDir: string | undefined,
+): GitStatus | undefined {
   const [status, setStatus] = useState<GitStatus>();
 
   useEffect(() => {
-    if (!cwd) {
+    if (!projectDir) {
       setStatus(undefined);
       return;
     }
 
     let cancelled = false;
     const read = () => {
-      void api.workspace
-        .gitStatus(cwd)
+      void api.git
+        .status(projectDir)
         .then((next) => {
           if (!cancelled) setStatus(next);
         })
@@ -25,16 +27,16 @@ export function useGitStatus(cwd: string | undefined): GitStatus | undefined {
     };
 
     read();
-    const unsubscribe = api.workspace.onChanged((change) => {
+    const unsubscribe = api.files.onChanged((change) => {
       // Staging and commits rewrite .git, so read those changes too.
-      if (change.cwd === cwd) read();
+      if (change.projectDir === projectDir) read();
     });
 
     return () => {
       cancelled = true;
       unsubscribe();
     };
-  }, [cwd]);
+  }, [projectDir]);
 
   return status;
 }

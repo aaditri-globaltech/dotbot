@@ -34,7 +34,7 @@ vi.mock("../src/renderer/api", () => ({
       command: mocks.command,
       list: mocks.list,
     },
-    workspace: { pick: mocks.pick },
+    projects: { pick: mocks.pick },
   },
 }));
 

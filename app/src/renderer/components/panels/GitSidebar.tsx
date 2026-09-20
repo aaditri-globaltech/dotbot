@@ -1,4 +1,4 @@
-import type { GitChange, GitStatus } from "@dotbot/source-control";
+import type { GitChange, GitStatus } from "@dotbot/git";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { errorMessage } from "../../errors";
@@ -9,8 +9,8 @@ import {
 } from "../../keybindings";
 import { ICON_BUTTON_CLASS } from "./panel-classes";
 
-type SourceControlSidebarProps = {
-  cwd?: string;
+type GitSidebarProps = {
+  projectDir?: string;
 };
 
 function changeLabel(change: GitChange) {
@@ -37,7 +37,7 @@ function isStaged(change: GitChange) {
 }
 
 /** Render Git status, staging actions, and the commit form. */
-export function SourceControlSidebar(props: SourceControlSidebarProps) {
+export function GitSidebar(props: GitSidebarProps) {
   const [status, setStatus] = useState<GitStatus>();
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,16 +48,23 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
   );
 
   const loadStatus = useCallback(
-    async (cwd: string) => {
+    async (projectDir: string) => {
       const requestId = ++requestIdRef.current;
       setLoading(true);
       setError(undefined);
       try {
-        const next = await api.workspace.gitStatus(cwd);
-        if (props.cwd !== cwd || requestId !== requestIdRef.current) return;
+        const next = await api.git.status(projectDir);
+        if (
+          props.projectDir !== projectDir ||
+          requestId !== requestIdRef.current
+        )
+          return;
         setStatus(next);
       } catch (reason) {
-        if (props.cwd === cwd && requestId === requestIdRef.current) {
+        if (
+          props.projectDir === projectDir &&
+          requestId === requestIdRef.current
+        ) {
           setStatus(undefined);
           setError(errorMessage(reason));
         }
@@ -66,35 +73,35 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
         if (requestId === requestIdRef.current) setLoading(false);
       }
     },
-    [props.cwd],
+    [props.projectDir],
   );
 
   useEffect(() => {
     setStatus(undefined);
     setError(undefined);
-    if (props.cwd) void loadStatus(props.cwd);
-  }, [props.cwd, loadStatus]);
+    if (props.projectDir) void loadStatus(props.projectDir);
+  }, [props.projectDir, loadStatus]);
 
   // File changes make Git status stale; debounce because edits arrive in bursts.
   useEffect(() => {
-    const cwd = props.cwd;
-    if (!cwd) return;
-    const unsubscribe = api.workspace.onChanged((change) => {
-      if (change.cwd !== cwd) return;
+    const projectDir = props.projectDir;
+    if (!projectDir) return;
+    const unsubscribe = api.files.onChanged((change) => {
+      if (change.projectDir !== projectDir) return;
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         refreshTimerRef.current = undefined;
-        void loadStatus(cwd);
+        void loadStatus(projectDir);
       }, 500);
     });
     return () => {
       unsubscribe();
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
-  }, [props.cwd, loadStatus]);
+  }, [props.projectDir, loadStatus]);
 
   const refresh = () => {
-    if (props.cwd) void loadStatus(props.cwd);
+    if (props.projectDir) void loadStatus(props.projectDir);
   };
 
   // Refresh after every mutation to keep the sidebar aligned with Git's state.
@@ -103,7 +110,7 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
     setError(undefined);
     try {
       await action();
-      if (props.cwd) await loadStatus(props.cwd);
+      if (props.projectDir) await loadStatus(props.projectDir);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -112,22 +119,22 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
   };
 
   const stage = (path: string) => {
-    const cwd = props.cwd;
-    if (!cwd) return;
-    void runAction(() => api.workspace.gitStage(cwd, path));
+    const projectDir = props.projectDir;
+    if (!projectDir) return;
+    void runAction(() => api.git.stage(projectDir, path));
   };
 
   const unstage = (path: string) => {
-    const cwd = props.cwd;
-    if (!cwd) return;
-    void runAction(() => api.workspace.gitUnstage(cwd, path));
+    const projectDir = props.projectDir;
+    if (!projectDir) return;
+    void runAction(() => api.git.unstage(projectDir, path));
   };
 
   const commit = () => {
-    const cwd = props.cwd;
-    if (!cwd || !message.trim()) return;
+    const projectDir = props.projectDir;
+    if (!projectDir || !message.trim()) return;
     void runAction(async () => {
-      await api.workspace.gitCommit(cwd, message);
+      await api.git.commit(projectDir, message);
       setMessage("");
     });
   };
@@ -168,9 +175,9 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      {!props.cwd ? (
+      {!props.projectDir ? (
         <p className="mx-3 my-4.5 text-[11px] leading-normal text-dim">
-          Open a project for source control.
+          Open a project for Git.
         </p>
       ) : (
         <>
@@ -178,15 +185,15 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
             <span className="codicon codicon-git-branch" dotbot-hidden="true" />
             <span
               className="min-w-0 flex-1 truncate"
-              title={status?.root ?? props.cwd}
+              title={status?.repoRoot ?? props.projectDir}
             >
               {status?.branch ?? "Git"}
             </span>
             <button
               className={ICON_BUTTON_CLASS}
               type="button"
-              dotbot-label="Refresh Source Control"
-              title="Refresh Source Control"
+              dotbot-label="Refresh Git"
+              title="Refresh Git"
               onClick={refresh}
             >
               <span className="codicon codicon-refresh" dotbot-hidden="true" />
@@ -203,7 +210,7 @@ export function SourceControlSidebar(props: SourceControlSidebarProps) {
               {status.error}
             </p>
           )}
-          {status?.root && !status.error && (
+          {status?.repoRoot && !status.error && (
             <>
               <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-2.5">
                 <textarea

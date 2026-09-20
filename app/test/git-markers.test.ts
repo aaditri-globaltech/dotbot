@@ -1,12 +1,12 @@
-import type { GitStatus } from "@dotbot/source-control";
+import type { GitStatus } from "@dotbot/git";
 import { describe, expect, it } from "vitest";
 import { gitMarkers } from "../src/renderer/components/panels/git-markers";
 
 /** Build porcelain status entries from a path and its two status columns. */
 function status(...entries: Array<[string, string]>): GitStatus {
   return {
-    cwd: "/repo",
-    root: "/repo",
+    projectDir: "/repo",
+    repoRoot: "/repo",
     branch: "main",
     changes: entries.map(([path, code]) => ({
       path,

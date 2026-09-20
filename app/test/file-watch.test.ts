@@ -1,26 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
-import { createWorkspaceWatch } from "../src/main/workspace-watch";
+import { createFileWatch } from "../src/main/file-watch";
 
 type StartCall = {
-  cwd: unknown;
+  projectDir: unknown;
   resolve: (stop: () => Promise<void>) => void;
 };
 
 function createDeferredStarter() {
   const events: string[] = [];
   const calls: StartCall[] = [];
-  const start = (cwd: unknown) =>
+  const start = (projectDir: unknown) =>
     new Promise<() => Promise<void>>((resolve) => {
-      events.push(`start:${String(cwd)}`);
-      calls.push({ cwd, resolve });
+      events.push(`start:${String(projectDir)}`);
+      calls.push({ projectDir, resolve });
     });
   return { calls, events, start };
 }
 
-describe("createWorkspaceWatch", () => {
+describe("createFileWatch", () => {
   it("stops the previous watcher before starting the next", async () => {
     const { calls, events, start } = createDeferredStarter();
-    const watch = createWorkspaceWatch(start);
+    const watch = createFileWatch(start);
 
     const first = watch.watch(
       "a",
@@ -51,7 +51,7 @@ describe("createWorkspaceWatch", () => {
 
   it("stops a watcher that is still starting when a stop is requested", async () => {
     const { calls, events, start } = createDeferredStarter();
-    const watch = createWorkspaceWatch(start);
+    const watch = createFileWatch(start);
 
     const started = watch.watch(
       "a",
@@ -71,7 +71,7 @@ describe("createWorkspaceWatch", () => {
 
   it("reports start failures through onError", async () => {
     const errors: unknown[] = [];
-    const watch = createWorkspaceWatch(async () => {
+    const watch = createFileWatch(async () => {
       throw new Error("boom");
     });
 

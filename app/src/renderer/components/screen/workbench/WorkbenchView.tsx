@@ -1,4 +1,4 @@
-/** Workbench screen: the agent viewport plus the source-control panel. */
+/** Workbench screen: the agent viewport plus the Git panel. */
 
 import type { CSSProperties } from "react";
 import { useProjectDir } from "../../../hooks/useProjectDir";
@@ -6,15 +6,15 @@ import type { ResizablePanels } from "../../../hooks/useResizablePanels";
 import { useAgentStore } from "../../../stores/agent-store";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
 import { AgentView } from "../../panels/AgentView";
+import { GitSidebar } from "../../panels/GitSidebar";
 import { PanelHeader } from "../../panels/PanelHeader";
 import { PanelResizer } from "../../panels/PanelResizer";
-import { SourceControlSidebar } from "../../panels/SourceControlSidebar";
 
 type WorkbenchViewProps = {
   panels: ResizablePanels;
 };
 
-/** Agent transcript and composer, with source control docked below. */
+/** Agent transcript and composer, with the Git panel docked below. */
 export function WorkbenchView(props: WorkbenchViewProps) {
   const { panels } = props;
   const sessions = useAgentStore((state) => state.sessions);
@@ -66,9 +66,9 @@ export function WorkbenchView(props: WorkbenchViewProps) {
         id="panel"
         className={`panel bottom-panel border-t border-border bg-app ${panels.panelCollapsed ? "is-collapsed" : ""}`}
       >
-        <PanelHeader title="Source Control" />
+        <PanelHeader title="Git" />
         {/* Only the visible panel reads Git, so a collapsed panel costs nothing. */}
-        {!panels.panelCollapsed && <SourceControlSidebar cwd={projectDir} />}
+        {!panels.panelCollapsed && <GitSidebar projectDir={projectDir} />}
       </section>
     </div>
   );

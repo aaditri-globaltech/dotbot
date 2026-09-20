@@ -8,13 +8,13 @@ import type {
   AgentSessionSummary,
   AgentStreamingBehavior,
 } from "@dotbot/agent-core";
-import type { GitStatus } from "@dotbot/source-control";
-import type { ExplorerEntry } from "@dotbot/workspace";
+import type { FileEntry } from "@dotbot/files";
+import type { GitStatus } from "@dotbot/git";
 import type { ActivityStatsResult } from "../shared/activity-stats";
 
-/** Filesystem change batch reported for the watched workspace. */
-export type WorkspaceChange = {
-  cwd: string;
+/** Filesystem change batch reported for the watched project. */
+export type FilesChanged = {
+  projectDir: string;
   paths: string[];
 };
 
@@ -72,17 +72,21 @@ export interface DotbotApi {
   activity: {
     getStats: () => Promise<ActivityStatsResult>;
   };
-  /** File tree, project picking, and Git operations. */
-  workspace: {
+  /** Project picking, file tree access, and Git operations. */
+  projects: {
     pick: () => Promise<string | undefined>;
-    readDirectory: (cwd: string, path?: string) => Promise<ExplorerEntry[]>;
-    watch: (cwd: string) => Promise<void>;
+  };
+  files: {
+    readDirectory: (projectDir: string, path?: string) => Promise<FileEntry[]>;
+    watch: (projectDir: string) => Promise<void>;
     unwatch: () => Promise<void>;
-    onChanged: (listener: (change: WorkspaceChange) => void) => () => void;
-    gitStatus: (cwd: string) => Promise<GitStatus>;
-    gitStage: (cwd: string, path: string) => Promise<void>;
-    gitUnstage: (cwd: string, path: string) => Promise<void>;
-    gitCommit: (cwd: string, message: string) => Promise<void>;
+    onChanged: (listener: (change: FilesChanged) => void) => () => void;
+  };
+  git: {
+    status: (projectDir: string) => Promise<GitStatus>;
+    stage: (projectDir: string, path: string) => Promise<void>;
+    unstage: (projectDir: string, path: string) => Promise<void>;
+    commit: (projectDir: string, message: string) => Promise<void>;
   };
 }
 

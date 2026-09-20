@@ -1,7 +1,7 @@
 {
-  "name": "@dotbot/workspace",
+  "name": "@dotbot/files",
   "version": "0.0.0",
-  "description": "Workspace filesystem access for the Dotbot desktop app.",
+  "description": "Project filesystem access for the Dotbot desktop app.",
   "homepage": "https://github.com/Aaditri-GlobalTech/dotbot#Dotbot",
   "author": "Kumar Rahul Anand",
   "maintainer": "Aaditri GlobalTech",

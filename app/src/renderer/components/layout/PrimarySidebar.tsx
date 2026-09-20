@@ -87,7 +87,7 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
             Back to Tasks
           </button>
           <FileTreePanel
-            cwd={projectDir}
+            projectDir={projectDir}
             onPickProject={() => void pickProject()}
           />
         </>

@@ -5,14 +5,14 @@ import {
   AgentSessionManager,
   getSessionsDir,
 } from "@dotbot/agent-core";
+import { readDirectory, watchDirectory } from "@dotbot/files";
 import {
   type GitStatus,
   gitCommit,
   gitStage,
   gitStatus,
   gitUnstage,
-} from "@dotbot/source-control";
-import { readDirectory, watchDirectory } from "@dotbot/workspace";
+} from "@dotbot/git";
 import {
   app,
   BrowserWindow,
@@ -23,7 +23,7 @@ import {
   Tray,
 } from "electron";
 import { ActivityStatsStore } from "./activity-stats";
-import { createWorkspaceWatch } from "./workspace-watch";
+import { createFileWatch } from "./file-watch";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 
@@ -39,7 +39,7 @@ const activityStats = new ActivityStatsStore({
   storePath: join(app.getPath("userData"), "activity-stats.json"),
 });
 
-const workspaceWatch = createWorkspaceWatch(watchDirectory);
+const fileWatch = createFileWatch(watchDirectory);
 
 /** Forward a message only while a renderer window is available. */
 function sendToRenderer(channel: string, payload: unknown) {
@@ -194,57 +194,57 @@ ipcMain.handle("providers:add", (_event, value: unknown) =>
 
 ipcMain.handle("activity:get-stats", () => activityStats.computeStats());
 
-// Workspace picking uses the native dialog; file reads and Git stay in packages.
-ipcMain.handle("workspace:pick", async () => {
+// Project picking uses the native dialog; file reads and Git stay in packages.
+ipcMain.handle("project:pick", async () => {
   const result = await dialog.showOpenDialog({
-    title: "Open workspace",
+    title: "Open project",
     properties: ["openDirectory"],
   });
   return result.canceled ? undefined : result.filePaths[0];
 });
 
-// Only the active workspace is watched; workspaceWatch serializes replacement.
-ipcMain.handle("workspace:watch", (_event, cwd: unknown) =>
-  workspaceWatch.watch(
-    cwd,
-    (paths) => sendToRenderer("workspace:changed", { cwd, paths }),
+// Only the active project is watched; fileWatch serializes replacement.
+ipcMain.handle("files:watch", (_event, projectDir: unknown) =>
+  fileWatch.watch(
+    projectDir,
+    (paths) => sendToRenderer("files:changed", { projectDir, paths }),
     (error: unknown) => {
       // Watch failures leave the manual refresh buttons as the fallback.
-      console.error("Workspace watcher failed:", error);
+      console.error("File watcher failed:", error);
     },
   ),
 );
 
-ipcMain.handle("workspace:unwatch", () => workspaceWatch.stop());
+ipcMain.handle("files:unwatch", () => fileWatch.stop());
 
-ipcMain.handle("workspace:read-directory", (_event, value: unknown) => {
+ipcMain.handle("files:read-directory", (_event, value: unknown) => {
   const input = asRecord(value);
-  return readDirectory(input?.cwd, input?.path);
+  return readDirectory(input?.projectDir, input?.path);
 });
 
 ipcMain.handle(
-  "workspace:git-status",
-  (_event, cwd: unknown): Promise<GitStatus> => gitStatus(cwd),
+  "git:status",
+  (_event, projectDir: unknown): Promise<GitStatus> => gitStatus(projectDir),
 );
 
-ipcMain.handle("workspace:git-stage", (_event, value: unknown) => {
+ipcMain.handle("git:stage", (_event, value: unknown) => {
   const input = asRecord(value);
-  return gitStage(input?.cwd, input?.path);
+  return gitStage(input?.projectDir, input?.path);
 });
 
-ipcMain.handle("workspace:git-unstage", (_event, value: unknown) => {
+ipcMain.handle("git:unstage", (_event, value: unknown) => {
   const input = asRecord(value);
-  return gitUnstage(input?.cwd, input?.path);
+  return gitUnstage(input?.projectDir, input?.path);
 });
 
-ipcMain.handle("workspace:git-commit", (_event, value: unknown) => {
+ipcMain.handle("git:commit", (_event, value: unknown) => {
   const input = asRecord(value);
-  return gitCommit(input?.cwd, input?.message);
+  return gitCommit(input?.projectDir, input?.message);
 });
 
 app.on("before-quit", () => {
   isQuitting = true;
-  void workspaceWatch.stop();
+  void fileWatch.stop();
   // Agent sessions run in-process, so shutdown only needs to dispose them.
   sessions.stopAll();
 });

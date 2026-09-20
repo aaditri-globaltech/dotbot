@@ -1,7 +1,7 @@
 /** One file or directory returned by `readDirectory`. */
-export type ExplorerEntry = {
+export type FileEntry = {
   name: string;
-  /** Path relative to the requested workspace root. */
+  /** Path relative to the requested project directory. */
   path: string;
   kind: "file" | "directory";
 };

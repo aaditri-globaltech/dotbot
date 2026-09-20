@@ -1,6 +1,6 @@
-/** Project file tree with Git markers, shown in place of the task list. */
+/** Project file tree with Git markers, shown in place of the session list. */
 
-import type { ExplorerEntry } from "@dotbot/workspace";
+import type { FileEntry } from "@dotbot/files";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { errorMessage } from "../../errors";
@@ -11,66 +11,66 @@ import { gitMarkers } from "./git-markers";
 import { ICON_BUTTON_CLASS } from "./panel-classes";
 
 type FileTreePanelProps = {
-  cwd?: string;
+  projectDir?: string;
   onPickProject: () => void;
 };
 
 type TreeRow = {
-  entry: ExplorerEntry;
+  entry: FileEntry;
   depth: number;
 };
 
 /** Render the lazy-loading project tree with Git status markers. */
 export function FileTreePanel(props: FileTreePanelProps) {
-  const [directories, setDirectories] = useState<
-    Record<string, ExplorerEntry[]>
-  >({});
+  const [directories, setDirectories] = useState<Record<string, FileEntry[]>>(
+    {},
+  );
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([""]));
   const [selectedPath, setSelectedPath] = useState<string>();
   const [error, setError] = useState<string>();
   const loadedRef = useRef(new Set<string>());
-  const gitStatus = useGitStatus(props.cwd);
+  const gitStatus = useGitStatus(props.projectDir);
   const markers = gitMarkers(gitStatus);
 
   // Load folders on demand so large projects do not require a full tree upfront.
   const loadDirectory = useCallback(
-    async (cwd: string, path: string) => {
+    async (projectDir: string, path: string) => {
       if (loadedRef.current.has(path)) return;
       loadedRef.current.add(path);
 
       try {
-        const entries = await api.workspace.readDirectory(cwd, path);
-        if (props.cwd !== cwd) return;
+        const entries = await api.files.readDirectory(projectDir, path);
+        if (props.projectDir !== projectDir) return;
         setDirectories((current) => ({ ...current, [path]: entries }));
       } catch (reason) {
-        if (props.cwd === cwd) {
+        if (props.projectDir === projectDir) {
           setError(errorMessage(reason));
         }
       }
     },
-    [props.cwd],
+    [props.projectDir],
   );
 
   // Re-read every loaded directory so refreshes keep the current expansion.
   const refreshLoaded = useCallback(async () => {
-    const cwd = props.cwd;
-    if (!cwd) return;
+    const projectDir = props.projectDir;
+    if (!projectDir) return;
     const paths = [...loadedRef.current];
     const results = await Promise.all(
       paths.map(async (path) => {
         try {
           return {
             path,
-            entries: await api.workspace.readDirectory(cwd, path),
+            entries: await api.files.readDirectory(projectDir, path),
           };
         } catch {
           return { path, entries: undefined };
         }
       }),
     );
-    if (props.cwd !== cwd) return;
+    if (props.projectDir !== projectDir) return;
 
-    const next: Record<string, ExplorerEntry[]> = {};
+    const next: Record<string, FileEntry[]> = {};
     const removed = new Set<string>();
     for (const result of results) {
       if (result.entries) next[result.path] = result.entries;
@@ -91,7 +91,7 @@ export function FileTreePanel(props: FileTreePanelProps) {
       });
     }
     setDirectories(next);
-  }, [props.cwd]);
+  }, [props.projectDir]);
 
   const reset = useCallback(() => {
     loadedRef.current = new Set();
@@ -103,40 +103,38 @@ export function FileTreePanel(props: FileTreePanelProps) {
 
   useEffect(() => {
     reset();
-    if (props.cwd) void loadDirectory(props.cwd, "");
-  }, [props.cwd, loadDirectory, reset]);
+    if (props.projectDir) void loadDirectory(props.projectDir, "");
+  }, [props.projectDir, loadDirectory, reset]);
 
   // The watcher lives with the tree: it runs while the explorer shows this
   // project and stops as soon as the explorer closes or the project changes.
   useEffect(() => {
-    const cwd = props.cwd;
-    if (!cwd) return;
+    const projectDir = props.projectDir;
+    if (!projectDir) return;
 
-    const unsubscribe = api.workspace.onChanged((change) => {
-      if (change.cwd !== cwd) return;
+    const unsubscribe = api.files.onChanged((change) => {
+      if (change.projectDir !== projectDir) return;
       // Git-internal updates are handled by the Git status reads, not the tree.
       const relevant = change.paths.some(
         (path) => path === "" || (path !== ".git" && !path.startsWith(".git/")),
       );
       if (relevant) void refreshLoaded();
     });
-    void api.workspace
-      .watch(cwd)
+    void api.files
+      .watch(projectDir)
       .catch((error: unknown) => console.error(error));
 
     return () => {
       unsubscribe();
-      void api.workspace
-        .unwatch()
-        .catch((error: unknown) => console.error(error));
+      void api.files.unwatch().catch((error: unknown) => console.error(error));
     };
-  }, [props.cwd, refreshLoaded]);
+  }, [props.projectDir, refreshLoaded]);
 
   const refresh = () => {
-    const cwd = props.cwd;
-    if (!cwd) return;
+    const projectDir = props.projectDir;
+    if (!projectDir) return;
     reset();
-    void loadDirectory(cwd, "");
+    void loadDirectory(projectDir, "");
   };
 
   const toggleDirectory = (path: string) => {
@@ -150,7 +148,7 @@ export function FileTreePanel(props: FileTreePanelProps) {
     }
 
     setExpanded((current) => new Set(current).add(path));
-    if (props.cwd) void loadDirectory(props.cwd, path);
+    if (props.projectDir) void loadDirectory(props.projectDir, path);
   };
 
   // Flatten only expanded folders into the rows rendered by the tree.
@@ -165,7 +163,7 @@ export function FileTreePanel(props: FileTreePanelProps) {
   };
   visit("", 0);
 
-  if (!props.cwd) {
+  if (!props.projectDir) {
     return (
       <p className="mx-3 my-4.5 text-[11px] leading-normal text-dim">
         Open a project to browse files.
@@ -178,9 +176,9 @@ export function FileTreePanel(props: FileTreePanelProps) {
       <div className="flex min-h-[32px] shrink-0 items-center gap-1 px-2.5">
         <span
           className="min-w-0 flex-1 truncate text-[13px] text-secondary"
-          title={props.cwd}
+          title={props.projectDir}
         >
-          {projectName(props.cwd)}
+          {projectName(props.projectDir)}
         </span>
         <button
           className={ICON_BUTTON_CLASS}

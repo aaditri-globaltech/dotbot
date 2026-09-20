@@ -379,7 +379,7 @@ export function AgentView(props: AgentViewProps) {
   const status = props.selectedSession?.status;
   const gitStatus = useGitStatus(props.projectDir);
   // Only a real repository has a branch to show next to the project.
-  const branch = gitStatus?.root ? gitStatus.branch : undefined;
+  const branch = gitStatus?.repoRoot ? gitStatus.branch : undefined;
   const busy =
     status === "starting" || status === "running" || status === "waiting";
   const running = status === "running";

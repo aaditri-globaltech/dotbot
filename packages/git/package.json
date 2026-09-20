@@ -1,7 +1,7 @@
 {
-  "name": "@dotbot/source-control",
+  "name": "@dotbot/git",
   "version": "0.0.0",
-  "description": "Git source control operations for the Dotbot desktop app.",
+  "description": "Git status and commit operations for the Dotbot desktop app.",
   "homepage": "https://github.com/Aaditri-GlobalTech/dotbot#Dotbot",
   "author": "Kumar Rahul Anand",
   "maintainer": "Aaditri GlobalTech",
@@ -16,7 +16,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@dotbot/workspace": "*"
+    "@dotbot/files": "*"
   },
   "devDependencies": {
     "@types/node": "26.2.0"

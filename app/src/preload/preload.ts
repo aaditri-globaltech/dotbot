@@ -11,13 +11,13 @@ import type {
   AgentSessionSummary,
   AgentStreamingBehavior,
 } from "@dotbot/agent-core";
-import type { GitStatus } from "@dotbot/source-control";
-import type { ExplorerEntry } from "@dotbot/workspace";
+import type { FileEntry } from "@dotbot/files";
+import type { GitStatus } from "@dotbot/git";
 import { contextBridge, ipcRenderer } from "electron";
 import type {
   AgentDefaultsInput,
   DotbotApi,
-  WorkspaceChange,
+  FilesChanged,
 } from "../renderer/api";
 import type { ActivityStatsResult } from "../shared/activity-stats";
 
@@ -98,35 +98,41 @@ const api: DotbotApi = {
       ipcRenderer.invoke("activity:get-stats") as Promise<ActivityStatsResult>,
   },
   // Filesystem and Git operations stay in the main process behind validated IPC.
-  workspace: {
+  projects: {
     pick: () =>
-      ipcRenderer.invoke("workspace:pick") as Promise<string | undefined>,
-    readDirectory: (cwd: string, path = "") =>
-      ipcRenderer.invoke("workspace:read-directory", { cwd, path }) as Promise<
-        ExplorerEntry[]
-      >,
-    watch: (cwd: string) => ipcRenderer.invoke("workspace:watch", cwd),
-    unwatch: () => ipcRenderer.invoke("workspace:unwatch"),
-    onChanged: (listener: (change: WorkspaceChange) => void) => {
+      ipcRenderer.invoke("project:pick") as Promise<string | undefined>,
+  },
+  files: {
+    readDirectory: (projectDir: string, path = "") =>
+      ipcRenderer.invoke("files:read-directory", {
+        projectDir,
+        path,
+      }) as Promise<FileEntry[]>,
+    watch: (projectDir: string) =>
+      ipcRenderer.invoke("files:watch", projectDir),
+    unwatch: () => ipcRenderer.invoke("files:unwatch"),
+    onChanged: (listener: (change: FilesChanged) => void) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
-        change: WorkspaceChange,
+        change: FilesChanged,
       ) => listener(change);
-      ipcRenderer.on("workspace:changed", handler);
-      return () => ipcRenderer.removeListener("workspace:changed", handler);
+      ipcRenderer.on("files:changed", handler);
+      return () => ipcRenderer.removeListener("files:changed", handler);
     },
-    gitStatus: (cwd: string) =>
-      ipcRenderer.invoke("workspace:git-status", cwd) as Promise<GitStatus>,
-    gitStage: (cwd: string, path: string) =>
-      ipcRenderer.invoke("workspace:git-stage", { cwd, path }) as Promise<void>,
-    gitUnstage: (cwd: string, path: string) =>
-      ipcRenderer.invoke("workspace:git-unstage", {
-        cwd,
+  },
+  git: {
+    status: (projectDir: string) =>
+      ipcRenderer.invoke("git:status", projectDir) as Promise<GitStatus>,
+    stage: (projectDir: string, path: string) =>
+      ipcRenderer.invoke("git:stage", { projectDir, path }) as Promise<void>,
+    unstage: (projectDir: string, path: string) =>
+      ipcRenderer.invoke("git:unstage", {
+        projectDir,
         path,
       }) as Promise<void>,
-    gitCommit: (cwd: string, message: string) =>
-      ipcRenderer.invoke("workspace:git-commit", {
-        cwd,
+    commit: (projectDir: string, message: string) =>
+      ipcRenderer.invoke("git:commit", {
+        projectDir,
         message,
       }) as Promise<void>,
   },

@@ -403,7 +403,7 @@ export const useAgentStore = create<AgentStore>((set, get) => {
 
   const pickProject = async (): Promise<string | undefined> => {
     try {
-      const projectDir = await api.workspace.pick();
+      const projectDir = await api.projects.pick();
       if (projectDir) useWorkspaceStore.getState().selectProject(projectDir);
       return projectDir;
     } catch (error) {

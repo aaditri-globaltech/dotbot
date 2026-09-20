@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { parseGitStatus, runGit } from "../src/git";
+import { parseGitStatus, runGit } from "../src/cli";
 import { gitCommit, gitStage, gitStatus, gitUnstage } from "../src/service";
 
 describe("parseGitStatus", () => {
@@ -24,7 +24,7 @@ describe("parseGitStatus", () => {
 const gitCheck = await runGit(process.cwd(), ["--version"]);
 const gitAvailable = gitCheck.code === 0;
 
-describe.skipIf(!gitAvailable)("source control", () => {
+describe.skipIf(!gitAvailable)("git", () => {
   const repository = mkdtempSync(join(tmpdir(), "dotbot-git-test-"));
 
   beforeAll(async () => {
@@ -37,7 +37,7 @@ describe.skipIf(!gitAvailable)("source control", () => {
   it("reports branch and untracked changes", async () => {
     const status = await gitStatus(repository);
     expect(status.error).toBeUndefined();
-    expect(status.root).toBeTruthy();
+    expect(status.repoRoot).toBeTruthy();
     expect(status.branch).toBeTruthy();
     expect(status.changes).toContainEqual({
       path: "untracked.txt",

@@ -9,13 +9,13 @@ export type GitCommandResult = {
   stderr: string;
 };
 
-/** Run Git without a shell so workspace paths cannot become commands. */
-export function runGit(cwd: string, args: string[]): Promise<GitCommandResult> {
+/** Run Git without a shell so paths cannot become commands. */
+export function runGit(dir: string, args: string[]): Promise<GitCommandResult> {
   const command = process.platform === "win32" ? "git.exe" : "git";
 
   return new Promise((resolve) => {
     const child = spawn(command, args, {
-      cwd,
+      cwd: dir,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
