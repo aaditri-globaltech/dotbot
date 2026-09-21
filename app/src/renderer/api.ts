@@ -1,6 +1,7 @@
 import type {
   AgentManagerEvent,
   CustomProviderInput,
+  DefaultProjectTrust,
   ExtensionResponse,
   ModelThinkingLevel,
   ProviderSummary,
@@ -8,6 +9,7 @@ import type {
   SessionControlsInput,
   SessionSummary,
   StreamingBehavior,
+  TrustDecisionEntry,
 } from "@dotbot/agent-core";
 import type { FileEntry } from "@dotbot/files";
 import type { GitStatus } from "@dotbot/git";
@@ -20,7 +22,7 @@ export type FilesChanged = {
 };
 
 /** Renderer-safe API exposed by the isolated Electron preload. */
-export interface DotbotApi {
+export interface BotApi {
   /** Basic bridge health check. */
   ping: () => string;
   /** Native window controls and maximized-state subscription. */
@@ -54,6 +56,7 @@ export interface DotbotApi {
       level: ModelThinkingLevel,
     ) => Promise<void>;
     respond: (sessionId: string, response: ExtensionResponse) => Promise<void>;
+    respondTrust: (response: ExtensionResponse) => Promise<void>;
     onEvent: (listener: (event: AgentManagerEvent) => void) => () => void;
   };
   /** Provider listing and API key management. */
@@ -62,6 +65,13 @@ export interface DotbotApi {
     setKey: (providerId: string, apiKey: string) => Promise<ProviderSummary>;
     remove: (providerId: string) => Promise<ProviderSummary>;
     add: (provider: CustomProviderInput) => Promise<ProviderSummary>;
+  };
+  /** Project trust defaults and saved decisions. */
+  trust: {
+    getDefault: () => Promise<DefaultProjectTrust>;
+    setDefault: (value: DefaultProjectTrust) => Promise<void>;
+    list: () => Promise<TrustDecisionEntry[]>;
+    revoke: (path: string) => Promise<void>;
   };
   /** Dashboard usage statistics derived from persisted sessions. */
   stats: {
@@ -86,4 +96,4 @@ export interface DotbotApi {
 }
 
 /** Typed reference to the preload bridge used by renderer components. */
-export const api: DotbotApi = globalThis.window?.dotbot as DotbotApi;
+export const api: BotApi = globalThis.window?.dotbot as BotApi;

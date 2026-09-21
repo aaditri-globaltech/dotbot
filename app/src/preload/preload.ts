@@ -4,6 +4,7 @@
 import type {
   AgentManagerEvent,
   CustomProviderInput,
+  DefaultProjectTrust,
   ExtensionResponse,
   ModelThinkingLevel,
   ProviderSummary,
@@ -11,14 +12,15 @@ import type {
   SessionControlsInput,
   SessionSummary,
   StreamingBehavior,
+  TrustDecisionEntry,
 } from "@dotbot/agent-core";
 import type { FileEntry } from "@dotbot/files";
 import type { GitStatus } from "@dotbot/git";
 import { contextBridge, ipcRenderer } from "electron";
-import type { DotbotApi, FilesChanged } from "../renderer/api";
+import type { BotApi, FilesChanged } from "../renderer/api";
 import type { UsageStats } from "../shared/usage-stats";
 
-const api: DotbotApi = {
+const api: BotApi = {
   ping: () => "pong",
   window: {
     close: () => ipcRenderer.send("window:close"),
@@ -64,6 +66,8 @@ const api: DotbotApi = {
       ipcRenderer.invoke("agent:set-thinking-level", { sessionId, level }),
     respond: (sessionId: string, response: ExtensionResponse) =>
       ipcRenderer.invoke("agent:respond", { sessionId, response }),
+    respondTrust: (response: ExtensionResponse) =>
+      ipcRenderer.invoke("agent:respond-trust", response),
     onEvent: (listener: (event: AgentManagerEvent) => void) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
@@ -88,6 +92,15 @@ const api: DotbotApi = {
       ) as Promise<ProviderSummary>,
     add: (provider: CustomProviderInput) =>
       ipcRenderer.invoke("providers:add", provider) as Promise<ProviderSummary>,
+  },
+  trust: {
+    getDefault: () =>
+      ipcRenderer.invoke("trust:get-default") as Promise<DefaultProjectTrust>,
+    setDefault: (value: DefaultProjectTrust) =>
+      ipcRenderer.invoke("trust:set-default", value),
+    list: () =>
+      ipcRenderer.invoke("trust:list") as Promise<TrustDecisionEntry[]>,
+    revoke: (path: string) => ipcRenderer.invoke("trust:revoke", path),
   },
   stats: {
     get: () => ipcRenderer.invoke("stats:get") as Promise<UsageStats>,

@@ -5,6 +5,7 @@ import {
   type AgentManagerEvent,
   getSessionsDir,
   ProviderRegistry,
+  TrustManager,
 } from "@dotbot/agent-core";
 import { asRecord } from "@dotbot/agent-core/text";
 import { readDirectory, watchDirectory } from "@dotbot/files";
@@ -33,7 +34,8 @@ let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let isQuitting = false;
 
-const agentManager = new AgentManager({ onEvent: sendEvent });
+const trustManager = new TrustManager();
+const agentManager = new AgentManager({ onEvent: sendEvent, trustManager });
 const providers = new ProviderRegistry(() => agentManager.getModelRuntime());
 
 const usageStats = new UsageStatsStore({
@@ -180,6 +182,23 @@ ipcMain.handle("agent:set-thinking-level", (_event, value: unknown) =>
 );
 ipcMain.handle("agent:respond", (_event, value: unknown) => {
   agentManager.respond(value);
+});
+ipcMain.handle("agent:respond-trust", (_event, value: unknown) => {
+  agentManager.respondTrust(value);
+});
+
+ipcMain.handle("trust:get-default", () => trustManager.getDefault());
+ipcMain.handle("trust:set-default", (_event, value: unknown) =>
+  trustManager.setDefault(value),
+);
+ipcMain.handle("trust:list", () => trustManager.list());
+ipcMain.handle("trust:revoke", (_event, path: unknown) => {
+  if (typeof path !== "string" || !path.trim()) {
+    throw new Error("Trust path is invalid");
+  }
+  const trustPath = path.trim();
+  trustManager.revoke(trustPath);
+  agentManager.forgetTrust(trustPath);
 });
 
 ipcMain.handle("providers:list", () => providers.list());

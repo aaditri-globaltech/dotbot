@@ -12,6 +12,7 @@ import { WorkbenchView } from "./components/screen/workbench/WorkbenchView";
 import { useResizablePanels } from "./hooks/useResizablePanels";
 import { useNavigationStore } from "./stores/navigation-store";
 import { useSessionStore } from "./stores/session-store";
+import { useTrustStore } from "./stores/trust-store";
 
 /** Root renderer component that owns the app-level panel state. */
 export default function App() {
@@ -23,8 +24,12 @@ export default function App() {
     // Subscribe before listing so a fast session update cannot be missed.
     const store = useSessionStore.getState();
     const unsubscribe = store.subscribe();
+    const unsubscribeTrust = useTrustStore.getState().subscribe();
     void store.loadSessions().catch((error: unknown) => console.error(error));
-    return unsubscribe;
+    return () => {
+      unsubscribeTrust();
+      unsubscribe();
+    };
   }, []);
 
   return (
