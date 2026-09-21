@@ -418,3 +418,20 @@ body.is-row-resizing {
     opacity: 0;
   }
 }
+
+.trust-prompt {
+  animation: trust-prompt-rise 180ms ease-out;
+}
+
+@keyframes trust-prompt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trust-prompt {
+    animation: none;
+  }
+}

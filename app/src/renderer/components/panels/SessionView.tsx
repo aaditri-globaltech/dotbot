@@ -1,7 +1,6 @@
 /** Render the normalized chat stream, controls, and extension dialog. */
 
 import type {
-  ExtensionRequest,
   ExtensionResponse,
   ModelSummary,
   ModelThinkingLevel,
@@ -9,11 +8,12 @@ import type {
   StreamingBehavior,
   ToolCall,
   TranscriptItem,
+  TrustRequest,
 } from "@dotbot/agent-core";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
@@ -27,7 +27,9 @@ import { projectName } from "../../project-name";
 import { ChatMarkdown, MarkdownText } from "./ChatMarkdown";
 import { CodeHighlight } from "./CodeHighlight";
 import { Dropdown } from "./Dropdown";
+import { ExtensionDialog } from "./ExtensionDialog";
 import { Hero } from "./Hero";
+import { SECONDARY_BUTTON_CLASS } from "./panel-classes";
 import {
   isErrorNotice,
   isThinking,
@@ -36,6 +38,7 @@ import {
   type SessionClientState,
 } from "./session-state";
 import { statusDotClass } from "./status-dot";
+import { TrustPrompt } from "./TrustPrompt";
 import {
   bashCommand,
   readToolOffset,
@@ -65,18 +68,7 @@ const TOOL_COMMAND_CLASS =
   "focus-visible:ring-focus before:flex-none before:text-dim " +
   "before:content-['▸'] group-open:before:content-['▾']";
 
-/** Composer and extension-dialog controls. */
-const CHAT_INPUT_CLASS =
-  "block w-full rounded-md border border-border-strong bg-surface " +
-  "text-secondary outline-0 focus:border-focus";
-const CHAT_BUTTON_CLASS =
-  "min-w-[52px] cursor-pointer rounded-md border border-border-strong " +
-  "bg-control px-2.5 py-1 text-[11px] text-secondary hover:border-focus " +
-  "hover:bg-border-strong";
-/** Light primary action, matching the reference's call-to-action buttons. */
-const PRIMARY_BUTTON_CLASS =
-  "min-w-[52px] cursor-pointer rounded-md border border-transparent " +
-  "bg-secondary px-2.5 py-1 text-[11px] text-app hover:bg-primary";
+/** Composer controls. */
 
 function statusLabel(session: SessionSummary) {
   if (session.status === "waiting") return "Waiting for input";
@@ -224,141 +216,6 @@ function ChatItem({
   );
 }
 
-/** Adapt the agent's extension request contract to native form controls. */
-function ExtensionDialog(props: {
-  request: ExtensionRequest;
-  onRespond: (response: ExtensionResponse) => void;
-}) {
-  const [value, setValue] = useState("");
-
-  useEffect(() => {
-    const request = props.request;
-    setValue(
-      request.method === "editor"
-        ? (request.prefill ?? "")
-        : request.method === "select"
-          ? (request.options[0] ?? "")
-          : "",
-    );
-  }, [props.request]);
-
-  const cancel = () =>
-    props.onRespond({
-      type: "extension_ui_response",
-      id: props.request.id,
-      cancelled: true,
-    });
-
-  // Every method answers with Cancel plus its own choice, so the row is shared.
-  const actions = (choice: ReactNode) => (
-    <div className="mt-3.5 flex justify-end gap-1.5">
-      <button className={CHAT_BUTTON_CLASS} type="button" onClick={cancel}>
-        Cancel
-      </button>
-      {choice}
-    </div>
-  );
-
-  const continueWithValue = (
-    <button
-      className={PRIMARY_BUTTON_CLASS}
-      type="button"
-      onClick={() =>
-        props.onRespond({
-          type: "extension_ui_response",
-          id: props.request.id,
-          value,
-        })
-      }
-    >
-      Continue
-    </button>
-  );
-
-  return (
-    <div className="absolute inset-0 z-5 grid place-items-center bg-black/45 p-5">
-      <section
-        className="w-[min(440px,100%)] rounded-lg border border-border-strong bg-card p-4 shadow-card"
-        role="dialog"
-        dotbot-modal="true"
-      >
-        <div className="mb-3 text-[13px] font-semibold text-secondary">
-          {props.request.title}
-        </div>
-        {props.request.method === "select" && (
-          <>
-            <Dropdown
-              label={props.request.title}
-              value={value}
-              options={props.request.options.map((option) => ({
-                value: option,
-                label: option,
-              }))}
-              onChange={setValue}
-              variant="field"
-            />
-            {actions(continueWithValue)}
-          </>
-        )}
-        {props.request.method === "confirm" && (
-          <>
-            <p className="mt-0 mr-0 mb-3.5 ml-0 text-xs leading-normal text-muted [white-space:pre-wrap]">
-              {props.request.message}
-            </p>
-            {actions(
-              <>
-                <button
-                  className={CHAT_BUTTON_CLASS}
-                  type="button"
-                  onClick={() =>
-                    props.onRespond({
-                      type: "extension_ui_response",
-                      id: props.request.id,
-                      confirmed: false,
-                    })
-                  }
-                >
-                  No
-                </button>
-                <button
-                  className={PRIMARY_BUTTON_CLASS}
-                  type="button"
-                  onClick={() =>
-                    props.onRespond({
-                      type: "extension_ui_response",
-                      id: props.request.id,
-                      confirmed: true,
-                    })
-                  }
-                >
-                  Yes
-                </button>
-              </>,
-            )}
-          </>
-        )}
-        {(props.request.method === "input" ||
-          props.request.method === "editor") && (
-          <>
-            <textarea
-              className={`${CHAT_INPUT_CLASS} resize-y p-1.5 text-xs leading-[1.4]`}
-              rows={props.request.method === "editor" ? 8 : 3}
-              placeholder={
-                props.request.method === "input"
-                  ? props.request.placeholder
-                  : undefined
-              }
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-            />
-            {actions(continueWithValue)}
-          </>
-        )}
-      </section>
-    </div>
-  );
-}
-
 /** Inputs for the selected Agent transcript and controls. */
 export type SessionViewProps = {
   selectedSession?: SessionSummary;
@@ -369,6 +226,8 @@ export type SessionViewProps = {
   projects: string[];
   /** Project the selected session or newSession runs in. */
   projectDir?: string;
+  /** Pending app-level trust decision, rendered above the composer. */
+  trustRequest?: TrustRequest;
   onSelectProject: (projectDir: string) => void;
   onDraft: (value: string) => void;
   onPrompt: (message: string, streamingBehavior?: StreamingBehavior) => void;
@@ -376,6 +235,10 @@ export type SessionViewProps = {
   onSetModel: (provider: string, modelId: string) => void;
   onSetThinkingLevel: (level: ModelThinkingLevel) => void;
   onRespond: (response: ExtensionResponse) => void;
+  /** Answers the app-level trust prompt. */
+  onRespondTrust: (response: ExtensionResponse) => void;
+  /** Whether the active project runs without its own resources. */
+  untrustedNotice?: boolean;
 };
 
 /** Render session tabs, transcript controls, and the prompt composer. */
@@ -387,8 +250,22 @@ export function SessionView(props: SessionViewProps) {
   const busy =
     status === "starting" || status === "running" || status === "waiting";
   const running = status === "running";
-  const inputDisabled = status === "waiting";
+  const trustPending = props.trustRequest !== undefined;
+  const inputDisabled = status === "waiting" || trustPending;
   const extensionRequest = props.selectedSession?.waiting;
+  const trustPrompt = props.trustRequest;
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const hadTrustPrompt = useRef(false);
+  useEffect(() => {
+    if (props.trustRequest) {
+      hadTrustPrompt.current = true;
+      return;
+    }
+    if (hadTrustPrompt.current) {
+      hadTrustPrompt.current = false;
+      composer.current?.focus();
+    }
+  }, [props.trustRequest]);
   const [streamingBehavior, setStreamingBehavior] =
     useState<StreamingBehavior>("steer");
   const [transcriptPages, setTranscriptPages] = useState<
@@ -453,11 +330,54 @@ export function SessionView(props: SessionViewProps) {
   const selectThinkingLevel = (level: ModelThinkingLevel) =>
     props.onSetThinkingLevel(level);
 
+  const trustSelect =
+    trustPrompt?.method === "select" ? trustPrompt : undefined;
+  // The dialogue card holds whatever options matter right now: the project and
+  // branch while drafting, the trust decision while the session waits.
+  const dialogue = trustSelect ? (
+    <TrustPrompt
+      key={trustSelect.id}
+      request={trustSelect}
+      onRespond={props.onRespondTrust}
+    />
+  ) : props.drafting ? (
+    <div className="flex min-w-0 items-center gap-2 text-sm text-secondary">
+      <Dropdown
+        label="Project"
+        icon="codicon-folder"
+        value={props.projectDir ?? ""}
+        onChange={props.onSelectProject}
+        placement="up"
+        className="max-w-[220px]"
+        options={props.projects.map((projectDir) => ({
+          value: projectDir,
+          label: projectName(projectDir),
+          description: projectDir,
+        }))}
+      />
+      {branch && (
+        <>
+          <span
+            className="codicon codicon-git-branch ml-1 shrink-0 text-[13px] text-dim"
+            dotbot-hidden="true"
+          />
+          <span className="min-w-0 truncate text-muted">{branch}</span>
+        </>
+      )}
+    </div>
+  ) : undefined;
+
   return (
     <section
       id="view"
       className="panel view-panel relative flex flex-col overflow-hidden bg-surface"
     >
+      {props.untrustedNotice && (
+        <div className="shrink-0 border-b border-border bg-card px-5 py-1.5 text-[11px] text-muted">
+          Project resources and packages are ignored because this folder is not
+          trusted.
+        </div>
+      )}
       {props.drafting ? (
         <Hero
           title={`Start a session in ${projectName(props.projectDir ?? "")}`}
@@ -526,146 +446,138 @@ export function SessionView(props: SessionViewProps) {
 
       {composerState && (
         <div className="shrink-0 px-5 pt-1.5 pb-4">
-          <form
-            className="mx-auto w-full max-w-[740px] rounded-2xl bg-card px-4 pt-3 pb-2.5 transition-colors focus-within:ring-1 focus-within:ring-border-strong"
-            onSubmit={(event) => {
-              event.preventDefault();
-              send(composerState.draft);
-            }}
-          >
-            {/* Project and branch a session runs against, before one exists. */}
-            {props.drafting && (
-              <div className="mb-2 flex min-w-0 items-center gap-1.5 text-[12px] text-secondary">
-                <Dropdown
-                  label="Project"
-                  icon="codicon-folder"
-                  value={props.projectDir ?? ""}
-                  onChange={props.onSelectProject}
-                  placement="up"
-                  className="max-w-[200px]"
-                  options={props.projects.map((projectDir) => ({
-                    value: projectDir,
-                    label: projectName(projectDir),
-                    description: projectDir,
-                  }))}
-                />
-                {branch && (
-                  <>
-                    <span
-                      className="codicon codicon-git-branch ml-1 shrink-0 text-[13px] text-dim"
-                      dotbot-hidden="true"
-                    />
-                    <span className="min-w-0 truncate text-muted">
-                      {branch}
-                    </span>
-                  </>
-                )}
+          {/* The dialogue is a layer behind the composer card: it tucks 24px
+              behind the card's rounded top corners (its rounded-3xl radius) and
+              pads that 24px plus a 12px gap back, so its content stays above the
+              card and it grows upward without moving the composer. */}
+          <div className="relative mx-auto w-full max-w-[860px]">
+            {dialogue && (
+              <div
+                className={`absolute inset-x-0 bottom-[calc(100%_-_24px)] rounded-3xl bg-card px-5 pt-4 pb-9 ${trustSelect ? "trust-prompt" : ""}`}
+              >
+                {dialogue}
               </div>
             )}
-            <textarea
-              className="block field-sizing-content max-h-[220px] min-h-[52px] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-[13px] leading-[1.5] text-secondary outline-0 placeholder:text-faint focus:outline-none disabled:opacity-60"
-              dotbot-label="Send message"
-              placeholder="Ask Dotbot…"
-              rows={3}
-              value={composerState.draft}
-              disabled={inputDisabled}
-              onChange={(event) => props.onDraft(event.target.value)}
-              onKeyDown={(event) => handleKeyDown(event, composerState.draft)}
-            />
-            <div className="mt-1.5 flex items-center gap-1.5">
-              {props.selectedSession && (
-                <span
-                  className={`shrink-0 text-[11px] whitespace-nowrap ${statusTextClass(props.selectedSession.status)}`}
-                >
-                  {statusLabel(props.selectedSession)}
-                </span>
-              )}
-              {running && (
-                <button
-                  className={`${CHAT_BUTTON_CLASS} shrink-0 border-error/50 text-error`}
-                  type="button"
-                  onClick={props.onAbort}
-                >
-                  Stop
-                </button>
-              )}
-              {running && (
-                <span className="flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap text-dim">
-                  Send as
-                  <Dropdown
-                    label="Streaming behavior"
-                    value={streamingBehavior}
-                    placement="up"
-                    align="right"
-                    onChange={setStreamingBehavior}
-                    options={[
-                      { value: "steer", label: "Steer" },
-                      { value: "followUp", label: "Follow up" },
-                    ]}
-                  />
-                </span>
-              )}
-              <span className="min-w-0 flex-1 truncate text-[11px] text-faint">
-                {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.submit)} sends ·{" "}
-                {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.newline)} adds a
-                line
-              </span>
-              <Dropdown
-                label="Model"
-                value={composerState.selectedModel}
-                placement="up"
-                align="right"
-                placeholder={
-                  composerState.models.length === 0
-                    ? "Loading models…"
-                    : undefined
-                }
-                disabled={busy || composerState.models.length === 0}
-                onChange={selectModel}
-                options={composerState.models.map((model: ModelSummary) => ({
-                  value: modelKey(model),
-                  label: model.name,
-                  description: model.provider,
-                }))}
-              />
-              <Dropdown
-                label="Thinking level"
-                icon="codicon-lightbulb"
-                value={composerState.thinkingLevel}
-                placement="up"
-                align="right"
-                placeholder={
-                  composerState.thinkingLevels.length === 0
-                    ? "Loading levels…"
-                    : undefined
-                }
-                disabled={busy || composerState.thinkingLevels.length === 0}
-                onChange={selectThinkingLevel}
-                options={composerState.thinkingLevels.map((level) => ({
-                  value: level,
-                  label: level,
-                }))}
-              />
-              <button
-                className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-secondary text-app disabled:cursor-default disabled:bg-elevated disabled:text-dim"
-                type="submit"
+            <form
+              className="relative rounded-3xl border border-border-strong bg-elevated px-4 pt-3.5 pb-2.5 transition-colors focus-within:ring-1 focus-within:ring-border-strong"
+              onSubmit={(event) => {
+                event.preventDefault();
+                send(composerState.draft);
+              }}
+            >
+              <textarea
+                ref={composer}
+                className="block field-sizing-content max-h-[220px] min-h-[52px] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-[13px] leading-[1.5] text-secondary outline-0 placeholder:text-faint focus:outline-none disabled:opacity-60"
                 dotbot-label="Send message"
-                title="Send message"
-                disabled={inputDisabled || !composerState.draft.trim()}
-              >
-                <span
-                  className="codicon codicon-arrow-up text-[13px]"
-                  dotbot-hidden="true"
+                placeholder="Ask Dotbot…"
+                rows={3}
+                value={composerState.draft}
+                disabled={inputDisabled}
+                onChange={(event) => props.onDraft(event.target.value)}
+                onKeyDown={(event) => handleKeyDown(event, composerState.draft)}
+              />
+              <div className="mt-1.5 flex items-center gap-1.5">
+                {props.selectedSession && (
+                  <span
+                    className={`shrink-0 text-[11px] whitespace-nowrap ${statusTextClass(props.selectedSession.status)}`}
+                  >
+                    {statusLabel(props.selectedSession)}
+                  </span>
+                )}
+                {running && (
+                  <button
+                    className={`${SECONDARY_BUTTON_CLASS} shrink-0 border-error/50 text-error`}
+                    type="button"
+                    onClick={props.onAbort}
+                  >
+                    Stop
+                  </button>
+                )}
+                {running && (
+                  <span className="flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap text-dim">
+                    Send as
+                    <Dropdown
+                      label="Streaming behavior"
+                      value={streamingBehavior}
+                      placement="up"
+                      align="right"
+                      onChange={setStreamingBehavior}
+                      options={[
+                        { value: "steer", label: "Steer" },
+                        { value: "followUp", label: "Follow up" },
+                      ]}
+                    />
+                  </span>
+                )}
+                <span className="min-w-0 flex-1 truncate text-[11px] text-faint">
+                  {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.submit)} sends ·{" "}
+                  {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.newline)} adds a
+                  line
+                </span>
+                <Dropdown
+                  label="Model"
+                  value={composerState.selectedModel}
+                  placement="up"
+                  align="right"
+                  placeholder={
+                    composerState.models.length === 0
+                      ? "Loading models…"
+                      : undefined
+                  }
+                  disabled={busy || composerState.models.length === 0}
+                  onChange={selectModel}
+                  options={composerState.models.map((model: ModelSummary) => ({
+                    value: modelKey(model),
+                    label: model.name,
+                    description: model.provider,
+                  }))}
                 />
-              </button>
-            </div>
-          </form>
+                <Dropdown
+                  label="Thinking level"
+                  icon="codicon-lightbulb"
+                  value={composerState.thinkingLevel}
+                  placement="up"
+                  align="right"
+                  placeholder={
+                    composerState.thinkingLevels.length === 0
+                      ? "Loading levels…"
+                      : undefined
+                  }
+                  disabled={busy || composerState.thinkingLevels.length === 0}
+                  onChange={selectThinkingLevel}
+                  options={composerState.thinkingLevels.map((level) => ({
+                    value: level,
+                    label: level,
+                  }))}
+                />
+                <button
+                  className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-secondary text-app disabled:cursor-default disabled:bg-elevated disabled:text-dim"
+                  type="submit"
+                  dotbot-label="Send message"
+                  title="Send message"
+                  disabled={inputDisabled || !composerState.draft.trim()}
+                >
+                  <span
+                    className="codicon codicon-arrow-up text-[13px]"
+                    dotbot-hidden="true"
+                  />
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
       {extensionRequest && (
         <ExtensionDialog
           request={extensionRequest}
           onRespond={props.onRespond}
+        />
+      )}
+      {trustPrompt && trustPrompt.method !== "select" && (
+        <ExtensionDialog
+          key={trustPrompt.id}
+          request={trustPrompt}
+          onRespond={props.onRespondTrust}
         />
       )}
     </section>

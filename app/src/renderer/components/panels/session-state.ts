@@ -98,7 +98,7 @@ export function applySessionError(
   return { ...state, transcript: [...state.transcript, notice] };
 }
 
-/** Apply one Pi session event immutably so React can refresh the selected session. */
+/** Apply one session event immutably so React can refresh the selected session. */
 export function applySessionActivity(
   state: SessionClientState,
   event: AgentSessionEvent,

@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useProjectDir } from "../../../hooks/useProjectDir";
 import type { ResizablePanels } from "../../../hooks/useResizablePanels";
 import { useSessionStore } from "../../../stores/session-store";
+import { useTrustStore } from "../../../stores/trust-store";
 import { useWorkspaceStore } from "../../../stores/workspace-store";
 import { GitSidebar } from "../../panels/GitSidebar";
 import { PanelHeader } from "../../panels/PanelHeader";
@@ -29,11 +30,18 @@ export function WorkbenchView(props: WorkbenchViewProps) {
   const setDraft = useSessionStore((state) => state.setDraft);
   const projects = useWorkspaceStore((state) => state.projects);
   const selectProject = useWorkspaceStore((state) => state.selectProject);
+  const trustDecisions = useTrustStore((state) => state.decisions);
+  const trustRequest = useTrustStore((state) => state.requests[0]);
+  const respondTrust = useTrustStore((state) => state.respond);
 
   const sessionById = new Map(sessions.map((session) => [session.id, session]));
   const selectedSession = selectedId ? sessionById.get(selectedId) : undefined;
   const selectedState = selectedId ? states[selectedId] : undefined;
   const projectDir = useProjectDir();
+  const noticeProjectDir = selectedSession?.projectDir ?? projectDir;
+  const trustDecision = noticeProjectDir
+    ? trustDecisions[noticeProjectDir]
+    : undefined;
 
   return (
     <div
@@ -46,6 +54,9 @@ export function WorkbenchView(props: WorkbenchViewProps) {
         drafting={newSession !== undefined}
         projects={projects}
         projectDir={projectDir}
+        trustRequest={trustRequest}
+        onRespondTrust={respondTrust}
+        untrustedNotice={trustDecision === false}
         onSelectProject={selectProject}
         onDraft={setDraft}
         onPrompt={prompt}

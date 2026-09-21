@@ -1,4 +1,4 @@
-/** Shared chrome: panel headings, titles, icon buttons, and navigation rows. */
+/** Shared chrome: panel headings, titles, icon buttons, navigation rows, and action buttons. */
 
 /** Heading row shared by every panel title bar. */
 export const PANEL_HEADING_CLASS =
@@ -27,3 +27,9 @@ export const CHROME_BUTTON_CLASS =
 
 /** 22px square icon button used by panel headings and view actions. */
 export const ICON_BUTTON_CLASS = `size-5.5 ${CHROME_BUTTON_CLASS}`;
+
+/** Small secondary button shared by the composer and dialog actions. */
+export const SECONDARY_BUTTON_CLASS =
+  "min-w-[52px] cursor-pointer rounded-md border border-border-strong " +
+  "bg-control px-2.5 py-1 text-[11px] text-secondary hover:border-focus " +
+  "hover:bg-border-strong";
