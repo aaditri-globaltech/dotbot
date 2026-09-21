@@ -5,7 +5,7 @@
   "homepage": "https://github.com/Aaditri-GlobalTech/dotbot#Dotbot",
   "author": "Kumar Rahul Anand",
   "maintainer": "Aaditri GlobalTech",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "desktopName": "dotbot",
   "private": true,
   "type": "module",

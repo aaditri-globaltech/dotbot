@@ -4,7 +4,7 @@ Electron workspace UI with in-process agent sessions.
 
 ## Project metadata
 
-- License: [MIT](LICENSE)
+- License: [Apache-2.0](LICENSE)
 - Author: Kumar Rahul Anand
 - Maintainer: Aaditri GlobalTech
 - Homepage: [Dotbot](https://github.com/Aaditri-GlobalTech/dotbot#Dotbot)
