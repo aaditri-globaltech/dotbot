@@ -32,6 +32,7 @@ export {
   createReadOnlyTools,
   createReadTool,
   createWriteTool,
+  type DefaultProjectTrust,
   DefaultResourceLoader,
   defineTool,
   type EventBus,
@@ -65,6 +66,7 @@ export {
 export { getSessionsDir } from "./paths";
 export { ProviderRegistry } from "./providers";
 export { buildTranscript } from "./transcript";
+export { TrustManager } from "./trust";
 export type {
   AgentManagerEvent,
   CustomProviderInput,
@@ -85,5 +87,7 @@ export type {
   ToolCall,
   TranscriptItem,
   TranscriptMessage,
+  TrustDecisionEntry,
+  TrustRequest,
 } from "./types";
 export { PROVIDER_APIS } from "./types";

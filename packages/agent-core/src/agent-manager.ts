@@ -8,7 +8,7 @@
 
 import { randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import {
   clampThinkingLevel,
   getSupportedThinkingLevels,
@@ -16,11 +16,18 @@ import {
 import {
   type AgentSession,
   type AgentSessionEvent,
+  CONFIG_DIR_NAME,
   type CreateAgentSessionOptions,
   type CreateAgentSessionResult,
   createAgentSession,
+  createAgentSessionServices,
   type ExtensionUIContext,
+  hasTrustRequiringProjectResources,
+  type LoadExtensionsResult,
   ModelRuntime,
+  type ProjectTrustContext,
+  ProjectTrustStore,
+  type ProjectTrustUpdate,
   type SessionInfo,
   SessionManager,
   SettingsManager,
@@ -28,6 +35,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { requireText } from "./text";
 import { buildTranscript } from "./transcript";
+import { TrustManager } from "./trust";
 import type {
   AgentManagerEvent,
   ExtensionRequest,
@@ -39,6 +47,7 @@ import type {
   SessionStatus,
   SessionSummary,
   StreamingBehavior,
+  TrustRequest,
 } from "./types";
 
 /** Limit initial transcript notifications so the renderer stays responsive. */
@@ -46,8 +55,8 @@ const TRANSCRIPT_CHUNK_SIZE = 8;
 
 type JsonObject = Record<string, unknown>;
 
-/** Resolves one pending extension dialog when the renderer answers or it expires. */
-type PendingExtension = (value: string | boolean | undefined) => void;
+/** Resolves one pending dialog when the renderer answers or it expires. */
+type PendingResponder = (value: string | boolean | undefined) => void;
 
 type SessionRecord = {
   id: string;
@@ -68,7 +77,7 @@ type SessionRecord = {
   sessionManager?: SessionManager;
   unsubscribe?: () => void;
   starting?: Promise<void>;
-  pendingExtensions: Map<string, PendingExtension>;
+  pendingExtensions: Map<string, PendingResponder>;
 };
 
 /** Pi's session factory; injectable so tests can provide a faux-provider session. */
@@ -84,6 +93,8 @@ export type AgentManagerOptions = {
   createSession?: CreateSessionFunction;
   /** Reuses a configured Pi model runtime across sessions. */
   modelRuntime?: ModelRuntime;
+  /** Project trust store and defaults; injectable for tests. */
+  trustManager?: TrustManager;
 };
 
 function asObject(value: unknown): JsonObject | undefined {
@@ -151,6 +162,15 @@ function isExtensionResponse(value: unknown): value is ExtensionResponse {
   return Number(hasValue) + Number(hasConfirmation) + Number(cancelled) === 1;
 }
 
+/** The answer carried by a validated extension response. */
+function responseValue(
+  response: ExtensionResponse,
+): string | boolean | undefined {
+  if ("cancelled" in response) return undefined;
+  if ("confirmed" in response) return response.confirmed;
+  return response.value;
+}
+
 async function validateProjectDir(value: unknown): Promise<string> {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error("Project directory does not exist");
@@ -163,18 +183,100 @@ async function validateProjectDir(value: unknown): Promise<string> {
   return projectDir;
 }
 
+/** One trust dialog choice, mirroring the options Pi's CLI offers. */
+type ProjectTrustOption = {
+  label: string;
+  trusted: boolean;
+  updates: ProjectTrustUpdate[];
+};
+
+function projectTrustOptions(cwd: string): ProjectTrustOption[] {
+  const parentDir = dirname(cwd);
+  const options: ProjectTrustOption[] = [
+    { label: "Trust", trusted: true, updates: [{ path: cwd, decision: true }] },
+  ];
+  if (parentDir !== cwd) {
+    options.push({
+      label: `Trust parent folder (${parentDir})`,
+      trusted: true,
+      updates: [
+        { path: parentDir, decision: true },
+        { path: cwd, decision: null },
+      ],
+    });
+  }
+  options.push(
+    { label: "Trust (this session only)", trusted: true, updates: [] },
+    {
+      label: "Do not trust",
+      trusted: false,
+      updates: [{ path: cwd, decision: false }],
+    },
+    { label: "Do not trust (this session only)", trusted: false, updates: [] },
+  );
+  return options;
+}
+
+function projectTrustPrompt(cwd: string): string {
+  return [
+    "Trust project folder?",
+    cwd,
+    "",
+    `This allows Dotbot to load project-local settings and resources (.agents/skills, ${CONFIG_DIR_NAME}/*).`,
+  ].join("\n");
+}
+
+/**
+ * Ask pre-trust extensions to decide, mirroring Pi's runner: the first handler
+ * that returns anything but "undecided" wins, and a handler that throws is
+ * logged and skipped.
+ */
+async function extensionTrustDecision(
+  extensionsResult: LoadExtensionsResult,
+  cwd: string,
+  context: ProjectTrustContext,
+): Promise<{ trusted: boolean; remember: boolean } | undefined> {
+  for (const extension of extensionsResult.extensions) {
+    for (const handler of extension.handlers.get("project_trust") ?? []) {
+      try {
+        // The handler map erases each handler's event type, so read the shape.
+        const result = asObject(
+          await handler({ type: "project_trust", cwd }, context),
+        );
+        const trusted = result?.trusted;
+        if (trusted === "yes" || trusted === "no") {
+          return {
+            trusted: trusted === "yes",
+            remember: result?.remember === true,
+          };
+        }
+      } catch (error) {
+        console.warn(
+          `Project trust extension error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+  return undefined;
+}
+
 /** Owns the in-process Pi sessions and emits app-facing manager events. */
 export class AgentManager {
   private readonly onEvent?: (event: AgentManagerEvent) => void;
   private readonly createSession: CreateSessionFunction;
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly injectedModelRuntime?: ModelRuntime;
+  private readonly trustManager: TrustManager;
+  private readonly trustByCwd = new Map<string, boolean>();
+  private readonly trustingByCwd = new Map<string, Promise<boolean>>();
+  private readonly pendingTrustRequests = new Map<string, PendingResponder>();
   private modelRuntimePromise?: Promise<ModelRuntime>;
 
   constructor(options: AgentManagerOptions = {}) {
     this.onEvent = options.onEvent;
     this.createSession = options.createSession ?? createAgentSession;
     this.injectedModelRuntime = options.modelRuntime;
+    this.trustManager = options.trustManager ?? new TrustManager();
   }
 
   /** List persisted sessions plus sessions created in this process. */
@@ -192,7 +294,14 @@ export class AgentManager {
   async getSessionControls(value: unknown): Promise<SessionControls> {
     const input = asObject(value);
     const projectDir = await validateProjectDir(input?.projectDir);
-    const settings = SettingsManager.create(projectDir);
+    const settings = SettingsManager.create(
+      projectDir,
+      this.trustManager.agentDir,
+      {
+        projectTrusted:
+          this.trustByCwd.get(projectDir) ?? this.trustManager.peek(projectDir),
+      },
+    );
     const modelRuntime = await this.getModelRuntime();
     const available = await modelRuntime.getAvailable();
     const requested =
@@ -350,14 +459,30 @@ export class AgentManager {
     const response = this.validateExtensionResponse(input?.response, record);
     const resolve = record.pendingExtensions.get(response.id);
     if (!resolve) throw new Error("Extension request is no longer pending");
+    resolve(responseValue(response));
+  }
 
-    if ("cancelled" in response) resolve(undefined);
-    else if ("confirmed" in response) resolve(response.confirmed);
-    else resolve(response.value);
+  /** Answer the pending trust request from the renderer. */
+  respondTrust(value: unknown): void {
+    if (!isExtensionResponse(value)) {
+      throw new Error("Invalid trust response");
+    }
+    const resolve = this.pendingTrustRequests.get(value.id);
+    if (!resolve) throw new Error("Trust request is no longer pending");
+    resolve(responseValue(value));
+  }
+
+  /** Drop a project's run-time decision so the next session resolves again. */
+  forgetTrust(path: string): void {
+    this.trustByCwd.delete(resolve(path));
   }
 
   /** Stop every active Pi session owned by this manager. */
   stopAll(): void {
+    // Pending trust dialogs hold session creation open; close them first.
+    for (const resolve of [...this.pendingTrustRequests.values()]) {
+      resolve(undefined);
+    }
     for (const record of this.sessions.values()) this.disposeRecord(record);
   }
 
@@ -469,10 +594,14 @@ export class AgentManager {
           : SessionManager.create(record.projectDir));
       record.sessionManager = undefined;
       const modelRuntime = await this.getModelRuntime();
+      const { settingsManager, resourceLoader } =
+        await this.createTrustedSessionOptions(record.projectDir, modelRuntime);
       const { session } = await this.createSession({
         cwd: record.projectDir,
         sessionManager,
         modelRuntime,
+        settingsManager,
+        resourceLoader,
       });
       record.session = session;
       record.path = session.sessionFile;
@@ -609,6 +738,174 @@ export class AgentManager {
       throw new Error("Input response is invalid");
     }
     return value;
+  }
+
+  /**
+   * Decide one project's trust.
+   *
+   * Pi's `resolveProjectTrusted` is internal to the SDK, so its decision order
+   * is reproduced here: extension handlers, saved store, global default, then
+   * the renderer dialog.
+   */
+  private async decideProjectTrust(
+    projectDir: string,
+    extensionsResult: LoadExtensionsResult,
+    settingsManager: SettingsManager,
+  ): Promise<boolean> {
+    const store = new ProjectTrustStore(this.trustManager.agentDir);
+    const context = this.createProjectTrustContext(projectDir);
+    const extensionDecision = await extensionTrustDecision(
+      extensionsResult,
+      projectDir,
+      context,
+    );
+    if (extensionDecision) {
+      if (extensionDecision.remember) {
+        store.set(projectDir, extensionDecision.trusted);
+      }
+      return extensionDecision.trusted;
+    }
+
+    const saved = store.get(projectDir);
+    if (saved !== null) return saved;
+
+    const fallback = settingsManager.getDefaultProjectTrust();
+    if (fallback === "always") return true;
+    if (fallback === "never") return false;
+
+    const options = projectTrustOptions(projectDir);
+    const selected = await context.ui.select(
+      projectTrustPrompt(projectDir),
+      options.map((option) => option.label),
+    );
+    const choice = options.find((option) => option.label === selected);
+    if (!choice) return false;
+    if (choice.updates.length > 0) store.setMany(choice.updates);
+    return choice.trusted;
+  }
+
+  /** Build Pi's cwd-bound services with the project trust decision applied. */
+  private async createTrustedSessionOptions(
+    projectDir: string,
+    modelRuntime: ModelRuntime,
+  ): Promise<
+    Pick<CreateAgentSessionOptions, "settingsManager" | "resourceLoader">
+  > {
+    const hasResources = hasTrustRequiringProjectResources(projectDir);
+    const cached = this.trustByCwd.get(projectDir);
+    const shouldResolve = cached === undefined && hasResources;
+    const projectTrusted = shouldResolve ? false : (cached ?? !hasResources);
+    const settingsManager = SettingsManager.create(
+      projectDir,
+      this.trustManager.agentDir,
+      { projectTrusted },
+    );
+    const services = await createAgentSessionServices({
+      cwd: projectDir,
+      agentDir: this.trustManager.agentDir,
+      modelRuntime,
+      settingsManager,
+      ...(shouldResolve
+        ? {
+            resourceLoaderReloadOptions: {
+              resolveProjectTrust: ({ extensionsResult }) =>
+                this.resolveProjectTrust(
+                  projectDir,
+                  extensionsResult,
+                  settingsManager,
+                ),
+            },
+          }
+        : {}),
+    });
+    for (const diagnostic of services.diagnostics) {
+      if (diagnostic.type !== "info") {
+        console.warn(`Project services: ${diagnostic.message}`);
+      }
+    }
+    return {
+      settingsManager: services.settingsManager,
+      resourceLoader: services.resourceLoader,
+    };
+  }
+
+  /** Resolve one project's trust, sharing concurrent resolutions. */
+  private resolveProjectTrust(
+    projectDir: string,
+    extensionsResult: LoadExtensionsResult,
+    settingsManager: SettingsManager,
+  ): Promise<boolean> {
+    const pending = this.trustingByCwd.get(projectDir);
+    if (pending) return pending;
+
+    const resolution = (async () => {
+      try {
+        const trusted = await this.decideProjectTrust(
+          projectDir,
+          extensionsResult,
+          settingsManager,
+        );
+        this.trustByCwd.set(projectDir, trusted);
+        this.emit({ type: "trust_update", projectDir, decision: trusted });
+        return trusted;
+      } finally {
+        this.trustingByCwd.delete(projectDir);
+      }
+    })();
+    this.trustingByCwd.set(projectDir, resolution);
+    return resolution;
+  }
+
+  /** Pi's trust UI context, bridged to the renderer. */
+  private createProjectTrustContext(cwd: string): ProjectTrustContext {
+    return {
+      cwd,
+      mode: "rpc",
+      hasUI: true,
+      ui: {
+        select: async (title, options) => {
+          const value = await this.openTrustRequest({
+            method: "select",
+            title,
+            options,
+          });
+          return typeof value === "string" ? value : undefined;
+        },
+        confirm: async (title, message) =>
+          (await this.openTrustRequest({
+            method: "confirm",
+            title,
+            message,
+          })) === true,
+        input: async (title, placeholder) => {
+          const value = await this.openTrustRequest({
+            method: "input",
+            title,
+            ...(placeholder !== undefined ? { placeholder } : {}),
+          });
+          return typeof value === "string" ? value : undefined;
+        },
+        notify: (message) => {
+          console.warn(`Project trust: ${message}`);
+        },
+      },
+    };
+  }
+
+  /** Ask the renderer to answer one trust dialog. */
+  private openTrustRequest(
+    request: ExtensionRequestPayload,
+  ): Promise<string | boolean | undefined> {
+    const id = randomUUID();
+    const pending: TrustRequest = { ...request, id };
+    return new Promise((resolve) => {
+      const finish = (value: string | boolean | undefined) => {
+        if (!this.pendingTrustRequests.delete(id)) return;
+        resolve(value);
+      };
+      this.pendingTrustRequests.set(id, finish);
+      this.emit({ type: "trust_request", request: pending });
+    });
   }
 
   /** Resolve one extension dialog through the renderer. */

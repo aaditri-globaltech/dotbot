@@ -6,7 +6,10 @@
  */
 
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
-import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentSessionEvent,
+  ProjectTrustStoreEntry,
+} from "@earendil-works/pi-coding-agent";
 
 export type { ModelThinkingLevel };
 
@@ -87,6 +90,12 @@ export type ExtensionResponse =
   | { type: "extension_ui_response"; id: string; value: string }
   | { type: "extension_ui_response"; id: string; confirmed: boolean }
   | { type: "extension_ui_response"; id: string; cancelled: true };
+
+/** A saved project trust decision from trust.json. */
+export type TrustDecisionEntry = ProjectTrustStoreEntry;
+
+/** Trust dialog request with the manager-generated id. */
+export type TrustRequest = ExtensionRequest;
 
 /** Session summary returned by manager events. */
 export type SessionSummary = {
@@ -181,4 +190,6 @@ export type AgentManagerEvent =
       type: "extension_request";
       sessionId: string;
       request: ExtensionRequest;
-    };
+    }
+  | { type: "trust_request"; request: TrustRequest }
+  | { type: "trust_update"; projectDir: string; decision: boolean };
