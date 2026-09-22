@@ -240,12 +240,10 @@ function validateCreateOptions(
     throw new Error("Session options are invalid");
   }
   return {
-    ...(tools !== undefined ? { tools } : {}),
-    ...(excludeTools !== undefined ? { excludeTools } : {}),
-    ...(noTools !== undefined ? { noTools } : {}),
-    ...(customTools !== undefined
-      ? { customTools: customTools as ToolDefinition[] }
-      : {}),
+    tools,
+    excludeTools,
+    noTools,
+    customTools: customTools as ToolDefinition[] | undefined,
   };
 }
 
@@ -612,22 +610,18 @@ export class AgentManager {
       input?.command,
       "Bash command is required",
     ).trim();
+    const { excludeFromContext, id } = input ?? {};
     if (
-      input?.excludeFromContext !== undefined &&
-      typeof input.excludeFromContext !== "boolean"
+      excludeFromContext !== undefined &&
+      typeof excludeFromContext !== "boolean"
     ) {
       throw new Error("Bash options are invalid");
     }
-    if (input?.id !== undefined && typeof input.id !== "string") {
+    if (id !== undefined && typeof id !== "string") {
       throw new Error("Bash options are invalid");
     }
     const session = await this.activeSession(record);
-    return session.executeBash(command, undefined, {
-      ...(input?.excludeFromContext !== undefined
-        ? { excludeFromContext: input.excludeFromContext }
-        : {}),
-      ...(typeof input?.id === "string" ? { id: input.id } : {}),
-    });
+    return session.executeBash(command, undefined, { excludeFromContext, id });
   }
 
   /** Cancel a running user bash command; no session means nothing to cancel. */
@@ -662,8 +656,7 @@ export class AgentManager {
     if (display !== undefined && typeof display !== "boolean") {
       throw new Error("Custom message display is invalid");
     }
-    const triggerTurn = input?.triggerTurn;
-    const deliverAs = input?.deliverAs;
+    const { triggerTurn, deliverAs } = input ?? {};
     if (triggerTurn !== undefined && typeof triggerTurn !== "boolean") {
       throw new Error("Custom message delivery is invalid");
     }
@@ -684,10 +677,7 @@ export class AgentManager {
         display: display ?? true,
         details: message?.details,
       },
-      {
-        ...(triggerTurn !== undefined ? { triggerTurn } : {}),
-        ...(deliverAs !== undefined ? { deliverAs } : {}),
-      },
+      { triggerTurn, deliverAs },
     );
   }
 

@@ -67,13 +67,20 @@ async function startRealManager() {
   const { runtime, faux } = await createFauxRuntime();
   faux.setResponses([fauxAssistantMessage([fauxText("hello from faux")])]);
   const collector = collectEvents();
+  let session: AgentSession | undefined;
   manager = new AgentManager({
     onEvent: collector.onEvent,
     modelRuntime: runtime,
-    createSession: (sessionOptions) =>
-      createAgentSession({ ...sessionOptions, model: faux.getModel() }),
+    createSession: async (sessionOptions) => {
+      const result = await createAgentSession({
+        ...sessionOptions,
+        model: faux.getModel(),
+      });
+      session = result.session;
+      return result;
+    },
   });
-  return { manager, faux, collector };
+  return { manager, faux, collector, getSession: () => session };
 }
 
 describe("AgentManager extension bindings", () => {
@@ -326,6 +333,39 @@ describe("AgentManager session lifecycle capabilities", () => {
     sessions.stopAll();
   });
 
+  it("reports context usage for a running faux session", async () => {
+    const { manager: sessions } = await startRealManager();
+    const created = await sessions.create(workspace);
+    await sessions.open(created.id);
+
+    expect(sessions.getContextUsage(created.id)).toEqual({
+      tokens: 0,
+      contextWindow: 128000,
+      percent: 0,
+    });
+    sessions.stopAll();
+  });
+
+  it("names a running faux session and updates the summary", async () => {
+    const { manager: sessions, collector } = await startRealManager();
+    const created = await sessions.create(workspace);
+    await sessions.open(created.id);
+
+    await sessions.setSessionName({ sessionId: created.id, name: "Refactor" });
+    await collector.waitFor(
+      (event) =>
+        event.type === "session_update" &&
+        event.session.id === created.id &&
+        event.session.name === "Refactor",
+    );
+
+    const listed = (await sessions.list()).find(
+      (session) => session.id === created.id,
+    );
+    expect(listed?.title).toBe("Refactor");
+    sessions.stopAll();
+  });
+
   it("does not start a session for stats, context usage, or compaction aborts", async () => {
     const { runtime } = await createFauxRuntime();
     let started = 0;
@@ -545,6 +585,16 @@ describe("AgentManager tool selection", () => {
     sessions.stopAll();
   });
 
+  it("replaces the active tools on a running faux session", async () => {
+    const { manager: sessions, getSession } = await startRealManager();
+    const created = await sessions.create(workspace);
+    await sessions.open(created.id);
+
+    await sessions.setActiveTools({ sessionId: created.id, tools: ["read"] });
+    expect(getSession()?.getActiveToolNames()).toEqual(["read"]);
+    sessions.stopAll();
+  });
+
   it("rejects a malformed tool selection", async () => {
     const { manager: sessions, created } = await openStubSession();
     await expect(
@@ -648,6 +698,18 @@ describe("AgentManager custom messages and queue", () => {
       steering: [],
       followUp: [],
       pendingCount: 0,
+    });
+    sessions.stopAll();
+  });
+
+  it("clears the queue on a running faux session", async () => {
+    const { manager: sessions } = await startRealManager();
+    const created = await sessions.create(workspace);
+    await sessions.open(created.id);
+
+    expect(sessions.clearQueue(created.id)).toEqual({
+      steering: [],
+      followUp: [],
     });
     sessions.stopAll();
   });

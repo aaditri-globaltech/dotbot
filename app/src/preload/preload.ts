@@ -49,7 +49,10 @@ const api: BotApi = {
       ipcRenderer.invoke("agent:controls", input) as Promise<SessionControls>,
     create: (
       projectDir: string,
-      options?: Omit<SessionCreateOptions, "customTools">,
+      options?: Pick<
+        SessionCreateOptions,
+        "tools" | "excludeTools" | "noTools"
+      >,
     ) =>
       ipcRenderer.invoke("agent:create", {
         projectDir,

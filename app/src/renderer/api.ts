@@ -47,7 +47,10 @@ export interface BotApi {
     controls: (input: SessionControlsInput) => Promise<SessionControls>;
     create: (
       projectDir: string,
-      options?: Omit<SessionCreateOptions, "customTools">,
+      options?: Pick<
+        SessionCreateOptions,
+        "tools" | "excludeTools" | "noTools"
+      >,
     ) => Promise<SessionSummary>;
     open: (sessionId: string) => Promise<SessionSummary>;
     close: (sessionId: string) => Promise<void>;
