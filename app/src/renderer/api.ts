@@ -1,12 +1,21 @@
 import type {
   AgentManagerEvent,
+  BashResult,
+  CompactionResult,
+  ContextUsage,
+  CustomMessageDelivery,
+  CustomMessageInput,
   CustomProviderInput,
   DefaultProjectTrust,
   ExtensionResponse,
+  ImageContent,
   ModelThinkingLevel,
   ProviderSummary,
   SessionControls,
   SessionControlsInput,
+  SessionCreateOptions,
+  SessionQueue,
+  SessionStats,
   SessionSummary,
   StreamingBehavior,
   TrustDecisionEntry,
@@ -36,7 +45,10 @@ export interface BotApi {
   agent: {
     list: () => Promise<SessionSummary[]>;
     controls: (input: SessionControlsInput) => Promise<SessionControls>;
-    create: (projectDir: string) => Promise<SessionSummary>;
+    create: (
+      projectDir: string,
+      options?: Omit<SessionCreateOptions, "customTools">,
+    ) => Promise<SessionSummary>;
     open: (sessionId: string) => Promise<SessionSummary>;
     close: (sessionId: string) => Promise<void>;
     discard: (sessionId: string) => Promise<void>;
@@ -44,6 +56,7 @@ export interface BotApi {
       sessionId: string,
       message: string,
       streamingBehavior?: StreamingBehavior,
+      images?: ImageContent[],
     ) => Promise<void>;
     abort: (sessionId: string) => Promise<void>;
     setModel: (
@@ -57,6 +70,30 @@ export interface BotApi {
     ) => Promise<void>;
     respond: (sessionId: string, response: ExtensionResponse) => Promise<void>;
     respondTrust: (response: ExtensionResponse) => Promise<void>;
+    setSessionName: (sessionId: string, name: string) => Promise<void>;
+    compact: (
+      sessionId: string,
+      customInstructions?: string,
+    ) => Promise<CompactionResult>;
+    abortCompaction: (sessionId: string) => Promise<void>;
+    stats: (sessionId: string) => Promise<SessionStats | undefined>;
+    contextUsage: (sessionId: string) => Promise<ContextUsage | undefined>;
+    executeBash: (
+      sessionId: string,
+      command: string,
+      options?: { excludeFromContext?: boolean; id?: string },
+    ) => Promise<BashResult>;
+    abortBash: (sessionId: string) => Promise<void>;
+    setActiveTools: (sessionId: string, tools: string[]) => Promise<void>;
+    sendCustomMessage: (
+      sessionId: string,
+      message: CustomMessageInput,
+      options?: CustomMessageDelivery,
+    ) => Promise<void>;
+    queue: (sessionId: string) => Promise<SessionQueue>;
+    clearQueue: (
+      sessionId: string,
+    ) => Promise<{ steering: string[]; followUp: string[] }>;
     onEvent: (listener: (event: AgentManagerEvent) => void) => () => void;
   };
   /** Provider listing and API key management. */

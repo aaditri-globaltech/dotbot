@@ -158,9 +158,16 @@ ipcMain.handle("agent:list", () => agentManager.list());
 ipcMain.handle("agent:controls", (_event, value: unknown) =>
   agentManager.getSessionControls(value),
 );
-ipcMain.handle("agent:create", (_event, projectDir: unknown) =>
-  agentManager.create(projectDir),
-);
+ipcMain.handle("agent:create", (_event, value: unknown) => {
+  const input = asRecord(value);
+  // Custom tools carry functions and cannot cross IPC; forward only the
+  // serializable selection fields.
+  return agentManager.create(input?.projectDir, {
+    tools: input?.tools,
+    excludeTools: input?.excludeTools,
+    noTools: input?.noTools,
+  });
+});
 ipcMain.handle("agent:open", (_event, id: unknown) => agentManager.open(id));
 ipcMain.handle("agent:close", (_event, id: unknown) => {
   agentManager.close(id);
@@ -186,6 +193,39 @@ ipcMain.handle("agent:respond", (_event, value: unknown) => {
 ipcMain.handle("agent:respond-trust", (_event, value: unknown) => {
   agentManager.respondTrust(value);
 });
+ipcMain.handle("agent:set-session-name", (_event, value: unknown) =>
+  agentManager.setSessionName(value),
+);
+ipcMain.handle("agent:compact", (_event, value: unknown) =>
+  agentManager.compact(value),
+);
+ipcMain.handle("agent:abort-compaction", (_event, id: unknown) => {
+  agentManager.abortCompaction(id);
+});
+ipcMain.handle("agent:stats", (_event, id: unknown) =>
+  agentManager.getSessionStats(id),
+);
+ipcMain.handle("agent:context-usage", (_event, id: unknown) =>
+  agentManager.getContextUsage(id),
+);
+ipcMain.handle("agent:execute-bash", (_event, value: unknown) =>
+  agentManager.executeBash(value),
+);
+ipcMain.handle("agent:abort-bash", (_event, id: unknown) => {
+  agentManager.abortBash(id);
+});
+ipcMain.handle("agent:set-active-tools", (_event, value: unknown) =>
+  agentManager.setActiveTools(value),
+);
+ipcMain.handle("agent:send-custom-message", (_event, value: unknown) =>
+  agentManager.sendCustomMessage(value),
+);
+ipcMain.handle("agent:queue", (_event, id: unknown) =>
+  agentManager.getQueue(id),
+);
+ipcMain.handle("agent:clear-queue", (_event, id: unknown) =>
+  agentManager.clearQueue(id),
+);
 
 ipcMain.handle("trust:get-default", () => trustManager.getDefault());
 ipcMain.handle("trust:set-default", (_event, value: unknown) =>

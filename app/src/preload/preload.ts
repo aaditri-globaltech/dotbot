@@ -3,13 +3,22 @@
 
 import type {
   AgentManagerEvent,
+  BashResult,
+  CompactionResult,
+  ContextUsage,
+  CustomMessageDelivery,
+  CustomMessageInput,
   CustomProviderInput,
   DefaultProjectTrust,
   ExtensionResponse,
+  ImageContent,
   ModelThinkingLevel,
   ProviderSummary,
   SessionControls,
   SessionControlsInput,
+  SessionCreateOptions,
+  SessionQueue,
+  SessionStats,
   SessionSummary,
   StreamingBehavior,
   TrustDecisionEntry,
@@ -38,8 +47,14 @@ const api: BotApi = {
     list: () => ipcRenderer.invoke("agent:list") as Promise<SessionSummary[]>,
     controls: (input: SessionControlsInput) =>
       ipcRenderer.invoke("agent:controls", input) as Promise<SessionControls>,
-    create: (projectDir: string) =>
-      ipcRenderer.invoke("agent:create", projectDir) as Promise<SessionSummary>,
+    create: (
+      projectDir: string,
+      options?: Omit<SessionCreateOptions, "customTools">,
+    ) =>
+      ipcRenderer.invoke("agent:create", {
+        projectDir,
+        ...options,
+      }) as Promise<SessionSummary>,
     open: (sessionId: string) =>
       ipcRenderer.invoke("agent:open", sessionId) as Promise<SessionSummary>,
     close: (sessionId: string) => ipcRenderer.invoke("agent:close", sessionId),
@@ -49,11 +64,13 @@ const api: BotApi = {
       sessionId: string,
       message: string,
       streamingBehavior?: StreamingBehavior,
+      images?: ImageContent[],
     ) =>
       ipcRenderer.invoke("agent:prompt", {
         sessionId,
         message,
         ...(streamingBehavior ? { streamingBehavior } : {}),
+        ...(images ? { images } : {}),
       }),
     abort: (sessionId: string) => ipcRenderer.invoke("agent:abort", sessionId),
     setModel: (sessionId: string, provider: string, modelId: string) =>
@@ -68,6 +85,54 @@ const api: BotApi = {
       ipcRenderer.invoke("agent:respond", { sessionId, response }),
     respondTrust: (response: ExtensionResponse) =>
       ipcRenderer.invoke("agent:respond-trust", response),
+    setSessionName: (sessionId: string, name: string) =>
+      ipcRenderer.invoke("agent:set-session-name", { sessionId, name }),
+    compact: (sessionId: string, customInstructions?: string) =>
+      ipcRenderer.invoke("agent:compact", {
+        sessionId,
+        ...(customInstructions ? { customInstructions } : {}),
+      }) as Promise<CompactionResult>,
+    abortCompaction: (sessionId: string) =>
+      ipcRenderer.invoke("agent:abort-compaction", sessionId),
+    stats: (sessionId: string) =>
+      ipcRenderer.invoke("agent:stats", sessionId) as Promise<
+        SessionStats | undefined
+      >,
+    contextUsage: (sessionId: string) =>
+      ipcRenderer.invoke("agent:context-usage", sessionId) as Promise<
+        ContextUsage | undefined
+      >,
+    executeBash: (
+      sessionId: string,
+      command: string,
+      options?: { excludeFromContext?: boolean; id?: string },
+    ) =>
+      ipcRenderer.invoke("agent:execute-bash", {
+        sessionId,
+        command,
+        ...options,
+      }) as Promise<BashResult>,
+    abortBash: (sessionId: string) =>
+      ipcRenderer.invoke("agent:abort-bash", sessionId),
+    setActiveTools: (sessionId: string, tools: string[]) =>
+      ipcRenderer.invoke("agent:set-active-tools", { sessionId, tools }),
+    sendCustomMessage: (
+      sessionId: string,
+      message: CustomMessageInput,
+      options?: CustomMessageDelivery,
+    ) =>
+      ipcRenderer.invoke("agent:send-custom-message", {
+        sessionId,
+        message,
+        ...options,
+      }),
+    queue: (sessionId: string) =>
+      ipcRenderer.invoke("agent:queue", sessionId) as Promise<SessionQueue>,
+    clearQueue: (sessionId: string) =>
+      ipcRenderer.invoke("agent:clear-queue", sessionId) as Promise<{
+        steering: string[];
+        followUp: string[];
+      }>,
     onEvent: (listener: (event: AgentManagerEvent) => void) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
