@@ -12,11 +12,15 @@ import { basename, dirname, resolve } from "node:path";
 import {
   clampThinkingLevel,
   getSupportedThinkingLevels,
+  type ImageContent,
+  type TextContent,
 } from "@earendil-works/pi-ai";
 import {
   type AgentSession,
   type AgentSessionEvent,
   CONFIG_DIR_NAME,
+  type CompactionResult,
+  type ContextUsage,
   type CreateAgentSessionOptions,
   type CreateAgentSessionResult,
   createAgentSession,
@@ -30,20 +34,26 @@ import {
   type ProjectTrustUpdate,
   type SessionInfo,
   SessionManager,
+  type SessionStats,
   SettingsManager,
   type Theme,
+  type ThemeColor,
+  type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { requireText } from "./text";
 import { buildTranscript } from "./transcript";
 import { TrustManager } from "./trust";
 import type {
   AgentManagerEvent,
+  BashResult,
   ExtensionRequest,
   ExtensionRequestPayload,
   ExtensionResponse,
   ModelSummary,
   ModelThinkingLevel,
   SessionControls,
+  SessionCreateOptions,
+  SessionQueue,
   SessionStatus,
   SessionSummary,
   StreamingBehavior,
@@ -62,6 +72,7 @@ type SessionRecord = {
   id: string;
   projectDir: string;
   path?: string;
+  options?: SessionCreateOptions;
   title: string;
   name?: string;
   status: SessionStatus;
@@ -95,6 +106,8 @@ export type AgentManagerOptions = {
   modelRuntime?: ModelRuntime;
   /** Project trust store and defaults; injectable for tests. */
   trustManager?: TrustManager;
+  /** Called when an extension requests shutdown (`ctx.shutdown()`). */
+  onShutdown?: () => void;
 };
 
 function asObject(value: unknown): JsonObject | undefined {
@@ -183,6 +196,73 @@ async function validateProjectDir(value: unknown): Promise<string> {
   return projectDir;
 }
 
+function isImageContent(value: unknown): value is ImageContent {
+  const record = asObject(value);
+  return (
+    record?.type === "image" &&
+    typeof record.data === "string" &&
+    record.data.length > 0 &&
+    typeof record.mimeType === "string" &&
+    record.mimeType.length > 0
+  );
+}
+
+function parseImages(value: unknown): ImageContent[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every(isImageContent)) {
+    throw new Error("Prompt image is invalid");
+  }
+  return value;
+}
+
+function isStringList(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.every((entry) => typeof entry === "string" && entry.trim().length > 0)
+  );
+}
+
+/** Validate the optional session-start payload; undefined means defaults. */
+function validateCreateOptions(
+  value: unknown,
+): SessionCreateOptions | undefined {
+  if (value === undefined) return undefined;
+  const input = asObject(value);
+  if (!input) throw new Error("Session options are invalid");
+  const { tools, excludeTools, noTools, customTools } = input;
+  if (tools !== undefined && !isStringList(tools)) {
+    throw new Error("Session options are invalid");
+  }
+  if (excludeTools !== undefined && !isStringList(excludeTools)) {
+    throw new Error("Session options are invalid");
+  }
+  if (noTools !== undefined && noTools !== "all" && noTools !== "builtin") {
+    throw new Error("Session options are invalid");
+  }
+  return {
+    ...(tools !== undefined ? { tools } : {}),
+    ...(excludeTools !== undefined ? { excludeTools } : {}),
+    ...(noTools !== undefined ? { noTools } : {}),
+    ...(customTools !== undefined
+      ? { customTools: customTools as ToolDefinition[] }
+      : {}),
+  };
+}
+
+function isCustomContent(
+  value: unknown,
+): value is string | (TextContent | ImageContent)[] {
+  if (typeof value === "string") return value.trim().length > 0;
+  if (!Array.isArray(value)) return false;
+  return value.every((block) => {
+    const record = asObject(block);
+    return (
+      (record?.type === "text" && typeof record.text === "string") ||
+      isImageContent(block)
+    );
+  });
+}
+
 /** One trust dialog choice, mirroring the options Pi's CLI offers. */
 type ProjectTrustOption = {
   label: string;
@@ -260,9 +340,40 @@ async function extensionTrustDecision(
   return undefined;
 }
 
+/** Pi's command context session-replacement actions are not adopted yet. */
+const rejectSessionReplacement = async () => {
+  throw new Error("Session replacement is not supported yet");
+};
+
+/**
+ * A `Theme`-shaped object for extensions in the desktop UI.
+ *
+ * Pi's `Theme` is a terminal color class; no ANSI codes apply here. Identity
+ * methods keep extensions that format text from crashing on `ctx.ui.theme`.
+ */
+function extensionTheme(): Theme {
+  const identity = (text: string) => text;
+  return {
+    name: "dotbot",
+    fg: (_color: ThemeColor, text: string) => text,
+    bg: (_color: string, text: string) => text,
+    bold: identity,
+    italic: identity,
+    underline: identity,
+    inverse: identity,
+    strikethrough: identity,
+    getFgAnsi: () => "",
+    getBgAnsi: () => "",
+    getColorMode: () => "truecolor",
+    getThinkingBorderColor: () => identity,
+    getBashModeBorderColor: () => identity,
+  } as unknown as Theme;
+}
+
 /** Owns the in-process Pi sessions and emits app-facing manager events. */
 export class AgentManager {
   private readonly onEvent?: (event: AgentManagerEvent) => void;
+  private readonly onShutdown?: () => void;
   private readonly createSession: CreateSessionFunction;
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly injectedModelRuntime?: ModelRuntime;
@@ -274,6 +385,7 @@ export class AgentManager {
 
   constructor(options: AgentManagerOptions = {}) {
     this.onEvent = options.onEvent;
+    this.onShutdown = options.onShutdown;
     this.createSession = options.createSession ?? createAgentSession;
     this.injectedModelRuntime = options.modelRuntime;
     this.trustManager = options.trustManager ?? new TrustManager();
@@ -332,12 +444,17 @@ export class AgentManager {
   }
 
   /** Create an idle session for an existing project directory. */
-  async create(projectDirValue: unknown): Promise<SessionSummary> {
+  async create(
+    projectDirValue: unknown,
+    optionsValue?: unknown,
+  ): Promise<SessionSummary> {
     const projectDir = await validateProjectDir(projectDirValue);
+    const options = validateCreateOptions(optionsValue);
     // Reserve Pi's session id up front so the record is identified by it from the start.
     const sessionManager = SessionManager.create(projectDir);
     const record = this.insertRecord(sessionManager.getSessionId(), projectDir);
     record.sessionManager = sessionManager;
+    record.options = options;
     this.emitSessionUpdate(record);
     return summary(record);
   }
@@ -378,11 +495,11 @@ export class AgentManager {
       throw new Error("Streaming behavior is invalid");
     }
 
+    const images = parseImages(input?.images);
+
     const record = this.getRecord(input?.sessionId);
     record.opened = true;
-    await this.ensureSession(record);
-    const session = record.session;
-    if (!session) throw new Error("Session is not running");
+    const session = await this.activeSession(record);
 
     const message = input.message.trim();
     if (!record.name && record.title === "new session") {
@@ -395,14 +512,14 @@ export class AgentManager {
     record.settled = false;
     this.setStatus(record, "running");
     session
-      .prompt(
-        message,
-        input.streamingBehavior
+      .prompt(message, {
+        ...(input.streamingBehavior
           ? {
               streamingBehavior: input.streamingBehavior as StreamingBehavior,
             }
-          : {},
-      )
+          : {}),
+        ...(images ? { images } : {}),
+      })
       .catch((error: unknown) => this.failRecord(record, error));
   }
 
@@ -420,9 +537,7 @@ export class AgentManager {
     const record = this.getRecord(input?.sessionId);
     const provider = requireText(input?.provider, "Model selection is invalid");
     const modelId = requireText(input?.modelId, "Model selection is invalid");
-    await this.ensureSession(record);
-    const session = record.session;
-    if (!session) throw new Error("Session is not running");
+    const session = await this.activeSession(record);
 
     const modelRuntime = await this.getModelRuntime();
     const model = modelRuntime.getModel(provider, modelId);
@@ -441,15 +556,157 @@ export class AgentManager {
     if (!isThinkingLevel(input?.level)) {
       throw new Error("Thinking level is invalid");
     }
-    await this.ensureSession(record);
-    const session = record.session;
-    if (!session) throw new Error("Session is not running");
+    const session = await this.activeSession(record);
 
     session.setThinkingLevel(input.level);
     session.settingsManager.setDefaultThinkingLevel(input.level);
     await session.settingsManager.flush();
 
     await this.emitControls(record);
+  }
+
+  /** Set the session's display name through Pi. */
+  async setSessionName(value: unknown): Promise<void> {
+    const input = asObject(value);
+    const record = this.getRecord(input?.sessionId);
+    const name = requireText(input?.name, "Session name is required").trim();
+    const session = await this.activeSession(record);
+    session.setSessionName(name);
+  }
+
+  /** Compact the session context; progress arrives as compaction events. */
+  async compact(value: unknown): Promise<CompactionResult> {
+    const input = asObject(value);
+    const record = this.getRecord(input?.sessionId);
+    const customInstructions =
+      input?.customInstructions === undefined
+        ? undefined
+        : requireText(
+            input.customInstructions,
+            "Compaction instructions are invalid",
+          );
+    const session = await this.activeSession(record);
+    return session.compact(customInstructions);
+  }
+
+  /** Cancel an in-progress compaction; no session means nothing to cancel. */
+  abortCompaction(id: unknown): void {
+    this.getRecord(id).session?.abortCompaction();
+  }
+
+  /** Live stats for a started session; undefined when it is not running. */
+  getSessionStats(id: unknown): SessionStats | undefined {
+    return this.getRecord(id).session?.getSessionStats();
+  }
+
+  /** Context usage for a started session; undefined when it is not running. */
+  getContextUsage(id: unknown): ContextUsage | undefined {
+    return this.getRecord(id).session?.getContextUsage();
+  }
+
+  /** Run a user-visible bash command in the session. */
+  async executeBash(value: unknown): Promise<BashResult> {
+    const input = asObject(value);
+    const record = this.getRecord(input?.sessionId);
+    const command = requireText(
+      input?.command,
+      "Bash command is required",
+    ).trim();
+    if (
+      input?.excludeFromContext !== undefined &&
+      typeof input.excludeFromContext !== "boolean"
+    ) {
+      throw new Error("Bash options are invalid");
+    }
+    if (input?.id !== undefined && typeof input.id !== "string") {
+      throw new Error("Bash options are invalid");
+    }
+    const session = await this.activeSession(record);
+    return session.executeBash(command, undefined, {
+      ...(input?.excludeFromContext !== undefined
+        ? { excludeFromContext: input.excludeFromContext }
+        : {}),
+      ...(typeof input?.id === "string" ? { id: input.id } : {}),
+    });
+  }
+
+  /** Cancel a running user bash command; no session means nothing to cancel. */
+  abortBash(id: unknown): void {
+    this.getRecord(id).session?.abortBash();
+  }
+
+  /** Replace the session's active tool names. */
+  async setActiveTools(value: unknown): Promise<void> {
+    const input = asObject(value);
+    const record = this.getRecord(input?.sessionId);
+    const tools = input?.tools;
+    if (!isStringList(tools)) throw new Error("Tool selection is invalid");
+    const session = await this.activeSession(record);
+    session.setActiveToolsByName(tools);
+  }
+
+  /** Inject a custom message into a session. */
+  async sendCustomMessage(value: unknown): Promise<void> {
+    const input = asObject(value);
+    const record = this.getRecord(input?.sessionId);
+    const message = asObject(input?.message);
+    const customType = requireText(
+      message?.customType,
+      "Custom message type is required",
+    );
+    const content = message?.content;
+    if (!isCustomContent(content)) {
+      throw new Error("Custom message content is invalid");
+    }
+    const display = message?.display;
+    if (display !== undefined && typeof display !== "boolean") {
+      throw new Error("Custom message display is invalid");
+    }
+    const triggerTurn = input?.triggerTurn;
+    const deliverAs = input?.deliverAs;
+    if (triggerTurn !== undefined && typeof triggerTurn !== "boolean") {
+      throw new Error("Custom message delivery is invalid");
+    }
+    if (
+      deliverAs !== undefined &&
+      deliverAs !== "steer" &&
+      deliverAs !== "followUp" &&
+      deliverAs !== "nextTurn"
+    ) {
+      throw new Error("Custom message delivery is invalid");
+    }
+
+    const session = await this.activeSession(record);
+    await session.sendCustomMessage(
+      {
+        customType,
+        content,
+        display: display ?? true,
+        details: message?.details,
+      },
+      {
+        ...(triggerTurn !== undefined ? { triggerTurn } : {}),
+        ...(deliverAs !== undefined ? { deliverAs } : {}),
+      },
+    );
+  }
+
+  /** Pending steering and follow-up messages; empty when no session runs. */
+  getQueue(id: unknown): SessionQueue {
+    const session = this.getRecord(id).session;
+    if (!session) return { steering: [], followUp: [], pendingCount: 0 };
+    return {
+      steering: [...session.getSteeringMessages()],
+      followUp: [...session.getFollowUpMessages()],
+      pendingCount: session.pendingMessageCount,
+    };
+  }
+
+  /** Drop queued messages; empty when no session runs. */
+  clearQueue(id: unknown): { steering: string[]; followUp: string[] } {
+    const session = this.getRecord(id).session;
+    if (!session) return { steering: [], followUp: [] };
+    return session.clearQueue();
   }
 
   /** Answer the extension request currently pending for a session. */
@@ -575,10 +832,21 @@ export class AgentManager {
 
   private ensureSession(record: SessionRecord): Promise<void> {
     if (record.session) return Promise.resolve();
+    // Any operation that starts a session needs it to stay alive; mark the
+    // record opened so startSession does not dispose it immediately.
+    record.opened = true;
     record.starting ??= this.startSession(record).finally(() => {
       record.starting = undefined;
     });
     return record.starting;
+  }
+
+  /** Start the session if needed and return the live in-process session. */
+  private async activeSession(record: SessionRecord): Promise<AgentSession> {
+    await this.ensureSession(record);
+    const session = record.session;
+    if (!session) throw new Error("Session is not running");
+    return session;
   }
 
   /** Create the in-process Pi session and publish its transcript and state. */
@@ -602,6 +870,11 @@ export class AgentManager {
         modelRuntime,
         settingsManager,
         resourceLoader,
+        ...record.options,
+        sessionStartEvent: {
+          type: "session_start",
+          reason: record.path ? "resume" : "startup",
+        },
       });
       record.session = session;
       record.path = session.sessionFile;
@@ -613,6 +886,25 @@ export class AgentManager {
       await session.bindExtensions({
         mode: "rpc",
         uiContext: this.createUiContext(record),
+        abortHandler: () => this.abort(record.id),
+        shutdownHandler: () => this.onShutdown?.(),
+        onError: (error) => {
+          this.emit({
+            type: "extension_error",
+            sessionId: record.id,
+            extensionPath: error.extensionPath,
+            event: error.event,
+            message: error.error,
+          });
+        },
+        commandContextActions: {
+          waitForIdle: () => session.waitForIdle(),
+          reload: () => session.reload(),
+          newSession: rejectSessionReplacement,
+          fork: rejectSessionReplacement,
+          navigateTree: rejectSessionReplacement,
+          switchSession: rejectSessionReplacement,
+        },
       });
       if (record.session !== session) return;
 
@@ -1027,8 +1319,7 @@ export class AgentManager {
       addAutocompleteProvider: () => {},
       setEditorComponent: () => {},
       getEditorComponent: () => undefined,
-      // Terminal theme data has no meaning for the desktop renderer.
-      theme: undefined as unknown as Theme,
+      theme: extensionTheme(),
       getAllThemes: () => [],
       getTheme: () => undefined,
       setTheme: () => ({ success: false, error: "Themes are not supported" }),

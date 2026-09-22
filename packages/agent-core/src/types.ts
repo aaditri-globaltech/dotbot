@@ -5,10 +5,15 @@
  * are forwarded unchanged as `AgentSessionEvent` (re-exported by the facade).
  */
 
-import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
+import type {
+  ImageContent,
+  ModelThinkingLevel,
+  TextContent,
+} from "@earendil-works/pi-ai";
 import type {
   AgentSessionEvent,
   ProjectTrustStoreEntry,
+  ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 
 export type { ModelThinkingLevel };
@@ -175,6 +180,44 @@ export type TranscriptItem =
   | ThinkingBlock
   | ErrorNotice;
 
+/** Result of one UI-driven bash command. Mirrors Pi's internal BashResult. */
+export type BashResult = {
+  output: string;
+  exitCode: number | undefined;
+  cancelled: boolean;
+  truncated: boolean;
+  fullOutputPath?: string;
+};
+
+/** Tool selection applied when a session starts. */
+export type SessionCreateOptions = {
+  tools?: string[];
+  excludeTools?: string[];
+  noTools?: "all" | "builtin";
+  customTools?: ToolDefinition[];
+};
+
+/** Message an agent consumer injects into the session transcript. */
+export type CustomMessageInput = {
+  customType: string;
+  content: string | (TextContent | ImageContent)[];
+  display?: boolean;
+  details?: unknown;
+};
+
+/** How a custom message enters a running turn. */
+export type CustomMessageDelivery = {
+  triggerTurn?: boolean;
+  deliverAs?: "steer" | "followUp" | "nextTurn";
+};
+
+/** Pending steering and follow-up messages for one session. */
+export type SessionQueue = {
+  steering: string[];
+  followUp: string[];
+  pendingCount: number;
+};
+
 /** Events published by the agent manager to the renderer. */
 export type AgentManagerEvent =
   | { type: "session_update"; session: SessionSummary }
@@ -186,6 +229,13 @@ export type AgentManagerEvent =
     }
   | { type: "session_transcript"; sessionId: string; items: TranscriptItem[] }
   | { type: "session_error"; sessionId: string; message: string }
+  | {
+      type: "extension_error";
+      sessionId: string;
+      extensionPath: string;
+      event: string;
+      message: string;
+    }
   | {
       type: "extension_request";
       sessionId: string;

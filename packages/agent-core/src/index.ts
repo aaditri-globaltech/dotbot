@@ -7,7 +7,13 @@
  * downstream code uses agent, session, manager, and extension terms.
  */
 
-export type { Api, Model, Provider } from "@earendil-works/pi-ai";
+export type {
+  Api,
+  ImageContent,
+  Model,
+  Provider,
+  TextContent,
+} from "@earendil-works/pi-ai";
 export {
   AgentSession,
   type AgentSessionConfig,
@@ -15,6 +21,8 @@ export {
   type AgentSessionEventListener,
   AgentSessionRuntime,
   CONFIG_DIR_NAME,
+  type CompactionResult,
+  type ContextUsage,
   type CreateAgentSessionOptions,
   type CreateAgentSessionResult,
   type CreateModelRuntimeOptions,
@@ -53,6 +61,7 @@ export {
   type ResourceLoader,
   type SessionInfo,
   SessionManager,
+  type SessionStats,
   SettingsManager,
   type SettingsManagerCreateOptions,
   type Skill,
@@ -69,6 +78,9 @@ export { buildTranscript } from "./transcript";
 export { TrustManager } from "./trust";
 export type {
   AgentManagerEvent,
+  BashResult,
+  CustomMessageDelivery,
+  CustomMessageInput,
   CustomProviderInput,
   ErrorNotice,
   ExtensionRequest,
@@ -80,6 +92,8 @@ export type {
   ProviderSummary,
   SessionControls,
   SessionControlsInput,
+  SessionCreateOptions,
+  SessionQueue,
   SessionStatus,
   SessionSummary,
   StreamingBehavior,
