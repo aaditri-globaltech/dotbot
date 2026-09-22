@@ -17,6 +17,28 @@ export function buildTranscript(messages: unknown): TranscriptItem[] {
     const record = asRecord(message);
     const role = record?.role;
     if (role !== "user" && role !== "assistant") {
+      if (role === "bashExecution") {
+        const exitCode = record?.exitCode;
+        result.push({
+          kind: "bash",
+          id: `transcript-bash-${index}`,
+          command: typeof record?.command === "string" ? record.command : "",
+          excludeFromContext: record?.excludeFromContext === true,
+          output: typeof record?.output === "string" ? record.output : "",
+          truncated: record?.truncated === true,
+          ...(typeof record?.fullOutputPath === "string"
+            ? { fullOutputPath: record.fullOutputPath }
+            : {}),
+          ...(typeof exitCode === "number" ? { exitCode } : {}),
+          status:
+            record?.cancelled === true
+              ? "cancelled"
+              : exitCode === 0
+                ? "done"
+                : "error",
+        });
+        continue;
+      }
       if (role !== "toolResult" || typeof record?.toolCallId !== "string") {
         continue;
       }

@@ -1,6 +1,7 @@
 /** Render the normalized chat stream, controls, and extension dialog. */
 
 import type {
+  BashExecution,
   ExtensionResponse,
   ModelSummary,
   ModelThinkingLevel,
@@ -24,6 +25,7 @@ import {
   matchesKey,
 } from "../../keybindings";
 import { projectName } from "../../project-name";
+import { BashExecutionView } from "./BashExecutionView";
 import { ChatMarkdown, MarkdownText } from "./ChatMarkdown";
 import { CodeHighlight } from "./CodeHighlight";
 import { Dropdown } from "./Dropdown";
@@ -31,10 +33,13 @@ import { ExtensionDialog } from "./ExtensionDialog";
 import { Hero } from "./Hero";
 import { SECONDARY_BUTTON_CLASS } from "./panel-classes";
 import {
+  isBashDraft,
+  isBashExecution,
   isErrorNotice,
   isThinking,
   isToolCall,
   modelKey,
+  parseBashCommand,
   type SessionClientState,
 } from "./session-state";
 import { statusDotClass } from "./status-dot";
@@ -145,6 +150,10 @@ function ChatItem({
     );
   }
 
+  if (isBashExecution(item)) {
+    return <BashExecutionView item={item} />;
+  }
+
   if (isToolCall(item)) {
     const tool = item;
     const path =
@@ -231,6 +240,8 @@ export type SessionViewProps = {
   onSelectProject: (projectDir: string) => void;
   onDraft: (value: string) => void;
   onPrompt: (message: string, streamingBehavior?: StreamingBehavior) => void;
+  /** Run a `!`/`!!` composer command as UI-driven bash. */
+  onRunBash: (command: string, excludeFromContext: boolean) => void;
   onAbort: () => void;
   onSetModel: (provider: string, modelId: string) => void;
   onSetThinkingLevel: (level: ModelThinkingLevel) => void;
@@ -250,6 +261,7 @@ export function SessionView(props: SessionViewProps) {
   const busy =
     status === "starting" || status === "running" || status === "waiting";
   const running = status === "running";
+  const bashRunning = props.state?.activeBash !== undefined;
   const trustPending = props.trustRequest !== undefined;
   const inputDisabled = status === "waiting" || trustPending;
   const extensionRequest = props.selectedSession?.waiting;
@@ -272,14 +284,23 @@ export function SessionView(props: SessionViewProps) {
     Record<string, number>
   >({});
   const transcript = props.state?.transcript ?? [];
+  // A bash run started during an agent turn renders above the composer until
+  // it settles, then moves into the transcript flow.
+  const activeBash = props.state?.activeBash;
+  const isPendingBash = (item: TranscriptItem): item is BashExecution =>
+    isBashExecution(item) &&
+    activeBash?.pending === true &&
+    item.id === activeBash.id;
+  const pendingBash = transcript.filter(isPendingBash);
+  const transcriptItems = transcript.filter((item) => !isPendingBash(item));
   const sessionId = props.selectedSession?.id;
   const pages = sessionId ? (transcriptPages[sessionId] ?? 0) : 0;
   const start = Math.max(
     0,
-    transcript.length - MAX_TRANSCRIPT_ITEMS * (pages + 1),
+    transcriptItems.length - MAX_TRANSCRIPT_ITEMS * (pages + 1),
   );
   const transcriptWindow = {
-    transcript: transcript.slice(start),
+    transcript: transcriptItems.slice(start),
     older: start,
   };
   const loadOlderItems = () => {
@@ -299,9 +320,20 @@ export function SessionView(props: SessionViewProps) {
     props.drafting || props.selectedSession ? props.state : undefined;
 
   const send = (draft: string) => {
+    if (inputDisabled) return;
+    // A leading bang runs a bash command instead of prompting the agent.
+    if (isBashDraft(draft)) {
+      if (bashRunning) return;
+      const bash = parseBashCommand(draft);
+      if (bash) {
+        props.onDraft("");
+        props.onRunBash(bash.command, bash.excludeFromContext);
+      }
+      return;
+    }
     // Running turns can be steered or queued; idle turns always start normally.
     const message = draft.trim();
-    if (message && !inputDisabled) {
+    if (message) {
       props.onPrompt(message, running ? streamingBehavior : undefined);
     }
   };
@@ -329,6 +361,9 @@ export function SessionView(props: SessionViewProps) {
 
   const selectThinkingLevel = (level: ModelThinkingLevel) =>
     props.onSetThinkingLevel(level);
+
+  // The composer border turns green while the draft is a bash command.
+  const bashMode = composerState ? isBashDraft(composerState.draft) : false;
 
   const trustSelect =
     trustPrompt?.method === "select" ? trustPrompt : undefined;
@@ -392,7 +427,7 @@ export function SessionView(props: SessionViewProps) {
             className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-5 py-4"
             onScroll={messageScroll.onScroll}
           >
-            {transcript.length === 0 ? (
+            {transcriptItems.length === 0 ? (
               <Hero
                 title={`Start a session in ${projectName(props.projectDir ?? "")}`}
                 hint="Describe what you want help with."
@@ -418,7 +453,7 @@ export function SessionView(props: SessionViewProps) {
               </>
             )}
           </div>
-          {!messageScroll.isFollowing && transcript.length > 0 && (
+          {!messageScroll.isFollowing && transcriptItems.length > 0 && (
             <button
               className="absolute bottom-3 left-1/2 z-2 grid size-[26px] -translate-x-1/2 cursor-pointer place-items-center rounded-full border border-border-strong bg-card text-secondary shadow-[0_2px_8px_rgb(0_0_0/35%)] hover:border-focus hover:text-primary focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-offset-2"
               type="button"
@@ -446,6 +481,13 @@ export function SessionView(props: SessionViewProps) {
 
       {composerState && (
         <div className="shrink-0 px-5 pt-1.5 pb-4">
+          {pendingBash.length > 0 && (
+            <div className="mx-auto mb-2 flex w-full max-w-[860px] flex-col gap-2">
+              {pendingBash.map((item) => (
+                <BashExecutionView key={item.id} item={item} />
+              ))}
+            </div>
+          )}
           {/* The dialogue is a layer behind the composer card: it tucks 24px
               behind the card's rounded top corners (its rounded-3xl radius) and
               pads that 24px plus a 12px gap back, so its content stays above the
@@ -459,7 +501,11 @@ export function SessionView(props: SessionViewProps) {
               </div>
             )}
             <form
-              className="relative rounded-3xl border border-border-strong bg-elevated px-4 pt-3.5 pb-2.5 transition-colors focus-within:ring-1 focus-within:ring-border-strong"
+              className={`relative rounded-3xl border bg-elevated px-4 pt-3.5 pb-2.5 transition-colors focus-within:ring-1 ${
+                bashMode
+                  ? "border-bash focus-within:ring-bash/40"
+                  : "border-border-strong focus-within:ring-border-strong"
+              }`}
               onSubmit={(event) => {
                 event.preventDefault();
                 send(composerState.draft);
@@ -484,7 +530,7 @@ export function SessionView(props: SessionViewProps) {
                     {statusLabel(props.selectedSession)}
                   </span>
                 )}
-                {running && (
+                {running || bashRunning ? (
                   <button
                     className={`${SECONDARY_BUTTON_CLASS} shrink-0 border-error/50 text-error`}
                     type="button"
@@ -492,7 +538,7 @@ export function SessionView(props: SessionViewProps) {
                   >
                     Stop
                   </button>
-                )}
+                ) : null}
                 {running && (
                   <span className="flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap text-dim">
                     Send as
@@ -512,7 +558,7 @@ export function SessionView(props: SessionViewProps) {
                 <span className="min-w-0 flex-1 truncate text-[11px] text-faint">
                   {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.submit)} sends ·{" "}
                   {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.newline)} adds a
-                  line
+                  line · ! runs a command
                 </span>
                 <Dropdown
                   label="Model"

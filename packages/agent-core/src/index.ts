@@ -78,6 +78,7 @@ export { buildTranscript } from "./transcript";
 export { TrustManager } from "./trust";
 export type {
   AgentManagerEvent,
+  BashExecution,
   BashResult,
   CustomMessageDelivery,
   CustomMessageInput,

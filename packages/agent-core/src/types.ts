@@ -173,11 +173,25 @@ export type ErrorNotice = {
   text: string;
 };
 
+/** One user-run bash command with its streamed output. */
+export type BashExecution = {
+  kind: "bash";
+  id: string;
+  command: string;
+  excludeFromContext: boolean;
+  output: string;
+  truncated: boolean;
+  fullOutputPath?: string;
+  exitCode?: number;
+  status: "running" | "done" | "error" | "cancelled";
+};
+
 /** One renderable item in a compacted session transcript. */
 export type TranscriptItem =
   | TranscriptMessage
   | ToolCall
   | ThinkingBlock
+  | BashExecution
   | ErrorNotice;
 
 /** Result of one UI-driven bash command. Mirrors Pi's internal BashResult. */

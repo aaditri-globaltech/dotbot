@@ -6,6 +6,7 @@
 
 import type {
   AgentSessionEvent,
+  BashExecution,
   ErrorNotice,
   ModelSummary,
   ModelThinkingLevel,
@@ -35,6 +36,11 @@ export type SessionClientState = {
   currentAssistantHasText: boolean;
   thinkingIds: Map<string, string>;
   toolAliases: Map<string, string>;
+  /**
+   * The in-flight UI bash command, when any. `pending` means it started during
+   * an agent turn and renders above the composer until it settles.
+   */
+  activeBash?: { id: string; pending: boolean };
 };
 
 /** Create an empty state before the first transcript response arrives. */
@@ -58,6 +64,10 @@ export function isToolCall(item: TranscriptItem): item is ToolCall {
   return "kind" in item && item.kind === "tool";
 }
 
+export function isBashExecution(item: TranscriptItem): item is BashExecution {
+  return "kind" in item && item.kind === "bash";
+}
+
 export function isThinking(item: TranscriptItem): item is ThinkingBlock {
   return "kind" in item && item.kind === "thinking";
 }
@@ -69,6 +79,22 @@ export function isErrorNotice(item: TranscriptItem): item is ErrorNotice {
 /** Use the same provider/id key for select values and SDK updates. */
 export function modelKey(model: ModelSummary) {
   return `${model.provider}/${model.id}`;
+}
+
+/** Whether a composer draft is a bash command, even before it has one. */
+export function isBashDraft(draft: string) {
+  return draft.trimStart().startsWith("!");
+}
+
+/** Parse a composer draft starting with `!` or `!!` into a bash command. */
+export function parseBashCommand(
+  draft: string,
+): { command: string; excludeFromContext: boolean } | undefined {
+  if (!isBashDraft(draft)) return undefined;
+  const text = draft.trimStart();
+  const excludeFromContext = text.startsWith("!!");
+  const command = text.slice(excludeFromContext ? 2 : 1).trim();
+  return command ? { command, excludeFromContext } : undefined;
 }
 
 /** Apply the manager's model and thinking selections. */
@@ -228,7 +254,7 @@ export function applySessionActivity(
       const delta = update.delta;
       setTranscript((transcript) =>
         transcript.map((message) =>
-          message.id === id && !isToolCall(message)
+          message.id === id && !isToolCall(message) && !isBashExecution(message)
             ? { ...message, text: message.text + delta }
             : message,
         ),
@@ -374,6 +400,31 @@ export function applySessionActivity(
       output: toolResultText(event.result),
       status: event.isError ? "error" : "done",
     });
+  }
+
+  if (event.type === "bash_execution_update") {
+    // Only the card created for this run receives its output. The executeBash
+    // reply can settle that card before batched deltas arrive, so a settled
+    // card must not be revived or duplicated.
+    const index = next.transcript.findIndex(
+      (message) =>
+        isBashExecution(message) &&
+        message.id === event.id &&
+        message.status === "running",
+    );
+    if (index === -1) return next;
+
+    setTranscript((transcript) =>
+      transcript.map((message, messageIndex) =>
+        messageIndex === index && isBashExecution(message)
+          ? {
+              ...message,
+              output: message.output + event.delta,
+              status: "running",
+            }
+          : message,
+      ),
+    );
   }
 
   return next;

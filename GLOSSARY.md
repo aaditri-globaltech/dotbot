@@ -98,8 +98,8 @@ as UI.
 activity. In code: `TranscriptItem[]`, `session_transcript`.
 
 **Transcript item** — One rendered entry: a message, a tool call, a thinking
-block, or an error notice (`TranscriptItem = TranscriptMessage | ToolCall |
-ThinkingBlock | ErrorNotice`).
+block, a bash execution, or an error notice (`TranscriptItem = TranscriptMessage
+| ToolCall | ThinkingBlock | BashExecution | ErrorNotice`).
 
 **Message** — A user or assistant entry in the transcript. In code:
 `TranscriptMessage`; Pi stores the raw messages it is built from.
@@ -109,6 +109,13 @@ or grep.
 
 **Tool call, tool result (Pi)** — The agent's request to run a tool and the
 output it produced. In code: `ToolCall` carries both.
+
+**Bash execution (Pi)** — A command the user runs from the composer instead of
+prompting: `!` adds its output to the model's context, `!!` keeps it out
+(`excludeFromContext`). Pi calls the composer state bash mode. It renders as a
+transcript item, not a tool call. In code: `BashExecution`,
+`BashExecutionView`, `runBash`, `parseBashCommand`; the manager runs it with
+`executeBash` and returns `BashResult`.
 
 **Thinking (Pi)** — The model's reasoning output when a thinking level enables
 it. In code: `ThinkingBlock`; Pi emits thinking deltas.

@@ -4,6 +4,7 @@
  */
 
 import type {
+  BashResult,
   ModelThinkingLevel,
   SessionControls,
   SessionSummary,
@@ -17,6 +18,9 @@ const mocks = vi.hoisted(() => ({
   close: vi.fn(),
   discard: vi.fn(),
   prompt: vi.fn(),
+  abort: vi.fn(),
+  executeBash: vi.fn(),
+  abortBash: vi.fn(),
   setModel: vi.fn(),
   setThinkingLevel: vi.fn(),
   list: vi.fn(),
@@ -32,6 +36,9 @@ vi.mock("../src/renderer/api", () => ({
       close: mocks.close,
       discard: mocks.discard,
       prompt: mocks.prompt,
+      abort: mocks.abort,
+      executeBash: mocks.executeBash,
+      abortBash: mocks.abortBash,
       setModel: mocks.setModel,
       setThinkingLevel: mocks.setThinkingLevel,
       list: mocks.list,
@@ -40,6 +47,7 @@ vi.mock("../src/renderer/api", () => ({
   },
 }));
 
+import { createSessionClientState } from "../src/renderer/components/panels/session-state";
 import { useNavigationStore } from "../src/renderer/stores/navigation-store";
 import { useSessionStore } from "../src/renderer/stores/session-store";
 import { useWorkspaceStore } from "../src/renderer/stores/workspace-store";
@@ -99,6 +107,14 @@ beforeEach(() => {
   mocks.setThinkingLevel.mockResolvedValue(undefined);
   mocks.close.mockResolvedValue(undefined);
   mocks.discard.mockResolvedValue(undefined);
+  mocks.abort.mockResolvedValue(undefined);
+  mocks.abortBash.mockResolvedValue(undefined);
+  mocks.executeBash.mockResolvedValue({
+    output: "",
+    exitCode: 0,
+    cancelled: false,
+    truncated: false,
+  });
 });
 
 describe("session store new session", () => {
@@ -263,5 +279,226 @@ describe("session store new session", () => {
     expect(
       useSessionStore.getState().sessions.map((entry) => entry.id),
     ).toEqual(["old"]);
+  });
+});
+
+/** Select a session backed by a fresh client state. */
+function openSession(id: string, status: SessionSummary["status"] = "idle") {
+  useSessionStore.setState({
+    sessions: [session(id, "/p", { status })],
+    tabs: [id],
+    selectedId: id,
+    states: { [id]: createSessionClientState() },
+  });
+}
+
+/** Resolve a deferred bash result from a test. */
+function deferBash() {
+  let finish!: (result: BashResult) => void;
+  mocks.executeBash.mockReturnValue(
+    new Promise<BashResult>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  return (result: BashResult) => finish(result);
+}
+
+describe("session store UI bash", () => {
+  it("runs a command and renders the result", async () => {
+    openSession("s1");
+    mocks.executeBash.mockResolvedValue({
+      output: "a.txt",
+      exitCode: 0,
+      cancelled: false,
+      truncated: false,
+    });
+
+    useSessionStore.getState().runBash("ls", false);
+
+    const active = useSessionStore.getState().states.s1?.activeBash;
+    expect(active?.id).toEqual(expect.any(String));
+    // An idle run enters the transcript directly, not the pending strip.
+    expect(active?.pending).toBe(false);
+    expect(mocks.executeBash).toHaveBeenCalledWith("s1", "ls", {
+      excludeFromContext: false,
+      id: active?.id,
+    });
+    expect(useSessionStore.getState().states.s1?.transcript).toMatchObject([
+      {
+        kind: "bash",
+        id: active?.id,
+        command: "ls",
+        excludeFromContext: false,
+        output: "",
+        truncated: false,
+        status: "running",
+      },
+    ]);
+
+    await vi.waitFor(() =>
+      expect(useSessionStore.getState().states.s1?.activeBash).toBeUndefined(),
+    );
+    expect(useSessionStore.getState().states.s1?.transcript).toMatchObject([
+      {
+        id: active?.id,
+        output: "a.txt",
+        truncated: false,
+        exitCode: 0,
+        status: "done",
+      },
+    ]);
+  });
+
+  it("passes the excluded-from-context flag through", () => {
+    openSession("s1");
+    useSessionStore.getState().runBash("ls", true);
+
+    expect(mocks.executeBash).toHaveBeenCalledWith(
+      "s1",
+      "ls",
+      expect.objectContaining({ excludeFromContext: true }),
+    );
+  });
+
+  it("marks a failed command as an error", async () => {
+    openSession("s1");
+    mocks.executeBash.mockResolvedValue({
+      output: "boom",
+      exitCode: 1,
+      cancelled: false,
+      truncated: false,
+    });
+
+    useSessionStore.getState().runBash("false", false);
+
+    await vi.waitFor(() =>
+      expect(useSessionStore.getState().states.s1?.activeBash).toBeUndefined(),
+    );
+    expect(useSessionStore.getState().states.s1?.transcript).toMatchObject([
+      { kind: "bash", output: "boom", exitCode: 1, status: "error" },
+    ]);
+  });
+
+  it("moves a turn-started command into the transcript when it completes", async () => {
+    openSession("s1", "running");
+    mocks.executeBash.mockResolvedValue({
+      output: "a.txt",
+      exitCode: 0,
+      cancelled: false,
+      truncated: false,
+    });
+
+    useSessionStore.getState().runBash("ls", false);
+
+    expect(useSessionStore.getState().states.s1?.activeBash).toMatchObject({
+      pending: true,
+    });
+    expect(useSessionStore.getState().states.s1?.transcript).toMatchObject([
+      { kind: "bash", command: "ls", status: "running" },
+    ]);
+    await vi.waitFor(() =>
+      expect(useSessionStore.getState().states.s1?.activeBash).toBeUndefined(),
+    );
+    expect(useSessionStore.getState().states.s1?.transcript).toMatchObject([
+      { kind: "bash", status: "done" },
+    ]);
+  });
+
+  it("ignores a second command while one runs", async () => {
+    openSession("s1");
+    const finish = deferBash();
+
+    useSessionStore.getState().runBash("one", false);
+    useSessionStore.getState().runBash("two", false);
+
+    expect(mocks.executeBash).toHaveBeenCalledTimes(1);
+    finish({ output: "", exitCode: 0, cancelled: false, truncated: false });
+    await vi.waitFor(() =>
+      expect(useSessionStore.getState().states.s1?.activeBash).toBeUndefined(),
+    );
+  });
+
+  it("finalizes the card when the command cannot start", async () => {
+    openSession("s1");
+    mocks.executeBash.mockRejectedValue(new Error("Session is not running"));
+
+    useSessionStore.getState().runBash("ls", false);
+
+    await vi.waitFor(() =>
+      expect(useSessionStore.getState().states.s1?.activeBash).toBeUndefined(),
+    );
+    expect(useSessionStore.getState().states.s1?.transcript).toMatchObject([
+      { kind: "bash", output: "Session is not running", status: "error" },
+    ]);
+  });
+
+  it("aborts the running command instead of the turn", async () => {
+    openSession("s1");
+    const finish = deferBash();
+    useSessionStore.getState().runBash("sleep 10", false);
+
+    useSessionStore.getState().abort();
+
+    expect(mocks.abortBash).toHaveBeenCalledWith("s1");
+    expect(mocks.abort).not.toHaveBeenCalled();
+    finish({
+      output: "",
+      exitCode: undefined,
+      cancelled: true,
+      truncated: false,
+    });
+    await vi.waitFor(() =>
+      expect(useSessionStore.getState().states.s1?.activeBash).toBeUndefined(),
+    );
+    expect(useSessionStore.getState().states.s1?.transcript).toMatchObject([
+      { kind: "bash", status: "cancelled" },
+    ]);
+  });
+
+  it("aborts the turn when no command is running", () => {
+    openSession("s1");
+
+    useSessionStore.getState().abort();
+
+    expect(mocks.abort).toHaveBeenCalledWith("s1");
+    expect(mocks.abortBash).not.toHaveBeenCalled();
+  });
+
+  it("runs a command through the session being created", async () => {
+    let resolveCreate!: (value: SessionSummary) => void;
+    mocks.create.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCreate = resolve;
+      }),
+    );
+
+    await useSessionStore.getState().startNewSession("/p");
+    useSessionStore.getState().setDraft("!ls");
+    useSessionStore.getState().runBash("ls", false);
+    resolveCreate(session("s1", "/p"));
+
+    await vi.waitFor(() =>
+      expect(mocks.executeBash).toHaveBeenCalledWith(
+        "s1",
+        "ls",
+        expect.objectContaining({ id: expect.any(String) }),
+      ),
+    );
+  });
+
+  it("keeps a session with bash history when its tab closes", async () => {
+    mocks.create.mockResolvedValue(session("s1", "/p"));
+    await useSessionStore.getState().startNewSession("/p");
+    useSessionStore.getState().setDraft("!ls");
+    await vi.waitFor(() =>
+      expect(useSessionStore.getState().selectedId).toBe("s1"),
+    );
+
+    useSessionStore.getState().runBash("ls", false);
+    await vi.waitFor(() => expect(mocks.executeBash).toHaveBeenCalled());
+    useSessionStore.getState().closeTab("s1");
+
+    expect(mocks.discard).not.toHaveBeenCalled();
+    expect(mocks.close).toHaveBeenCalledWith("s1");
   });
 });

@@ -1,7 +1,7 @@
 /**
  * The renderer is a browser context. Runtime imports of Node-side packages
  * drag Node-only dependencies into the Vite bundle, which breaks the app with a
- * white screen. The agent-core root re-exports the Pi SDK and is banned; its
+ * white screen. The agent-core root re-exports the agent SDK and is banned; its
  * `/text` and `/types` subpaths are dependency-free and safe. Runtime values
  * the renderer needs must cross the preload bridge instead.
  */
@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 const rendererRoot = join(import.meta.dirname, "../src/renderer");
 
 function isNodeSide(specifier: string): boolean {
-  // The package root re-exports the Pi SDK; the other subpaths are safe.
+  // The package root re-exports the agent SDK; the other subpaths are safe.
   if (specifier === "@dotbot/agent-core") return true;
   return (
     specifier.startsWith("@dotbot/files") ||

@@ -9,6 +9,7 @@
 import type {
   AgentManagerEvent,
   AgentSessionEvent,
+  BashExecution,
   ExtensionResponse,
   ModelThinkingLevel,
   SessionSummary,
@@ -22,6 +23,7 @@ import {
   applySessionControls,
   applySessionError,
   createSessionClientState,
+  isBashExecution,
   type SessionClientState,
 } from "../components/panels/session-state";
 import { useNavigationStore } from "./navigation-store";
@@ -50,6 +52,8 @@ type SessionStore = {
   /** Pick a project directory and make it the current project. */
   pickProject: () => Promise<string | undefined>;
   prompt: (message: string, streamingBehavior?: StreamingBehavior) => void;
+  /** Run a bash command in the selected session. */
+  runBash: (command: string, excludeFromContext: boolean) => void;
   abort: () => void;
   setModel: (provider: string, modelId: string) => void;
   setThinkingLevel: (level: ModelThinkingLevel) => void;
@@ -323,6 +327,101 @@ export const useSessionStore = create<SessionStore>((set, get) => {
   };
 
   /**
+   * Append a running bash card, execute the command, and finalize the card with
+   * the command result. Output deltas arrive through `bash_execution_update`
+   * events.
+   */
+  const runBashOn = (
+    id: string,
+    command: string,
+    excludeFromContext: boolean,
+  ) => {
+    if (get().states[id]?.activeBash) return;
+    // A run started during a turn parks in the pending strip while it executes;
+    // an idle run enters the transcript directly.
+    const streaming =
+      get().sessions.find((session) => session.id === id)?.status === "running";
+    const bashId = `bash-${crypto.randomUUID()}`;
+    unprompted.delete(id);
+    set((current) => ({
+      states: {
+        ...current.states,
+        [id]: {
+          ...(current.states[id] ?? createSessionClientState()),
+          draft: "",
+          activeBash: { id: bashId, pending: streaming },
+          transcript: [
+            ...(current.states[id]?.transcript ?? []),
+            {
+              kind: "bash",
+              id: bashId,
+              command,
+              excludeFromContext,
+              output: "",
+              truncated: false,
+              status: "running",
+            },
+          ],
+        },
+      },
+    }));
+
+    const finishBash = (update: (item: BashExecution) => BashExecution) => {
+      set((current) => {
+        const existing = current.states[id];
+        if (!existing) return current;
+        return {
+          states: {
+            ...current.states,
+            [id]: {
+              ...existing,
+              // A later command may have replaced this one by the time it settles.
+              ...(existing.activeBash?.id === bashId
+                ? { activeBash: undefined }
+                : {}),
+              transcript: existing.transcript.map((item) =>
+                isBashExecution(item) && item.id === bashId
+                  ? update(item)
+                  : item,
+              ),
+            },
+          },
+        };
+      });
+    };
+
+    void api.agent
+      .executeBash(id, command, { excludeFromContext, id: bashId })
+      .then((result) =>
+        finishBash((item) => ({
+          ...item,
+          output: result.output,
+          truncated: result.truncated,
+          ...(result.fullOutputPath !== undefined
+            ? { fullOutputPath: result.fullOutputPath }
+            : {}),
+          ...(result.exitCode !== undefined
+            ? { exitCode: result.exitCode }
+            : {}),
+          status: result.cancelled
+            ? "cancelled"
+            : result.exitCode === 0
+              ? "done"
+              : "error",
+        })),
+      )
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        finishBash((item) => ({
+          ...item,
+          output: message,
+          status: "error",
+        }));
+        reportError(error);
+      });
+  };
+
+  /**
    * Start the new session on its first keystroke. A draft abandoned or
    * replaced before the session opens has that session discarded.
    */
@@ -469,6 +568,17 @@ export const useSessionStore = create<SessionStore>((set, get) => {
     if (id) void api.agent.setThinkingLevel(id, level).catch(reportError);
   };
 
+  /** Run an action against the selected session, creating a draft session first. */
+  const withSelectedSession = (action: (id: string) => void) => {
+    if (get().newSession) {
+      const pending = ensureNewSession();
+      if (pending) void pending.then(action).catch(reportError);
+      return;
+    }
+    const id = get().selectedId;
+    if (id) action(id);
+  };
+
   return {
     sessions: [],
     tabs: [],
@@ -493,23 +603,22 @@ export const useSessionStore = create<SessionStore>((set, get) => {
     pickProject,
 
     prompt: (message, streamingBehavior) => {
-      if (get().newSession) {
-        const pending = ensureNewSession();
-        if (pending) {
-          void pending
-            .then((id) => sendPrompt(id, message, streamingBehavior))
-            .catch(reportError);
-        }
-        return;
-      }
-      const id = get().selectedId;
-      if (!id) return;
-      sendPrompt(id, message, streamingBehavior);
+      withSelectedSession((id) => sendPrompt(id, message, streamingBehavior));
+    },
+
+    runBash: (command, excludeFromContext) => {
+      withSelectedSession((id) => runBashOn(id, command, excludeFromContext));
     },
 
     abort: () => {
       const id = get().selectedId;
-      if (id) void api.agent.abort(id).catch(reportError);
+      if (!id) return;
+      // A running UI command takes precedence over aborting the turn.
+      if (get().states[id]?.activeBash) {
+        void api.agent.abortBash(id).catch(reportError);
+        return;
+      }
+      void api.agent.abort(id).catch(reportError);
     },
 
     setModel,

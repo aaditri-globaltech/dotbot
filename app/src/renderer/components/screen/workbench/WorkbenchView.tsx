@@ -23,6 +23,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
   const states = useSessionStore((state) => state.states);
   const newSession = useSessionStore((state) => state.newSession);
   const prompt = useSessionStore((state) => state.prompt);
+  const runBash = useSessionStore((state) => state.runBash);
   const abort = useSessionStore((state) => state.abort);
   const setModel = useSessionStore((state) => state.setModel);
   const setThinkingLevel = useSessionStore((state) => state.setThinkingLevel);
@@ -60,6 +61,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
         onSelectProject={selectProject}
         onDraft={setDraft}
         onPrompt={prompt}
+        onRunBash={runBash}
         onAbort={abort}
         onSetModel={setModel}
         onSetThinkingLevel={setThinkingLevel}

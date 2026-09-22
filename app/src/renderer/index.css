@@ -39,6 +39,9 @@
   --color-success: #3cc060;
   --color-warning: #e8c15f;
   --color-error: #f05454;
+  /* Bash mode and its excluded-from-context dim. */
+  --color-bash: #b5bd68;
+  --color-bash-dim: #666666;
 
   /* Corner scale from the reference: 17px cards, 10px panels and rows, 8px controls. */
   --radius: 8px;

@@ -76,6 +76,89 @@ describe("buildTranscript", () => {
     ]);
   });
 
+  it("renders persisted bash executions as tool cards", () => {
+    const items = buildTranscript([
+      {
+        role: "bashExecution",
+        command: "ls -la",
+        output: "a.txt",
+        exitCode: 0,
+        cancelled: false,
+        truncated: false,
+        excludeFromContext: true,
+        timestamp: 0,
+      },
+      {
+        role: "bashExecution",
+        command: "exit 1",
+        output: "boom",
+        exitCode: 1,
+        cancelled: false,
+        truncated: false,
+      },
+      {
+        role: "bashExecution",
+        command: "sleep 10",
+        output: "",
+        exitCode: undefined,
+        cancelled: true,
+        truncated: false,
+      },
+      {
+        role: "bashExecution",
+        command: "yes",
+        output: "y\ny",
+        exitCode: 0,
+        cancelled: false,
+        truncated: true,
+        fullOutputPath: "/tmp/full.txt",
+      },
+    ]);
+
+    expect(items).toEqual([
+      {
+        kind: "bash",
+        id: "transcript-bash-0",
+        command: "ls -la",
+        excludeFromContext: true,
+        output: "a.txt",
+        truncated: false,
+        exitCode: 0,
+        status: "done",
+      },
+      {
+        kind: "bash",
+        id: "transcript-bash-1",
+        command: "exit 1",
+        excludeFromContext: false,
+        output: "boom",
+        truncated: false,
+        exitCode: 1,
+        status: "error",
+      },
+      {
+        kind: "bash",
+        id: "transcript-bash-2",
+        command: "sleep 10",
+        excludeFromContext: false,
+        output: "",
+        truncated: false,
+        status: "cancelled",
+      },
+      {
+        kind: "bash",
+        id: "transcript-bash-3",
+        command: "yes",
+        excludeFromContext: false,
+        output: "y\ny",
+        truncated: true,
+        fullOutputPath: "/tmp/full.txt",
+        exitCode: 0,
+        status: "done",
+      },
+    ]);
+  });
+
   it("ignores non-conversation messages", () => {
     expect(buildTranscript([{ role: "system", content: "hidden" }])).toEqual(
       [],
