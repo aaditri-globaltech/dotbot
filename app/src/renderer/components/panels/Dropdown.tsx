@@ -53,16 +53,11 @@ const FIELD_TRIGGER_CLASS =
 const CHEVRON_CLASS =
   "codicon codicon-chevron-down shrink-0 text-[12px] text-dim";
 
-/** Search field that takes the plain trigger's place while the menu is open. */
-const PLAIN_SEARCH_CLASS =
-  "field-sizing-content min-w-[120px] max-w-[240px] rounded-md border " +
-  "border-border-strong bg-input px-2 py-1 text-[12px] text-secondary " +
-  "outline-0 placeholder:text-faint focus:border-focus";
-
-/** Search field that takes the field trigger's place while the menu is open. */
-const FIELD_SEARCH_CLASS =
-  "w-full rounded-md border border-border-strong bg-input px-2.5 py-1.5 " +
-  "text-[13px] text-secondary outline-0 placeholder:text-faint focus:border-focus";
+/** Search field at the top of the menu, full menu width. */
+const MENU_SEARCH_CLASS =
+  "mb-1 w-full shrink-0 rounded-md border border-border-strong bg-input " +
+  "px-2 py-1 text-[12px] text-secondary outline-0 placeholder:text-faint " +
+  "focus:border-focus";
 
 /** One row of the menu. Kobalte marks the active row with `data-highlighted`. */
 const ITEM_CLASS =
@@ -149,8 +144,9 @@ export function Dropdown<T extends string = string>(props: DropdownProps<T>) {
       // Without a label Kobalte falls back to String(option) for the input
       // value, which then filters every option away.
       optionLabel={(option) => option.label}
-      // The filter field holds the selected label until the user edits it, so
-      // treat that text as "no search yet" and keep the whole list visible.
+      // The filter field starts empty; Kobalte still reports the selected label as
+      // its value before the user types, so treat that text as "no search yet"
+      // and keep the whole list visible.
       defaultFilter={(option, input) => {
         const needle = input.trim().toLowerCase();
         if (needle === "" || input === selected()?.label) return true;
@@ -194,66 +190,45 @@ export function Dropdown<T extends string = string>(props: DropdownProps<T>) {
           carries its own hidden label. */}
       <Combobox.Label class="sr-only">{props.label}</Combobox.Label>
       <Combobox.Control>
-        <Show
-          when={props.searchable && open()}
-          fallback={
-            <button
-              ref={(element) => {
-                trigger = element;
-              }}
-              type="button"
-              class={
-                props.variant === "field" ? FIELD_TRIGGER_CLASS : TRIGGER_CLASS
-              }
-              label={props.label}
-              popup="listbox"
-              expanded={String(open())}
-              disabled={props.disabled}
-              // Pointer down, like Kobalte's own trigger: a click would arrive
-              // after the menu mounts and be read as a click outside it.
-              onPointerDown={(event) => {
-                if (!props.disabled && event.button === 0) setOpen(!open());
-              }}
-              onKeyDown={(event) => {
-                if (
-                  ["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key) &&
-                  !props.disabled
-                ) {
-                  event.preventDefault();
-                  setOpen(!open());
-                }
-              }}
-            >
-              {/* Names the control as well as its value: "Model gpt-5"
-                  reads better than a bare model name. */}
-              <span class="sr-only">{props.label}</span>{" "}
-              <Show when={props.icon}>
-                <span
-                  class={`codicon ${props.icon} shrink-0 text-[13px] text-dim`}
-                  decorative="true"
-                />
-              </Show>
-              <span class="max-w-[240px] min-w-0 truncate">
-                {triggerLabel()}
-              </span>
-              <span class={CHEVRON_CLASS} decorative="true" />
-            </button>
+        <button
+          ref={(element) => {
+            trigger = element;
+          }}
+          type="button"
+          class={
+            props.variant === "field" ? FIELD_TRIGGER_CLASS : TRIGGER_CLASS
           }
-        >
-          <Combobox.Input
-            ref={(element) => {
-              searchField = element;
-              focusWhenOpen(() => searchField, true);
-            }}
-            class={
-              props.variant === "field"
-                ? FIELD_SEARCH_CLASS
-                : PLAIN_SEARCH_CLASS
+          label={props.label}
+          popup="listbox"
+          expanded={String(open())}
+          disabled={props.disabled}
+          // Pointer down, like Kobalte's own trigger: a click would arrive
+          // after the menu mounts and be read as a click outside it.
+          onPointerDown={(event) => {
+            if (!props.disabled && event.button === 0) setOpen(!open());
+          }}
+          onKeyDown={(event) => {
+            if (
+              ["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key) &&
+              !props.disabled
+            ) {
+              event.preventDefault();
+              setOpen(!open());
             }
-            label={`Search ${props.label}`}
-            placeholder={`Search ${props.label}`}
-          />
-        </Show>
+          }}
+        >
+          {/* Names the control as well as its value: "Model gpt-5"
+              reads better than a bare model name. */}
+          <span class="sr-only">{props.label}</span>{" "}
+          <Show when={props.icon}>
+            <span
+              class={`codicon ${props.icon} shrink-0 text-[13px] text-dim`}
+              decorative="true"
+            />
+          </Show>
+          <span class="max-w-[240px] min-w-0 truncate">{triggerLabel()}</span>
+          <span class={CHEVRON_CLASS} decorative="true" />
+        </button>
       </Combobox.Control>
       <Combobox.Portal>
         <Combobox.Content
@@ -264,6 +239,19 @@ export function Dropdown<T extends string = string>(props: DropdownProps<T>) {
             trigger?.focus();
           }}
         >
+          {/* The search field lives inside the menu so the trigger keeps its
+              size and position while the menu is open. */}
+          <Show when={props.searchable}>
+            <Combobox.Input
+              ref={(element) => {
+                searchField = element;
+                focusWhenOpen(() => searchField, true);
+              }}
+              class={MENU_SEARCH_CLASS}
+              label={`Search ${props.label}`}
+              placeholder={`Search ${props.label}`}
+            />
+          </Show>
           <Combobox.Listbox
             ref={(element) => {
               if (!props.searchable) focusWhenOpen(() => element);

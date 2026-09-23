@@ -178,7 +178,7 @@ describe("Dropdown", () => {
       ).toBeTruthy();
     });
 
-    it("turns the trigger into the search field while open", async () => {
+    it("shows the search field inside the menu while the trigger stays put", async () => {
       renderSearchable();
 
       await clickTrigger(/Provider/);
@@ -186,12 +186,9 @@ describe("Dropdown", () => {
         "Search Provider",
       )) as HTMLInputElement;
 
-      // The trigger is replaced, the field takes focus, and its text is
-      // selected so typing replaces the current value.
-      expect(screen.queryByRole("button", { name: /Provider/ })).toBeNull();
+      // The trigger keeps its size and place; the field in the menu takes focus.
+      expect(screen.getByRole("button", { name: /Provider/ })).toBeTruthy();
       await waitFor(() => expect(document.activeElement).toBe(field));
-      expect(field.selectionStart).toBe(0);
-      expect(field.selectionEnd).toBe(field.value.length);
 
       fireEvent.keyDown(field, { key: "Escape" });
       await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());

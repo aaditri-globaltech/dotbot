@@ -9,7 +9,7 @@ type HeroProps = {
 /** Render the shared empty-state headline used by the dashboard and the agent view. */
 export function Hero(props: HeroProps) {
   return (
-    <div class="grid flex-1 place-items-center px-6 py-10 text-center">
+    <div class="grid min-h-0 flex-1 place-items-center overflow-hidden px-6 py-10 text-center">
       <div class="flex max-w-[520px] flex-col items-center gap-4">
         <span
           class="codicon codicon-hubot text-[112px] text-primary/[0.05]"
