@@ -1,7 +1,8 @@
 /** Bash-mode block for a user-run command. */
 
 import type { BashExecution } from "@dotbot/agent-core";
-import { useAutoScroll } from "../../hooks/useAutoScroll";
+import { Show } from "solid-js";
+import { createAutoScroll } from "../../hooks/auto-scroll";
 import { CodeHighlight } from "./CodeHighlight";
 
 /** `!!` commands render dim; plain `!` commands use the bash accent. */
@@ -27,54 +28,57 @@ function completion(item: BashExecution) {
 }
 
 /** One user-run bash command with its streamed output. */
-export function BashExecutionView({ item }: { item: BashExecution }) {
-  const scroll = useAutoScroll<HTMLElement>(item.output);
-  const accent = accentClasses(item);
-  const status = completion(item);
-  const hasStatus = item.status !== "running" && (status || item.truncated);
+export function BashExecutionView(props: { item: BashExecution }) {
+  const scroll = createAutoScroll<HTMLElement>(() => props.item.output);
+  const accent = () => accentClasses(props.item);
+  const status = () => completion(props.item);
+  const hasStatus = () =>
+    props.item.status !== "running" && (status() || props.item.truncated);
 
   return (
     // shrink-0 keeps the block at its content height inside the transcript's
     // scrollable flex column.
     <div
-      className={`w-full max-w-full min-w-0 shrink-0 self-start border-t border-b px-2.5 py-1.5 font-mono text-xs leading-[1.45] ${accent.border}`}
+      class={`w-full max-w-full min-w-0 shrink-0 self-start border-t border-b px-2.5 py-1.5 font-mono text-xs leading-[1.45] ${accent().border}`}
     >
       <div
-        className={`font-semibold [overflow-wrap:anywhere] [white-space:pre-wrap] ${accent.header}`}
+        class={`font-semibold [overflow-wrap:anywhere] [white-space:pre-wrap] ${accent().header}`}
       >
-        $ {item.command}
+        $ {props.item.command}
       </div>
-      {item.output && (
+      <Show when={props.item.output}>
         <CodeHighlight
-          code={item.output}
+          code={props.item.output}
           language=""
           className="max-h-[180px] overflow-auto text-muted [overflow-wrap:anywhere] [white-space:pre-wrap]"
           setElement={scroll.setElement}
           onScroll={scroll.onScroll}
         />
-      )}
-      {item.status === "running" && (
-        <div className="flex items-center gap-1.5 pt-0.5 text-[11px] text-muted">
+      </Show>
+      <Show when={props.item.status === "running"}>
+        <div class="flex items-center gap-1.5 pt-0.5 text-[11px] text-muted">
           <span
-            className={`codicon codicon-loading codicon-modifier-spin ${accent.header}`}
-            dotbot-hidden="true"
+            class={`codicon codicon-loading codicon-modifier-spin ${accent().header}`}
+            decorative="true"
           />
           Running…
         </div>
-      )}
-      {hasStatus && (
-        <div className="flex flex-wrap items-center gap-x-2 pt-0.5 text-[11px]">
-          {status && <span className={status.className}>{status.text}</span>}
-          {item.truncated && (
-            <span className="min-w-0 text-warning [overflow-wrap:anywhere]">
+      </Show>
+      <Show when={hasStatus()}>
+        <div class="flex flex-wrap items-center gap-x-2 pt-0.5 text-[11px]">
+          <Show when={status()}>
+            {(state) => <span class={state().className}>{state().text}</span>}
+          </Show>
+          <Show when={props.item.truncated}>
+            <span class="min-w-0 text-warning [overflow-wrap:anywhere]">
               Output truncated
-              {item.fullOutputPath
-                ? `. Full output: ${item.fullOutputPath}`
+              {props.item.fullOutputPath
+                ? `. Full output: ${props.item.fullOutputPath}`
                 : ""}
             </span>
-          )}
+          </Show>
         </div>
-      )}
+      </Show>
     </div>
   );
 }

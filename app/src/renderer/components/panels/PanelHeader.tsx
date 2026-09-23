@@ -8,8 +8,8 @@ type PanelHeaderProps = {
 /** Render a panel heading. */
 export function PanelHeader(props: PanelHeaderProps) {
   return (
-    <div className={PANEL_HEADING_CLASS}>
-      <h1 className={PANEL_TITLE_CLASS}>{props.title}</h1>
+    <div class={PANEL_HEADING_CLASS}>
+      <h1 class={PANEL_TITLE_CLASS}>{props.title}</h1>
     </div>
   );
 }

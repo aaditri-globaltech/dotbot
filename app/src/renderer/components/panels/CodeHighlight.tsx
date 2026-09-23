@@ -1,5 +1,5 @@
 import hljs from "highlight.js/lib/common";
-import { type UIEvent, useEffect, useRef, useState } from "react";
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 
 /** Bordered block for code, mermaid fallbacks, and plain tool output. */
 export const CODE_BLOCK_CLASS =
@@ -13,8 +13,8 @@ export type CodeHighlightProps = {
   className?: string;
   lineNumbers?: boolean;
   lineNumberStart?: number;
-  onScroll?: (event: UIEvent<HTMLElement>) => void;
-  setElement?: (element: HTMLElement | null) => void;
+  onScroll?: (event: Event & { currentTarget: HTMLElement }) => void;
+  setElement?: (element: HTMLElement | undefined) => void;
 };
 
 type HighlightedLine = {
@@ -76,94 +76,97 @@ function highlightedLines(
 
 /** Render code with optional line numbers and language highlighting. */
 export function CodeHighlight(props: CodeHighlightProps) {
-  const [html, setHtml] = useState("");
-  const [lines, setLines] = useState<HighlightedLine[]>([]);
-  const revisionRef = useRef(0);
+  const [html, setHtml] = createSignal("");
+  const [lines, setLines] = createSignal<HighlightedLine[]>([]);
+  let revision = 0;
 
-  const className = props.className ?? CODE_BLOCK_CLASS;
-  const withLineNumbers = props.lineNumbers === true;
-  const start = lineStart(props.lineNumberStart);
+  const className = () => props.className ?? CODE_BLOCK_CLASS;
+  const withLineNumbers = () => props.lineNumbers === true;
+  const start = () => lineStart(props.lineNumberStart);
 
-  useEffect(() => {
-    const currentRevision = ++revisionRef.current;
+  createEffect(() => {
+    const code = props.code;
+    const language = props.language;
+    const lineNumbers = withLineNumbers();
+    const from = start();
+    const currentRevision = ++revision;
     setHtml("");
-    setLines(withLineNumbers ? highlightedLines(props.code, start) : []);
+    setLines(lineNumbers ? highlightedLines(code, from) : []);
     const timer = setTimeout(() => {
-      if (currentRevision !== revisionRef.current) return;
+      if (currentRevision !== revision) return;
 
       const supportedLanguage =
-        props.language && hljs.getLanguage(props.language)
-          ? props.language
-          : undefined;
-      if (withLineNumbers) {
-        setLines(highlightedLines(props.code, start, supportedLanguage));
+        language && hljs.getLanguage(language) ? language : undefined;
+      if (lineNumbers) {
+        setLines(highlightedLines(code, from, supportedLanguage));
         return;
       }
       if (!supportedLanguage) return;
       try {
-        setHtml(
-          hljs.highlight(props.code, { language: supportedLanguage }).value,
-        );
+        setHtml(hljs.highlight(code, { language: supportedLanguage }).value);
       } catch {
         setHtml("");
       }
     }, 0);
 
-    return () => {
-      revisionRef.current += 1;
+    onCleanup(() => {
+      revision += 1;
       clearTimeout(timer);
-    };
-  }, [props.code, props.language, start, withLineNumbers]);
+    });
+  });
 
-  const hasContent = withLineNumbers ? lines.length > 0 : Boolean(html);
-
-  if (!hasContent) {
-    return (
-      <pre
-        ref={props.setElement}
-        className={className}
-        onScroll={props.onScroll}
-      >
-        <code>{props.code}</code>
-      </pre>
-    );
-  }
-
-  if (withLineNumbers) {
-    return (
-      <div
-        ref={props.setElement}
-        className={`${className} py-[7px] [overflow-wrap:normal] [white-space:pre]`}
-        onScroll={props.onScroll}
-      >
-        {lines.map((line) => (
-          <span key={line.number} className="flex min-h-[1.45em] min-w-max">
-            <span
-              className="shrink-0 basis-[50px] px-3 text-right text-faint select-none"
-              data-line-number="true"
-              dotbot-hidden="true"
-            >
-              {line.number}
-            </span>
-            <span className="min-w-0 shrink-0 px-3 [white-space:pre]">
-              {line.html !== undefined ? (
-                <span dangerouslySetInnerHTML={{ __html: line.html }} />
-              ) : (
-                line.text
-              )}
-            </span>
-          </span>
-        ))}
-      </div>
-    );
-  }
+  const hasContent = () =>
+    withLineNumbers() ? lines().length > 0 : Boolean(html());
 
   return (
-    <div
-      ref={props.setElement}
-      className={className}
-      onScroll={props.onScroll}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <Show
+      when={hasContent()}
+      fallback={
+        <pre
+          ref={(element) => props.setElement?.(element)}
+          class={className()}
+          onScroll={props.onScroll}
+        >
+          <code>{props.code}</code>
+        </pre>
+      }
+    >
+      <Show
+        when={withLineNumbers()}
+        fallback={
+          <div
+            ref={(element) => props.setElement?.(element)}
+            class={className()}
+            onScroll={props.onScroll}
+            innerHTML={html()}
+          />
+        }
+      >
+        <div
+          ref={(element) => props.setElement?.(element)}
+          class={`${className()} py-[7px] [overflow-wrap:normal] [white-space:pre]`}
+          onScroll={props.onScroll}
+        >
+          <For each={lines()}>
+            {(line) => (
+              <span class="flex min-h-[1.45em] min-w-max">
+                <span
+                  class="shrink-0 basis-[50px] px-3 text-right text-faint select-none"
+                  data-line-number="true"
+                  decorative="true"
+                >
+                  {line.number}
+                </span>
+                <span class="min-w-0 shrink-0 px-3 [white-space:pre]">
+                  <Show when={line.html !== undefined} fallback={line.text}>
+                    <span innerHTML={line.html} />
+                  </Show>
+                </span>
+              </span>
+            )}
+          </For>
+        </div>
+      </Show>
+    </Show>
   );
 }

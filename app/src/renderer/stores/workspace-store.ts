@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { createStore } from "solid-js/store";
 
 const OPENED_PROJECTS_KEY = "dotbot.openedProjects";
 // Key written before the vocabulary pass; read it so upgrades keep their projects.
@@ -36,31 +36,38 @@ function writeOpenedProjects(projects: string[]) {
   }
 }
 
-const initialProjects = readOpenedProjects();
-
-type WorkspaceStore = {
+type WorkspaceState = {
   /** Project directories the workspace holds, in open order. */
   projects: string[];
   selectedProject?: string;
-  rememberProject: (projectDir: string) => void;
-  selectProject: (projectDir: string) => void;
 };
 
 /** Workspace state: the opened projects and the selected one. */
-export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
-  projects: initialProjects,
-  selectedProject: initialProjects.at(-1),
+export function createWorkspaceStore() {
+  const projects = readOpenedProjects();
+  const [state, setState] = createStore<WorkspaceState>({
+    projects,
+    selectedProject: projects.at(-1),
+  });
 
-  rememberProject: (projectDir) => {
-    if (!projectDir || get().projects.includes(projectDir)) return;
-    const next = [...get().projects, projectDir];
+  const rememberProject = (projectDir: string) => {
+    if (!projectDir || state.projects.includes(projectDir)) return;
+    const next = [...state.projects, projectDir];
     writeOpenedProjects(next);
-    set({ projects: next });
-  },
+    setState("projects", next);
+  };
 
-  selectProject: (projectDir) => {
-    if (!projectDir) return;
-    get().rememberProject(projectDir);
-    set({ selectedProject: projectDir });
-  },
-}));
+  return {
+    state,
+    rememberProject,
+
+    selectProject: (projectDir: string) => {
+      if (!projectDir) return;
+      rememberProject(projectDir);
+      setState("selectedProject", projectDir);
+    },
+  };
+}
+
+/** Shared workspace store for the running app. */
+export const workspaceStore = createWorkspaceStore();

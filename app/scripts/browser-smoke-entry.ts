@@ -1,7 +1,9 @@
 // Deliberately tiny browser entrypoint: this catches bundler/module regressions.
+// Deliberately free of JSX too: Solid's `jsx-runtime` export is types-only, so
+// esbuild's automatic runtime cannot compile Solid JSX. Vite compiles it with
+// babel-preset-solid instead, which is why this entry builds its element by hand.
 import type { SessionSummary } from "@dotbot/agent-core";
-import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { render } from "solid-js/web";
 
 const session: SessionSummary = {
   id: "smoke",
@@ -15,5 +17,7 @@ const session: SessionSummary = {
 
 const root = document.getElementById("root");
 if (root) {
-  createRoot(root).render(createElement("pre", null, session.title));
+  const line = document.createElement("pre");
+  line.textContent = session.title;
+  render(() => line, root);
 }

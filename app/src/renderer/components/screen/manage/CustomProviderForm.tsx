@@ -3,7 +3,7 @@ import {
   PROVIDER_APIS,
   type ProviderApi,
 } from "@dotbot/agent-core/types";
-import { useState } from "react";
+import { createMemo, createSignal, Show } from "solid-js";
 import { Dropdown } from "../../panels/Dropdown";
 import {
   BUTTON_CLASS,
@@ -23,65 +23,68 @@ type CustomProviderFormProps = {
 
 /** Collects the fields for a new custom provider entry. */
 export function CustomProviderForm(props: CustomProviderFormProps) {
-  const [id, setId] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [api, setApi] = useState<ProviderApi>("openai-completions");
-  const [modelIds, setModelIds] = useState("");
+  const [id, setId] = createSignal("");
+  const [baseUrl, setBaseUrl] = createSignal("");
+  const [api, setApi] = createSignal<ProviderApi>("openai-completions");
+  const [modelIds, setModelIds] = createSignal("");
 
-  const models = modelIds
-    .split(/[\n,]/)
-    .map((model) => model.trim())
-    .filter(Boolean);
+  const models = createMemo(() =>
+    modelIds()
+      .split(/[\n,]/)
+      .map((model) => model.trim())
+      .filter(Boolean),
+  );
 
-  const valid = id.trim() !== "" && baseUrl.trim() !== "" && models.length > 0;
+  const valid = () =>
+    id().trim() !== "" && baseUrl().trim() !== "" && models().length > 0;
 
   return (
     <form
-      className="flex max-w-[560px] flex-col gap-3"
+      class="flex max-w-[560px] flex-col gap-3"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!valid || props.busy) return;
+        if (!valid() || props.busy) return;
         props.onSubmit({
-          id: id.trim(),
-          baseUrl: baseUrl.trim(),
-          api,
-          models,
+          id: id().trim(),
+          baseUrl: baseUrl().trim(),
+          api: api(),
+          models: models(),
         });
       }}
     >
-      <h2 className="text-base font-semibold">Add custom provider</h2>
-      <div className={CARD_CLASS}>
-        <div className={CARD_TITLE_CLASS}>Connection</div>
-        <p className={CARD_HINT_CLASS}>
+      <h2 class="text-base font-semibold">Add custom provider</h2>
+      <div class={CARD_CLASS}>
+        <div class={CARD_TITLE_CLASS}>Connection</div>
+        <p class={CARD_HINT_CLASS}>
           An OpenAI- or Anthropic-compatible endpoint reached over HTTP.
         </p>
-        <div className="mt-2.5 flex flex-col gap-3">
-          <label className={FIELD_CLASS}>
+        <div class="mt-2.5 flex flex-col gap-3">
+          <label class={FIELD_CLASS}>
             <span>Provider id</span>
             <input
-              className={INPUT_CLASS}
-              value={id}
+              class={INPUT_CLASS}
+              value={id()}
               disabled={props.busy}
               placeholder="my-provider"
-              onChange={(event) => setId(event.target.value)}
+              onInput={(event) => setId(event.currentTarget.value)}
             />
           </label>
-          <label className={FIELD_CLASS}>
+          <label class={FIELD_CLASS}>
             <span>Base URL</span>
             <input
-              className={INPUT_CLASS}
-              value={baseUrl}
+              class={INPUT_CLASS}
+              value={baseUrl()}
               disabled={props.busy}
               placeholder="http://localhost:11434/v1"
-              onChange={(event) => setBaseUrl(event.target.value)}
+              onInput={(event) => setBaseUrl(event.currentTarget.value)}
             />
           </label>
           {/* A plain row, not a label: the dropdown owns its own accessible name. */}
-          <div className={FIELD_CLASS}>
+          <div class={FIELD_CLASS}>
             <span>API type</span>
             <Dropdown
               label="API type"
-              value={api}
+              value={api()}
               disabled={props.busy}
               variant="field"
               onChange={setApi}
@@ -91,22 +94,22 @@ export function CustomProviderForm(props: CustomProviderFormProps) {
               }))}
             />
           </div>
-          <label className={FIELD_CLASS}>
+          <label class={FIELD_CLASS}>
             <span>Model ids (one per line)</span>
             <textarea
-              className={INPUT_CLASS}
+              class={INPUT_CLASS}
               rows={4}
-              value={modelIds}
+              value={modelIds()}
               disabled={props.busy}
               placeholder={"llama3.1:8b\nqwen2.5-coder:7b"}
-              onChange={(event) => setModelIds(event.target.value)}
+              onInput={(event) => setModelIds(event.currentTarget.value)}
             />
           </label>
         </div>
-        <div className="mt-3 flex justify-end gap-2">
+        <div class="mt-3 flex justify-end gap-2">
           <button
             type="button"
-            className={BUTTON_CLASS}
+            class={BUTTON_CLASS}
             disabled={props.busy}
             onClick={props.onCancel}
           >
@@ -114,18 +117,20 @@ export function CustomProviderForm(props: CustomProviderFormProps) {
           </button>
           <button
             type="submit"
-            className={BUTTON_CLASS}
-            disabled={props.busy || !valid}
+            class={BUTTON_CLASS}
+            disabled={props.busy || !valid()}
           >
             Add provider
           </button>
         </div>
       </div>
-      {props.error && (
-        <p className="text-error" role="alert">
-          {props.error}
-        </p>
-      )}
+      <Show when={props.error}>
+        {(failure) => (
+          <p class="text-error" role="alert">
+            {failure()}
+          </p>
+        )}
+      </Show>
     </form>
   );
 }

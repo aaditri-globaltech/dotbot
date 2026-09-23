@@ -1,5 +1,5 @@
 import type { GitChange, GitStatus } from "@dotbot/git";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { api } from "../../api";
 import { errorMessage } from "../../errors";
 import {
@@ -38,67 +38,58 @@ function isStaged(change: GitChange) {
 
 /** Render Git status, staging actions, and the commit form. */
 export function GitSidebar(props: GitSidebarProps) {
-  const [status, setStatus] = useState<GitStatus>();
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
-  const requestIdRef = useRef(0);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
+  const [status, setStatus] = createSignal<GitStatus>();
+  const [message, setMessage] = createSignal("");
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string>();
+  let requestId = 0;
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const loadStatus = useCallback(
-    async (projectDir: string) => {
-      const requestId = ++requestIdRef.current;
-      setLoading(true);
-      setError(undefined);
-      try {
-        const next = await api.git.status(projectDir);
-        if (
-          props.projectDir !== projectDir ||
-          requestId !== requestIdRef.current
-        )
-          return;
-        setStatus(next);
-      } catch (reason) {
-        if (
-          props.projectDir === projectDir &&
-          requestId === requestIdRef.current
-        ) {
-          setStatus(undefined);
-          setError(errorMessage(reason));
-        }
-      } finally {
-        // Only the latest request may clear the loading state.
-        if (requestId === requestIdRef.current) setLoading(false);
+  const loadStatus = async (projectDir: string) => {
+    const currentRequest = ++requestId;
+    setLoading(true);
+    setError(undefined);
+    try {
+      const next = await api.git.status(projectDir);
+      if (props.projectDir !== projectDir || currentRequest !== requestId) {
+        return;
       }
-    },
-    [props.projectDir],
-  );
+      setStatus(next);
+    } catch (reason) {
+      if (props.projectDir === projectDir && currentRequest === requestId) {
+        setStatus(undefined);
+        setError(errorMessage(reason));
+      }
+    } finally {
+      // Only the latest request may clear the loading state.
+      if (currentRequest === requestId) setLoading(false);
+    }
+  };
 
-  useEffect(() => {
+  createEffect(() => {
+    const projectDir = props.projectDir;
     setStatus(undefined);
     setError(undefined);
-    if (props.projectDir) void loadStatus(props.projectDir);
-  }, [props.projectDir, loadStatus]);
+    if (projectDir) void loadStatus(projectDir);
+  });
 
   // File changes make Git status stale; debounce because edits arrive in bursts.
-  useEffect(() => {
+  createEffect(() => {
     const projectDir = props.projectDir;
     if (!projectDir) return;
     const unsubscribe = api.files.onChanged((change) => {
       if (change.projectDir !== projectDir) return;
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = setTimeout(() => {
-        refreshTimerRef.current = undefined;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        refreshTimer = undefined;
         void loadStatus(projectDir);
       }, 500);
     });
-    return () => {
+    onCleanup(() => {
       unsubscribe();
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    };
-  }, [props.projectDir, loadStatus]);
+      if (refreshTimer) clearTimeout(refreshTimer);
+    });
+  });
 
   const refresh = () => {
     if (props.projectDir) void loadStatus(props.projectDir);
@@ -132,146 +123,145 @@ export function GitSidebar(props: GitSidebarProps) {
 
   const commit = () => {
     const projectDir = props.projectDir;
-    if (!projectDir || !message.trim()) return;
+    if (!projectDir || !message().trim()) return;
     void runAction(async () => {
-      await api.git.commit(projectDir, message);
+      await api.git.commit(projectDir, message());
       setMessage("");
     });
   };
 
-  const stagedChanges =
-    status?.changes.filter((change) => isStaged(change)) ?? [];
-  const unstagedChanges =
-    status?.changes.filter((change) => !isStaged(change)) ?? [];
+  const stagedChanges = () =>
+    status()?.changes.filter((change) => isStaged(change)) ?? [];
+  const unstagedChanges = () =>
+    status()?.changes.filter((change) => !isStaged(change)) ?? [];
 
-  const changeList = (changes: GitChange[], staged: boolean) =>
-    changes.map((change) => (
-      <div
-        key={change.path}
-        className="group flex min-h-[25px] items-center gap-1.5 py-0.5 pr-1.5 pl-2.5 text-[11px] text-secondary hover:bg-surface-hover"
-      >
-        <span className="shrink-0 basis-3 text-center font-semibold text-warning">
-          {changeLabel(change)[0]}
-        </span>
-        <span className="min-w-0 truncate" title={change.path}>
-          {change.path}
-        </span>
-        <button
-          className={`${ICON_BUTTON_CLASS} ml-auto invisible group-hover:visible focus-visible:visible`}
-          type="button"
-          dotbot-label={
-            staged ? `Unstage ${change.path}` : `Stage ${change.path}`
-          }
-          title={staged ? "Unstage Changes" : "Stage Changes"}
-          onClick={() => (staged ? unstage(change.path) : stage(change.path))}
-        >
-          <span
-            className={`codicon ${staged ? "codicon-remove" : "codicon-add"}`}
-            dotbot-hidden="true"
-          />
-        </button>
-      </div>
-    ));
+  const changeList = (changes: GitChange[], staged: boolean) => (
+    <For each={changes}>
+      {(change) => (
+        <div class="group flex min-h-[25px] items-center gap-1.5 py-0.5 pr-1.5 pl-2.5 text-[11px] text-secondary hover:bg-surface-hover">
+          <span class="shrink-0 basis-3 text-center font-semibold text-warning">
+            {changeLabel(change)[0]}
+          </span>
+          <span class="min-w-0 truncate" title={change.path}>
+            {change.path}
+          </span>
+          <button
+            class={`${ICON_BUTTON_CLASS} ml-auto invisible group-hover:visible focus-visible:visible`}
+            type="button"
+            label={staged ? `Unstage ${change.path}` : `Stage ${change.path}`}
+            title={staged ? "Unstage Changes" : "Stage Changes"}
+            onClick={() => (staged ? unstage(change.path) : stage(change.path))}
+          >
+            <span
+              class={`codicon ${staged ? "codicon-remove" : "codicon-add"}`}
+              decorative="true"
+            />
+          </button>
+        </div>
+      )}
+    </For>
+  );
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
-      {!props.projectDir ? (
-        <p className="mx-3 my-4.5 text-[11px] leading-normal text-dim">
-          Open a project for Git.
-        </p>
-      ) : (
-        <>
-          <div className="flex min-h-[30px] shrink-0 items-center gap-1.5 border-b border-border px-2.5 text-[11px] text-muted">
-            <span className="codicon codicon-git-branch" dotbot-hidden="true" />
-            <span
-              className="min-w-0 flex-1 truncate"
-              title={status?.repoRoot ?? props.projectDir}
-            >
-              {status?.branch ?? "Git"}
-            </span>
+    <div class="min-h-0 flex-1 overflow-auto">
+      <Show
+        when={props.projectDir}
+        fallback={
+          <p class="mx-3 my-4.5 text-[11px] leading-normal text-dim">
+            Open a project for Git.
+          </p>
+        }
+      >
+        <div class="flex min-h-[30px] shrink-0 items-center gap-1.5 border-b border-border px-2.5 text-[11px] text-muted">
+          <span class="codicon codicon-git-branch" decorative="true" />
+          <span
+            class="min-w-0 flex-1 truncate"
+            title={status()?.repoRoot ?? props.projectDir}
+          >
+            {status()?.branch ?? "Git"}
+          </span>
+          <button
+            class={ICON_BUTTON_CLASS}
+            type="button"
+            label="Refresh Git"
+            title="Refresh Git"
+            onClick={refresh}
+          >
+            <span class="codicon codicon-refresh" decorative="true" />
+          </button>
+        </div>
+
+        <Show when={error()}>
+          <p class="mx-3 my-4.5 text-[11px] leading-normal text-error">
+            {error()}
+          </p>
+        </Show>
+        <Show when={status()?.error}>
+          {(failure) => (
+            <p class="mx-3 my-4.5 text-[11px] leading-normal text-error">
+              {failure()}
+            </p>
+          )}
+        </Show>
+        <Show when={status()?.repoRoot && !status()?.error}>
+          <div class="flex shrink-0 flex-col gap-1.5 border-b border-border p-2.5">
+            <textarea
+              value={message()}
+              placeholder={`Message (${formatKeybinding(DEFAULT_APP_KEYBINDINGS.commit)} to commit)`}
+              rows={2}
+              disabled={loading()}
+              onInput={(event) => setMessage(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (matchesKey(event, DEFAULT_APP_KEYBINDINGS.commit)) {
+                  commit();
+                }
+              }}
+            />
             <button
-              className={ICON_BUTTON_CLASS}
+              class="shrink-0 cursor-pointer self-start rounded-sm bg-button px-2.5 py-1 text-[11px] text-white disabled:cursor-default disabled:bg-elevated disabled:text-dim"
               type="button"
-              dotbot-label="Refresh Git"
-              title="Refresh Git"
-              onClick={refresh}
+              disabled={
+                loading() || !message().trim() || stagedChanges().length === 0
+              }
+              onClick={commit}
             >
-              <span className="codicon codicon-refresh" dotbot-hidden="true" />
+              Commit
             </button>
           </div>
 
-          {error && (
-            <p className="mx-3 my-4.5 text-[11px] leading-normal text-error">
-              {error}
-            </p>
-          )}
-          {status?.error && (
-            <p className="mx-3 my-4.5 text-[11px] leading-normal text-error">
-              {status.error}
-            </p>
-          )}
-          {status?.repoRoot && !status.error && (
-            <>
-              <div className="flex shrink-0 flex-col gap-1.5 border-b border-border p-2.5">
-                <textarea
-                  value={message}
-                  placeholder={`Message (${formatKeybinding(DEFAULT_APP_KEYBINDINGS.commit)} to commit)`}
-                  rows={2}
-                  disabled={loading}
-                  onChange={(event) => setMessage(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (
-                      matchesKey(
-                        event.nativeEvent,
-                        DEFAULT_APP_KEYBINDINGS.commit,
-                      )
-                    ) {
-                      commit();
-                    }
-                  }}
-                />
-                <button
-                  className="shrink-0 cursor-pointer self-start rounded-sm bg-button px-2.5 py-1 text-[11px] text-white disabled:cursor-default disabled:bg-elevated disabled:text-dim"
-                  type="button"
-                  disabled={
-                    loading || !message.trim() || stagedChanges.length === 0
-                  }
-                  onClick={commit}
-                >
-                  Commit
-                </button>
-              </div>
-
-              <section className="border-b border-border">
-                <h2 className="flex justify-between p-[7px_10px] text-[10px] font-medium tracking-[0.04em] text-muted uppercase">
-                  Staged Changes{" "}
-                  <span className="text-dim">{stagedChanges.length}</span>
-                </h2>
-                {stagedChanges.length > 0 ? (
-                  changeList(stagedChanges, true)
-                ) : (
-                  <p className="mx-2.5 mt-1 mb-2.5 text-[11px] text-dim">
-                    No staged changes
-                  </p>
-                )}
-              </section>
-              <section className="border-b border-border">
-                <h2 className="flex justify-between p-[7px_10px] text-[10px] font-medium tracking-[0.04em] text-muted uppercase">
-                  Changes{" "}
-                  <span className="text-dim">{unstagedChanges.length}</span>
-                </h2>
-                {unstagedChanges.length > 0 ? (
-                  changeList(unstagedChanges, false)
-                ) : (
-                  <p className="mx-2.5 mt-1 mb-2.5 text-[11px] text-dim">
-                    No changes
-                  </p>
-                )}
-              </section>
-            </>
-          )}
-        </>
-      )}
+          <section class="border-b border-border">
+            <h2 class="flex justify-between p-[7px_10px] text-[10px] font-medium tracking-[0.04em] text-muted uppercase">
+              Staged Changes{" "}
+              <span class="text-dim">{stagedChanges().length}</span>
+            </h2>
+            <Show
+              when={stagedChanges().length > 0}
+              fallback={
+                <p class="mx-2.5 mt-1 mb-2.5 text-[11px] text-dim">
+                  No staged changes
+                </p>
+              }
+            >
+              {changeList(stagedChanges(), true)}
+            </Show>
+          </section>
+          <section class="border-b border-border">
+            <h2 class="flex justify-between p-[7px_10px] text-[10px] font-medium tracking-[0.04em] text-muted uppercase">
+              Changes <span class="text-dim">{unstagedChanges().length}</span>
+            </h2>
+            <Show
+              when={unstagedChanges().length > 0}
+              fallback={
+                <p class="mx-2.5 mt-1 mb-2.5 text-[11px] text-dim">
+                  No changes
+                </p>
+              }
+            >
+              {changeList(unstagedChanges(), false)}
+            </Show>
+          </section>
+        </Show>
+      </Show>
     </div>
   );
 }

@@ -25,7 +25,8 @@ export interface UsageStatsDay {
   date: string;
   /** User and assistant messages sent that day. */
   messages: number;
-  /** Input plus output tokens reported by assistant messages that day. */
+  /** Input plus output tokens reported by assistant messages that day; the
+   * sum of `tokensByModel`. */
   tokens: number;
   /** Tokens that day, keyed by model id. */
   tokensByModel: Record<string, number>;

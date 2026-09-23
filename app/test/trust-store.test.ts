@@ -27,7 +27,7 @@ vi.mock("../src/renderer/api", () => ({
   },
 }));
 
-import { useTrustStore } from "../src/renderer/stores/trust-store";
+import { createTrustStore } from "../src/renderer/stores/trust-store";
 
 const request: TrustRequest = {
   id: "t1",
@@ -36,32 +36,26 @@ const request: TrustRequest = {
   options: ["Trust", "Do not trust"],
 };
 
+let store: ReturnType<typeof createTrustStore>;
+
 beforeEach(() => {
-  useTrustStore.setState({
-    requests: [],
-    decisions: {},
-    entries: [],
-    defaultTrust: "ask",
-    error: undefined,
-  });
+  store = createTrustStore();
   vi.clearAllMocks();
   mocks.respondTrust.mockResolvedValue(undefined);
 });
 
 describe("trust store prompt", () => {
   it("stores a pending request and clears it after answering", async () => {
-    useTrustStore.getState().applyEvent({ type: "trust_request", request });
-    expect(useTrustStore.getState().requests).toEqual([request]);
+    store.applyEvent({ type: "trust_request", request });
+    expect(store.state.requests).toEqual([request]);
 
-    useTrustStore.getState().respond({
+    store.respond({
       type: "extension_ui_response",
       id: "t1",
       value: "Trust",
     });
 
-    await vi.waitFor(() =>
-      expect(useTrustStore.getState().requests).toEqual([]),
-    );
+    await vi.waitFor(() => expect(store.state.requests).toEqual([]));
     expect(mocks.respondTrust).toHaveBeenCalledWith({
       type: "extension_ui_response",
       id: "t1",
@@ -74,47 +68,42 @@ describe("trust store prompt", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
-    useTrustStore.getState().applyEvent({ type: "trust_request", request });
+    store.applyEvent({ type: "trust_request", request });
 
-    useTrustStore.getState().respond({
+    store.respond({
       type: "extension_ui_response",
       id: "t1",
       cancelled: true,
     });
 
     await vi.waitFor(() => expect(consoleError).toHaveBeenCalled());
-    expect(useTrustStore.getState().requests).toEqual([]);
+    expect(store.state.requests).toEqual([]);
     consoleError.mockRestore();
   });
 
   it("queues multiple requests and clears them by id", async () => {
     const second: TrustRequest = { ...request, id: "t2" };
-    useTrustStore.getState().applyEvent({ type: "trust_request", request });
-    useTrustStore.getState().applyEvent({
-      type: "trust_request",
-      request: second,
-    });
-    expect(useTrustStore.getState().requests).toEqual([request, second]);
+    store.applyEvent({ type: "trust_request", request });
+    store.applyEvent({ type: "trust_request", request: second });
+    expect(store.state.requests).toEqual([request, second]);
 
-    useTrustStore.getState().respond({
+    store.respond({
       type: "extension_ui_response",
       id: "t1",
       value: "Trust",
     });
 
-    await vi.waitFor(() =>
-      expect(useTrustStore.getState().requests).toEqual([second]),
-    );
+    await vi.waitFor(() => expect(store.state.requests).toEqual([second]));
   });
 
   it("records trust updates per project", () => {
-    useTrustStore.getState().applyEvent({
+    store.applyEvent({
       type: "trust_update",
       projectDir: "/p",
       decision: false,
     });
 
-    expect(useTrustStore.getState().decisions["/p"]).toBe(false);
+    expect(store.state.decisions["/p"]).toBe(false);
   });
 
   it("applies events from the agent channel", () => {
@@ -126,10 +115,10 @@ describe("trust store prompt", () => {
       },
     );
 
-    const unsubscribe = useTrustStore.getState().subscribe();
+    const unsubscribe = store.subscribe();
     listener?.({ type: "trust_request", request });
 
-    expect(useTrustStore.getState().requests).toEqual([request]);
+    expect(store.state.requests).toEqual([request]);
     unsubscribe();
   });
 });
@@ -139,22 +128,20 @@ describe("trust store manage data", () => {
     mocks.getDefault.mockResolvedValue("never");
     mocks.list.mockResolvedValue([{ path: "/a", decision: true }]);
 
-    await useTrustStore.getState().load();
+    await store.load();
 
-    expect(useTrustStore.getState().defaultTrust).toBe("never");
-    expect(useTrustStore.getState().entries).toEqual([
-      { path: "/a", decision: true },
-    ]);
-    expect(useTrustStore.getState().error).toBeUndefined();
+    expect(store.state.defaultTrust).toBe("never");
+    expect(store.state.entries).toEqual([{ path: "/a", decision: true }]);
+    expect(store.state.error).toBeUndefined();
   });
 
   it("reports a load failure", async () => {
     mocks.getDefault.mockResolvedValue("ask");
     mocks.list.mockRejectedValue(new Error("Invalid trust store"));
 
-    await useTrustStore.getState().load();
+    await store.load();
 
-    expect(useTrustStore.getState().error).toBe("Invalid trust store");
+    expect(store.state.error).toBe("Invalid trust store");
   });
 
   it("saves the default and revokes a decision", async () => {
@@ -162,12 +149,12 @@ describe("trust store manage data", () => {
     mocks.revoke.mockResolvedValue(undefined);
     mocks.list.mockResolvedValue([]);
 
-    await useTrustStore.getState().setDefault("always");
+    await store.setDefault("always");
     expect(mocks.setDefault).toHaveBeenCalledWith("always");
-    expect(useTrustStore.getState().defaultTrust).toBe("always");
+    expect(store.state.defaultTrust).toBe("always");
 
-    await useTrustStore.getState().revoke("/a");
+    await store.revoke("/a");
     expect(mocks.revoke).toHaveBeenCalledWith("/a");
-    expect(useTrustStore.getState().entries).toEqual([]);
+    expect(store.state.entries).toEqual([]);
   });
 });

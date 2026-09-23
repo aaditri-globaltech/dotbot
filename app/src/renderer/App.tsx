@@ -1,6 +1,6 @@
 /** Application shell: persistent chrome, screen switching, and session bootstrap. */
 
-import { type CSSProperties, useEffect } from "react";
+import { Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { MainTopBar, SidebarBrand } from "./components/layout/AppChrome";
 import { PrimarySidebar } from "./components/layout/PrimarySidebar";
 import { SessionTabs } from "./components/layout/SessionTabs";
@@ -9,74 +9,77 @@ import { DashboardView } from "./components/screen/dashboard/DashboardView";
 import { ManageSidebar } from "./components/screen/manage/ManageSidebar";
 import { ManageView } from "./components/screen/manage/ManageView";
 import { WorkbenchView } from "./components/screen/workbench/WorkbenchView";
-import { useResizablePanels } from "./hooks/useResizablePanels";
-import { useNavigationStore } from "./stores/navigation-store";
-import { useSessionStore } from "./stores/session-store";
-import { useTrustStore } from "./stores/trust-store";
+import { createResizablePanels } from "./hooks/resizable-panels";
+import { navigationStore } from "./stores/navigation-store";
+import { sessionStore } from "./stores/session-store";
+import { trustStore } from "./stores/trust-store";
 
 /** Root renderer component that owns the app-level panel state. */
 export default function App() {
-  const panels = useResizablePanels();
-  const screen = useNavigationStore((state) => state.screen);
-  const setScreen = useNavigationStore((state) => state.setScreen);
+  const panels = createResizablePanels();
 
-  useEffect(() => {
+  onMount(() => {
     // Subscribe before listing so a fast session update cannot be missed.
-    const store = useSessionStore.getState();
-    const unsubscribe = store.subscribe();
-    const unsubscribeTrust = useTrustStore.getState().subscribe();
-    void store.loadSessions().catch((error: unknown) => console.error(error));
-    return () => {
+    const unsubscribe = sessionStore.subscribe();
+    const unsubscribeTrust = trustStore.subscribe();
+    void sessionStore
+      .loadSessions()
+      .catch((error: unknown) => console.error(error));
+    onCleanup(() => {
       unsubscribeTrust();
       unsubscribe();
-    };
-  }, []);
+    });
+  });
 
   return (
     <main
-      className={`app-shell ${panels.leftCollapsed ? "is-sidebar-collapsed" : ""}`}
+      class={`app-shell ${panels.leftCollapsed() ? "is-sidebar-collapsed" : ""}`}
       ref={panels.setLayout}
-      style={{ "--sidebar-width": `${panels.leftWidth}px` } as CSSProperties}
+      style={{ "--sidebar-width": `${panels.leftWidth()}px` }}
     >
-      <aside id="primary-sidebar" className="sidebar">
-        <SidebarBrand collapsed={panels.leftCollapsed} />
-        {screen === "manage" ? (
+      <aside id="primary-sidebar" class="sidebar">
+        <SidebarBrand collapsed={panels.leftCollapsed()} />
+        <Show
+          when={navigationStore.state.screen === "manage"}
+          fallback={<PrimarySidebar collapsed={panels.leftCollapsed()} />}
+        >
           <ManageSidebar
-            collapsed={panels.leftCollapsed}
-            onBack={() => setScreen("workbench")}
+            collapsed={panels.leftCollapsed()}
+            onBack={() => navigationStore.setScreen("workbench")}
           />
-        ) : (
-          <PrimarySidebar collapsed={panels.leftCollapsed} />
-        )}
+        </Show>
       </aside>
 
       <PanelResizer
         target="left"
-        value={panels.leftWidth}
+        value={panels.leftWidth()}
         label="Resize side bar and view border"
         controls="primary-sidebar view"
         onPointerDown={(event) => panels.startResize("left", event)}
         onKeyDown={(event) => panels.handleKeyDown("left", event)}
       />
 
-      <div className="main-column">
+      <div class="main-column">
         <MainTopBar
-          primarySidebarCollapsed={panels.leftCollapsed}
-          panelCollapsed={panels.panelCollapsed}
+          primarySidebarCollapsed={panels.leftCollapsed()}
+          panelCollapsed={panels.panelCollapsed()}
           onTogglePrimarySidebar={() => panels.toggleCollapsed("left")}
           onTogglePanel={() => panels.toggleCollapsed("bottom")}
         >
-          {screen === "workbench" && <SessionTabs />}
+          <Show when={navigationStore.state.screen === "workbench"}>
+            <SessionTabs />
+          </Show>
         </MainTopBar>
 
-        <div className="main-view">
-          {screen === "dashboard" ? (
-            <DashboardView />
-          ) : screen === "manage" ? (
-            <ManageView />
-          ) : (
-            <WorkbenchView panels={panels} />
-          )}
+        <div class="main-view">
+          <Switch fallback={<WorkbenchView panels={panels} />}>
+            <Match when={navigationStore.state.screen === "dashboard"}>
+              <DashboardView />
+            </Match>
+            <Match when={navigationStore.state.screen === "manage"}>
+              <ManageView />
+            </Match>
+          </Switch>
         </div>
       </div>
     </main>

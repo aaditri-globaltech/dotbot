@@ -1,6 +1,7 @@
+import { For, Show } from "solid-js";
 import {
   type ManagePage,
-  useNavigationStore,
+  navigationStore,
 } from "../../../stores/navigation-store";
 import {
   CHROME_BUTTON_CLASS,
@@ -19,80 +20,81 @@ export function ManageSidebar(props: {
   onBack: () => void;
   collapsed: boolean;
 }) {
-  const managePage = useNavigationStore((state) => state.managePage);
-  const setManagePage = useNavigationStore((state) => state.setManagePage);
+  const managePage = () => navigationStore.state.managePage;
 
-  if (props.collapsed) {
-    return (
-      <nav
-        className="flex flex-col items-center gap-1 p-2"
-        dotbot-label="Manage"
-      >
+  return (
+    <Show
+      when={props.collapsed}
+      fallback={
+        <nav class="flex flex-col gap-0.5 p-2" label="Manage">
+          <button
+            type="button"
+            class={`${NAV_ROW_CLASS} mb-1 ${NAV_ROW_IDLE_CLASS}`}
+            label="Back to sessions"
+            onClick={props.onBack}
+          >
+            <span
+              class="codicon codicon-arrow-left text-[15px]"
+              decorative="true"
+            />
+            Back
+          </button>
+          <For each={manageItems}>
+            {(item) => (
+              <button
+                type="button"
+                class={`${NAV_ROW_CLASS} ${
+                  managePage() === item.id
+                    ? NAV_ROW_SELECTED_CLASS
+                    : NAV_ROW_IDLE_CLASS
+                }`}
+                is-selected={String(managePage() === item.id)}
+                onClick={() => navigationStore.setManagePage(item.id)}
+              >
+                <span
+                  class={`codicon ${item.icon} text-[15px]`}
+                  decorative="true"
+                />
+                {item.label}
+              </button>
+            )}
+          </For>
+        </nav>
+      }
+    >
+      <nav class="flex flex-col items-center gap-1 p-2" label="Manage">
         <button
-          className={`size-7 ${CHROME_BUTTON_CLASS} mb-1`}
+          class={`size-7 ${CHROME_BUTTON_CLASS} mb-1`}
           type="button"
-          dotbot-label="Back to sessions"
+          label="Back to sessions"
           title="Back"
           onClick={props.onBack}
         >
           <span
-            className="codicon codicon-arrow-left text-[15px]"
-            dotbot-hidden="true"
+            class="codicon codicon-arrow-left text-[15px]"
+            decorative="true"
           />
         </button>
-        {manageItems.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`size-7 ${CHROME_BUTTON_CLASS} ${
-              managePage === item.id ? "bg-card text-primary" : ""
-            }`}
-            dotbot-label={item.label}
-            title={item.label}
-            dotbot-selected={String(managePage === item.id)}
-            onClick={() => setManagePage(item.id)}
-          >
-            <span
-              className={`codicon ${item.icon} text-[15px]`}
-              dotbot-hidden="true"
-            />
-          </button>
-        ))}
+        <For each={manageItems}>
+          {(item) => (
+            <button
+              type="button"
+              class={`size-7 ${CHROME_BUTTON_CLASS} ${
+                managePage() === item.id ? "bg-card text-primary" : ""
+              }`}
+              label={item.label}
+              title={item.label}
+              is-selected={String(managePage() === item.id)}
+              onClick={() => navigationStore.setManagePage(item.id)}
+            >
+              <span
+                class={`codicon ${item.icon} text-[15px]`}
+                decorative="true"
+              />
+            </button>
+          )}
+        </For>
       </nav>
-    );
-  }
-
-  return (
-    <nav className="flex flex-col gap-0.5 p-2" dotbot-label="Manage">
-      <button
-        type="button"
-        className={`${NAV_ROW_CLASS} mb-1 ${NAV_ROW_IDLE_CLASS}`}
-        dotbot-label="Back to sessions"
-        onClick={props.onBack}
-      >
-        <span
-          className="codicon codicon-arrow-left text-[15px]"
-          dotbot-hidden="true"
-        />
-        Back
-      </button>
-      {manageItems.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          className={`${NAV_ROW_CLASS} ${
-            managePage === item.id ? NAV_ROW_SELECTED_CLASS : NAV_ROW_IDLE_CLASS
-          }`}
-          dotbot-selected={String(managePage === item.id)}
-          onClick={() => setManagePage(item.id)}
-        >
-          <span
-            className={`codicon ${item.icon} text-[15px]`}
-            dotbot-hidden="true"
-          />
-          {item.label}
-        </button>
-      ))}
-    </nav>
+    </Show>
   );
 }

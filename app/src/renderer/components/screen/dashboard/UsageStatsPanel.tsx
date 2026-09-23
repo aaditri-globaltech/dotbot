@@ -3,7 +3,15 @@
  * reduced session data.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  createMemo,
+  createSignal,
+  For,
+  Index,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 import {
   RANGE_DAYS,
   type UsageModelUsage,
@@ -70,10 +78,8 @@ interface TokenBucket {
 
 /** Bucket a day slice into at most `MAX_BARS` bars, trimming leading quiet days. */
 function bucketTokens(days: UsageStatsDay[]): TokenBucket[] {
-  let start = 0;
-  while (start < days.length && days[start].tokens === 0) start += 1;
-
-  const span = days.slice(start);
+  const firstActive = days.findIndex((day) => day.tokens !== 0);
+  const span = firstActive === -1 ? [] : days.slice(firstActive);
   if (span.length === 0) return [];
 
   const size = Math.max(1, Math.ceil(span.length / MAX_BARS));
@@ -97,15 +103,15 @@ function bucketTokens(days: UsageStatsDay[]): TokenBucket[] {
   return buckets;
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard(props: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5">
-      <div className="text-[11px] text-muted">{label}</div>
+    <div class="min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5">
+      <div class="text-[11px] text-muted">{props.label}</div>
       <div
-        className="mt-0.5 truncate text-lg font-semibold text-primary"
-        title={value}
+        class="mt-0.5 truncate text-lg font-semibold text-primary"
+        title={props.value}
       >
-        {value}
+        {props.value}
       </div>
     </div>
   );
@@ -113,162 +119,170 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 /**
  * Message counts per day, laid out as week columns: the grid flows down seven
- * weekday rows first, and `gridRowStart` puts each day on its own weekday.
+ * weekday rows first, and `grid-row-start` puts each day on its own weekday.
  */
-function Heatmap({ days }: { days: UsageStatsDay[] }) {
-  const maxCount = useMemo(
-    () => days.reduce((max, day) => Math.max(max, day.messages), 0),
-    [days],
+function Heatmap(props: { days: UsageStatsDay[] }) {
+  const maxCount = createMemo(() =>
+    props.days.reduce((max, day) => Math.max(max, day.messages), 0),
   );
 
   return (
-    <div className="grid auto-cols-[12px] grid-flow-col grid-rows-[repeat(7,12px)] gap-1 overflow-x-auto pb-1">
-      {days.map((day) => (
-        <div
-          key={day.date}
-          title={`${day.date}: ${day.messages} messages`}
-          className={`rounded-sm ${intensityClass(day.messages, maxCount)}`}
-          style={{
-            gridRowStart: new Date(`${day.date}T00:00:00`).getDay() + 1,
-          }}
-        />
-      ))}
+    <div class="grid auto-cols-[12px] grid-flow-col grid-rows-[repeat(7,12px)] gap-1 overflow-x-auto pb-1">
+      <For each={props.days}>
+        {(day) => (
+          <div
+            title={`${day.date}: ${day.messages} messages`}
+            class={`rounded-sm ${intensityClass(day.messages, maxCount())}`}
+            style={{
+              "grid-row-start": new Date(`${day.date}T00:00:00`).getDay() + 1,
+            }}
+          />
+        )}
+      </For>
     </div>
   );
 }
 
 /** Stacked token bars, one column per bucket, coloured by model. */
-function TokenChart({
-  days,
-  orderedModels,
-  modelColor,
-}: {
+function TokenChart(props: {
   days: UsageStatsDay[];
   /** Largest first, also the stacking order. */
   orderedModels: string[];
   modelColor: Map<string, string>;
 }) {
-  const buckets = useMemo(() => bucketTokens(days), [days]);
-
-  if (buckets.length === 0) {
-    return (
-      <p className="py-6 text-center text-xs text-muted">
-        No token usage in this range.
-      </p>
-    );
-  }
-
-  const max = buckets.reduce((top, bucket) => Math.max(top, bucket.total), 0);
-  const ticks = Array.from(
-    { length: CHART_TICKS + 1 },
-    (_, index) => (max * (CHART_TICKS - index)) / CHART_TICKS,
+  const buckets = createMemo(() => bucketTokens(props.days));
+  const max = createMemo(() =>
+    buckets().reduce((top, bucket) => Math.max(top, bucket.total), 0),
   );
-  const labelStep = Math.ceil(buckets.length / 6);
+  const ticks = createMemo(() =>
+    Array.from(
+      { length: CHART_TICKS + 1 },
+      (_, index) => (max() * (CHART_TICKS - index)) / CHART_TICKS,
+    ),
+  );
+  const labelStep = createMemo(() => Math.ceil(buckets().length / 6));
 
   return (
-    <div className="flex gap-2">
-      <div className="flex h-40 shrink-0 basis-[46px] flex-col justify-between text-right text-[10px] text-faint tabular-nums">
-        {ticks.map((tick) => (
-          <span key={tick}>{formatCompact(Math.round(tick))}</span>
-        ))}
-      </div>
+    <Show
+      when={buckets().length > 0}
+      fallback={
+        <p class="py-6 text-center text-xs text-muted">
+          No token usage in this range.
+        </p>
+      }
+    >
+      <div class="flex gap-2">
+        <div class="flex h-40 shrink-0 basis-[46px] flex-col justify-between text-right text-[10px] text-faint tabular-nums">
+          <Index each={ticks()}>
+            {(tick) => <span>{formatCompact(Math.round(tick()))}</span>}
+          </Index>
+        </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="relative h-40">
-          {ticks.map((tick, index) => (
-            <div
-              key={tick}
-              className="absolute inset-x-0 border-t border-border"
-              style={{ top: `${(index / CHART_TICKS) * 100}%` }}
-            />
-          ))}
+        <div class="min-w-0 flex-1">
+          <div class="relative h-40">
+            <Index each={ticks()}>
+              {(_, index) => (
+                <div
+                  class="absolute inset-x-0 border-t border-border"
+                  style={{ top: `${(index / CHART_TICKS) * 100}%` }}
+                />
+              )}
+            </Index>
 
-          <div className="absolute inset-0 flex items-end gap-[3px]">
-            {buckets.map((bucket) => (
-              <div
-                key={bucket.label}
-                className="flex min-w-[2px] flex-1 flex-col overflow-hidden rounded-sm"
-                title={`${bucket.label}: ${formatCompact(bucket.total)} tokens`}
-                style={{
-                  height:
-                    max > 0
-                      ? `${Math.max((bucket.total / max) * 100, bucket.total > 0 ? 2 : 0)}%`
-                      : "0%",
-                }}
-              >
-                {orderedModels.map((model) => {
-                  const tokens = bucket.byModel[model] ?? 0;
-                  if (tokens <= 0 || bucket.total <= 0) return null;
-                  return (
-                    <div
-                      key={model}
-                      className={`w-full shrink-0 ${modelColor.get(model)}`}
-                      style={{ height: `${(tokens / bucket.total) * 100}%` }}
-                    />
-                  );
-                })}
-              </div>
-            ))}
+            <div class="absolute inset-0 flex items-end gap-[3px]">
+              <For each={buckets()}>
+                {(bucket) => (
+                  <div
+                    class="flex min-w-[2px] flex-1 flex-col overflow-hidden rounded-sm"
+                    title={`${bucket.label}: ${formatCompact(bucket.total)} tokens`}
+                    style={{
+                      height:
+                        max() > 0
+                          ? `${Math.max((bucket.total / max()) * 100, bucket.total > 0 ? 2 : 0)}%`
+                          : "0%",
+                    }}
+                  >
+                    <For each={props.orderedModels}>
+                      {(model) => {
+                        const tokens = bucket.byModel[model] ?? 0;
+                        return (
+                          <Show when={tokens > 0}>
+                            <div
+                              class={`w-full shrink-0 ${props.modelColor.get(model)}`}
+                              style={{
+                                height: `${(tokens / bucket.total) * 100}%`,
+                              }}
+                            />
+                          </Show>
+                        );
+                      }}
+                    </For>
+                  </div>
+                )}
+              </For>
+            </div>
+          </div>
+
+          <div class="mt-1 flex gap-[3px] text-[10px] text-faint">
+            <Index each={buckets()}>
+              {(bucket, index) => (
+                <div class="min-w-[2px] flex-1 text-center">
+                  {index % labelStep() === 0 ? bucket().label : ""}
+                </div>
+              )}
+            </Index>
           </div>
         </div>
-
-        <div className="mt-1 flex gap-[3px] text-[10px] text-faint">
-          {buckets.map((bucket, index) => (
-            <div key={bucket.label} className="min-w-[2px] flex-1 text-center">
-              {index % labelStep === 0 ? bucket.label : ""}
-            </div>
-          ))}
-        </div>
       </div>
-    </div>
+    </Show>
   );
 }
 
 /** Token totals per model, largest first, sharing the chart's colours. */
-function ModelLegend({
-  models,
-  modelColor,
-}: {
+function ModelLegend(props: {
   models: UsageModelUsage[];
   modelColor: Map<string, string>;
 }) {
-  const grandTotal = models.reduce(
-    (sum, model) => sum + model.input + model.output,
-    0,
+  const grandTotal = createMemo(() =>
+    props.models.reduce((sum, model) => sum + model.input + model.output, 0),
   );
 
-  if (models.length === 0) {
-    return (
-      <p className="py-6 text-center text-xs text-muted">
-        No model usage in this range.
-      </p>
-    );
-  }
-
   return (
-    <div className="mt-4 flex flex-col gap-1.5 border-t border-border pt-3">
-      {models.map((model) => {
-        const total = model.input + model.output;
-        const percent = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
-        return (
-          <div key={model.model} className="flex items-center gap-2 text-xs">
-            <span
-              className={`size-2 shrink-0 rounded-full ${modelColor.get(model.model)}`}
-            />
-            <span className="min-w-0 flex-1 truncate text-secondary">
-              {model.model}
-            </span>
-            <span className="shrink-0 text-muted tabular-nums">
-              {formatCompact(model.input)} in · {formatCompact(model.output)}{" "}
-              out
-            </span>
-            <span className="w-[46px] shrink-0 text-right text-faint tabular-nums">
-              {percent.toFixed(1)}%
-            </span>
-          </div>
-        );
-      })}
-    </div>
+    <Show
+      when={props.models.length > 0}
+      fallback={
+        <p class="py-6 text-center text-xs text-muted">
+          No model usage in this range.
+        </p>
+      }
+    >
+      <div class="mt-4 flex flex-col gap-1.5 border-t border-border pt-3">
+        <For each={props.models}>
+          {(model) => {
+            const total = () => model.input + model.output;
+            const percent = () =>
+              grandTotal() > 0 ? (total() / grandTotal()) * 100 : 0;
+            return (
+              <div class="flex items-center gap-2 text-xs">
+                <span
+                  class={`size-2 shrink-0 rounded-full ${props.modelColor.get(model.model)}`}
+                />
+                <span class="min-w-0 flex-1 truncate text-secondary">
+                  {model.model}
+                </span>
+                <span class="shrink-0 text-muted tabular-nums">
+                  {formatCompact(model.input)} in ·{" "}
+                  {formatCompact(model.output)} out
+                </span>
+                <span class="w-[46px] shrink-0 text-right text-faint tabular-nums">
+                  {percent().toFixed(1)}%
+                </span>
+              </div>
+            );
+          }}
+        </For>
+      </div>
+    </Show>
   );
 }
 
@@ -276,13 +290,127 @@ function ModelLegend({
  * Usage overview with a range toggle. Renders nothing until there is
  * activity, so a fresh install shows only the launcher.
  */
-export function UsageStatsPanel() {
-  const [stats, setStats] = useState<UsageStats | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [tab, setTab] = useState<Tab>("overview");
-  const [range, setRange] = useState<UsageRangeKey>("365");
+/** One statistics snapshot: range and tab selection with the panels below. */
+function UsageSection(props: { stats: UsageStats }) {
+  const [tab, setTab] = createSignal<Tab>("overview");
+  const [range, setRange] = createSignal<UsageRangeKey>("365");
+  const rangedDays = createMemo(() =>
+    props.stats.days.slice(-RANGE_DAYS[range()]),
+  );
+  const summary = () => props.stats.ranges[range()];
+  const favoriteModel = () => summary().models[0]?.model ?? "—";
+  const peakHourLabel = () => {
+    const hour = summary().peakHour;
+    return hour === null ? "—" : formatHour(hour);
+  };
+  const orderedModels = () => summary().models.map((model) => model.model);
+  const modelColor = () =>
+    new Map<string, string>(
+      orderedModels().map((model, index) => [
+        model,
+        MODEL_COLORS[index % MODEL_COLORS.length],
+      ]),
+    );
 
-  useEffect(() => {
+  return (
+    <section class="mb-6 rounded-xl border border-border bg-card p-4">
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <div class="flex gap-0.5">
+          <For each={["overview", "models"] as Tab[]}>
+            {(name) => (
+              <button
+                type="button"
+                pressed={String(tab() === name)}
+                class={`${TAB_CLASS} ${
+                  tab() === name
+                    ? "bg-elevated text-primary"
+                    : "bg-transparent text-muted hover:bg-surface-hover hover:text-primary"
+                }`}
+                onClick={() => setTab(name)}
+              >
+                {name === "overview" ? "Overview" : "Models"}
+              </button>
+            )}
+          </For>
+        </div>
+
+        <div class="flex gap-0.5 rounded-full bg-surface p-0.5">
+          <For each={RANGE_LABELS}>
+            {({ key, label }) => (
+              <button
+                type="button"
+                pressed={String(range() === key)}
+                class={`${TAB_CLASS} ${
+                  range() === key
+                    ? "bg-elevated text-primary"
+                    : "bg-transparent text-muted hover:bg-surface-hover hover:text-primary"
+                }`}
+                onClick={() => setRange(key)}
+              >
+                {label}
+              </button>
+            )}
+          </For>
+        </div>
+      </div>
+
+      <Show
+        when={tab() === "overview"}
+        fallback={
+          <>
+            <TokenChart
+              days={rangedDays()}
+              orderedModels={orderedModels()}
+              modelColor={modelColor()}
+            />
+            <ModelLegend models={summary().models} modelColor={modelColor()} />
+          </>
+        }
+      >
+        <div class="mb-4 grid grid-cols-4 gap-2">
+          <StatCard
+            label="Sessions"
+            value={summary().sessions.toLocaleString()}
+          />
+          <StatCard
+            label="Messages"
+            value={summary().messages.toLocaleString()}
+          />
+          <StatCard
+            label="Total tokens"
+            value={formatCompact(summary().totalTokens)}
+          />
+          <StatCard
+            label="Active days"
+            value={summary().activeDays.toLocaleString()}
+          />
+          <StatCard
+            label="Current streak"
+            value={`${summary().currentStreak}d`}
+          />
+          <StatCard
+            label="Longest streak"
+            value={`${summary().longestStreak}d`}
+          />
+          <StatCard label="Peak hour" value={peakHourLabel()} />
+          <StatCard label="Favorite model" value={favoriteModel()} />
+        </div>
+
+        <Heatmap days={rangedDays()} />
+      </Show>
+    </section>
+  );
+}
+
+/**
+ * Usage overview for the loaded statistics. Renders nothing until there is
+ * activity, so a fresh install shows only the launcher.
+ */
+export function UsageStatsPanel() {
+  const [stats, setStats] = createSignal<UsageStats | null>(null);
+  const [failed, setFailed] = createSignal(false);
+
+  onMount(() => {
     let cancelled = false;
     api.stats
       .get()
@@ -293,119 +421,23 @@ export function UsageStatsPanel() {
         console.error(error);
         if (!cancelled) setFailed(true);
       });
-    return () => {
+    onCleanup(() => {
       cancelled = true;
-    };
-  }, []);
-
-  const rangedDays = useMemo(() => {
-    if (!stats) return [];
-    return stats.days.slice(-RANGE_DAYS[range]);
-  }, [stats, range]);
-
-  if (failed) {
-    return <p className="text-muted">Usage statistics are unavailable.</p>;
-  }
-  if (!stats || stats.ranges["365"].messages === 0) return null;
-
-  const summary = stats.ranges[range];
-  const favoriteModel = summary.models[0]?.model ?? "—";
-  const orderedModels = summary.models.map((model) => model.model);
-  const modelColor = new Map<string, string>(
-    orderedModels.map((model, index) => [
-      model,
-      MODEL_COLORS[index % MODEL_COLORS.length],
-    ]),
-  );
+    });
+  });
 
   return (
-    <section className="mb-6 rounded-xl border border-border bg-card p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex gap-0.5">
-          {(["overview", "models"] as Tab[]).map((name) => (
-            <button
-              key={name}
-              type="button"
-              aria-pressed={tab === name}
-              className={`${TAB_CLASS} ${
-                tab === name
-                  ? "bg-elevated text-primary"
-                  : "bg-transparent text-muted hover:bg-surface-hover hover:text-primary"
-              }`}
-              onClick={() => setTab(name)}
-            >
-              {name === "overview" ? "Overview" : "Models"}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-0.5 rounded-full bg-surface p-0.5">
-          {RANGE_LABELS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={range === key}
-              className={`${TAB_CLASS} ${
-                range === key
-                  ? "bg-elevated text-primary"
-                  : "bg-transparent text-muted hover:bg-surface-hover hover:text-primary"
-              }`}
-              onClick={() => setRange(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {tab === "overview" ? (
-        <>
-          <div className="mb-4 grid grid-cols-4 gap-2">
-            <StatCard
-              label="Sessions"
-              value={summary.sessions.toLocaleString()}
-            />
-            <StatCard
-              label="Messages"
-              value={summary.messages.toLocaleString()}
-            />
-            <StatCard
-              label="Total tokens"
-              value={formatCompact(summary.totalTokens)}
-            />
-            <StatCard
-              label="Active days"
-              value={summary.activeDays.toLocaleString()}
-            />
-            <StatCard
-              label="Current streak"
-              value={`${summary.currentStreak}d`}
-            />
-            <StatCard
-              label="Longest streak"
-              value={`${summary.longestStreak}d`}
-            />
-            <StatCard
-              label="Peak hour"
-              value={
-                summary.peakHour === null ? "—" : formatHour(summary.peakHour)
-              }
-            />
-            <StatCard label="Favorite model" value={favoriteModel} />
-          </div>
-
-          <Heatmap days={rangedDays} />
-        </>
-      ) : (
-        <>
-          <TokenChart
-            days={rangedDays}
-            orderedModels={orderedModels}
-            modelColor={modelColor}
-          />
-          <ModelLegend models={summary.models} modelColor={modelColor} />
-        </>
-      )}
-    </section>
+    <Show
+      when={!failed()}
+      fallback={<p class="text-muted">Usage statistics are unavailable.</p>}
+    >
+      <Show when={stats()}>
+        {(loaded) => (
+          <Show when={loaded().ranges["365"].messages !== 0}>
+            <UsageSection stats={loaded()} />
+          </Show>
+        )}
+      </Show>
+    </Show>
   );
 }

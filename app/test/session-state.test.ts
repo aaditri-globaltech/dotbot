@@ -5,6 +5,7 @@ import {
   createSessionClientState,
   isBashDraft,
   parseBashCommand,
+  parseModelKey,
 } from "../src/renderer/components/panels/session-state";
 
 describe("parseBashCommand", () => {
@@ -128,5 +129,22 @@ describe("applySessionError", () => {
     expect(next.transcript).toEqual([
       { kind: "error", id: expect.any(String), text: "boom" },
     ]);
+  });
+});
+
+describe("parseModelKey", () => {
+  it("splits a provider/id key at the first separator", () => {
+    expect(parseModelKey("faux/faux-1")).toEqual({
+      provider: "faux",
+      modelId: "faux-1",
+    });
+    expect(parseModelKey("openrouter/anthropic/claude")).toEqual({
+      provider: "openrouter",
+      modelId: "anthropic/claude",
+    });
+  });
+
+  it("rejects a key without a provider", () => {
+    expect(parseModelKey("faux-1")).toBeUndefined();
   });
 });

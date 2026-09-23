@@ -7,10 +7,11 @@ import type {
   TrustDecisionEntry,
   TrustRequest,
 } from "@dotbot/agent-core";
-import { create } from "zustand";
+import { createStore } from "solid-js/store";
 import { api } from "../api";
+import { errorMessage } from "../errors";
 
-type TrustStore = {
+type TrustState = {
   /** Pending dialogs, oldest first; the app renders the head. */
   requests: TrustRequest[];
   /** Run-time decisions reported by the main process, keyed by project. */
@@ -21,82 +22,76 @@ type TrustStore = {
   defaultTrust: DefaultProjectTrust;
   /** Latest Manage load or mutation failure. */
   error?: string;
-  respond: (response: ExtensionResponse) => void;
-  applyEvent: (event: AgentManagerEvent) => void;
-  subscribe: () => () => void;
-  load: () => Promise<void>;
-  setDefault: (value: DefaultProjectTrust) => Promise<void>;
-  revoke: (path: string) => Promise<void>;
 };
 
-function messageFor(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** App-level trust prompt, decision, and Manage state. */
-export const useTrustStore = create<TrustStore>((set, get) => ({
-  requests: [],
-  decisions: {},
-  entries: [],
-  defaultTrust: "ask",
+export function createTrustStore() {
+  const [state, setState] = createStore<TrustState>({
+    requests: [],
+    decisions: {},
+    entries: [],
+    defaultTrust: "ask",
+  });
 
-  respond: (response) => {
+  const respond = (response: ExtensionResponse) => {
     void api.agent
       .respondTrust(response)
       .catch((error: unknown) => console.error(error))
       .finally(() =>
-        set((current) => ({
-          requests: current.requests.filter(
-            (request) => request.id !== response.id,
-          ),
-        })),
+        setState("requests", (requests) =>
+          requests.filter((request) => request.id !== response.id),
+        ),
       );
-  },
+  };
 
-  applyEvent: (event) => {
+  const applyEvent = (event: AgentManagerEvent) => {
     if (event.type === "trust_request") {
-      set((current) => ({ requests: [...current.requests, event.request] }));
+      setState("requests", (requests) => [...requests, event.request]);
       return;
     }
     if (event.type === "trust_update") {
-      set((current) => ({
-        decisions: {
-          ...current.decisions,
-          [event.projectDir]: event.decision,
-        },
-      }));
+      setState("decisions", event.projectDir, event.decision);
     }
-  },
+  };
 
-  subscribe: () => api.agent.onEvent((event) => get().applyEvent(event)),
+  return {
+    state,
+    respond,
+    applyEvent,
 
-  load: async () => {
-    try {
-      const [defaultTrust, entries] = await Promise.all([
-        api.trust.getDefault(),
-        api.trust.list(),
-      ]);
-      set({ defaultTrust, entries, error: undefined });
-    } catch (error) {
-      set({ error: messageFor(error) });
-    }
-  },
+    subscribe: () => api.agent.onEvent((event) => applyEvent(event)),
 
-  setDefault: async (value) => {
-    try {
-      await api.trust.setDefault(value);
-      set({ defaultTrust: value, error: undefined });
-    } catch (error) {
-      set({ error: messageFor(error) });
-    }
-  },
+    load: async () => {
+      try {
+        const [defaultTrust, entries] = await Promise.all([
+          api.trust.getDefault(),
+          api.trust.list(),
+        ]);
+        setState({ defaultTrust, entries, error: undefined });
+      } catch (error) {
+        setState("error", errorMessage(error));
+      }
+    },
 
-  revoke: async (path) => {
-    try {
-      await api.trust.revoke(path);
-      set({ entries: await api.trust.list(), error: undefined });
-    } catch (error) {
-      set({ error: messageFor(error) });
-    }
-  },
-}));
+    setDefault: async (value: DefaultProjectTrust) => {
+      try {
+        await api.trust.setDefault(value);
+        setState({ defaultTrust: value, error: undefined });
+      } catch (error) {
+        setState("error", errorMessage(error));
+      }
+    },
+
+    revoke: async (path: string) => {
+      try {
+        await api.trust.revoke(path);
+        setState({ entries: await api.trust.list(), error: undefined });
+      } catch (error) {
+        setState("error", errorMessage(error));
+      }
+    },
+  };
+}
+
+/** Shared trust store for the running app. */
+export const trustStore = createTrustStore();

@@ -12,10 +12,34 @@ vi.hoisted(() => {
   });
 });
 
-import { useWorkspaceStore } from "../src/renderer/stores/workspace-store";
+import { createWorkspaceStore } from "../src/renderer/stores/workspace-store";
 
 describe("workspace store", () => {
   it("keeps projects saved under the pre-rename storage key", () => {
-    expect(useWorkspaceStore.getState().projects).toEqual(["/legacy/project"]);
+    const store = createWorkspaceStore();
+    expect(store.state.projects).toEqual(["/legacy/project"]);
+  });
+
+  it("remembers a project once and selects it", () => {
+    const store = createWorkspaceStore();
+    store.selectProject("/a");
+    store.selectProject("/a");
+    expect(store.state.projects).toEqual(["/legacy/project", "/a"]);
+    expect(store.state.selectedProject).toBe("/a");
+  });
+
+  it("survives storage that throws", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+      removeItem: () => undefined,
+    });
+    const store = createWorkspaceStore();
+    expect(store.state.projects).toEqual([]);
+    expect(() => store.selectProject("/b")).not.toThrow();
   });
 });

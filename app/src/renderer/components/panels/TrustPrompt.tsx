@@ -1,12 +1,7 @@
 /** Trust choices rendered inside the composer's dialogue card. */
 
 import type { ExtensionResponse, TrustRequest } from "@dotbot/agent-core";
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { createSignal, For, onMount } from "solid-js";
 
 export type TrustPromptProps = {
   request: Extract<TrustRequest, { method: "select" }>;
@@ -23,13 +18,11 @@ function splitPrompt(title: string): { heading: string; detail?: string } {
 /** Keyboard-navigable trust choices rendered in the composer's dialogue card. */
 export function TrustPrompt(props: TrustPromptProps) {
   const options = props.request.options;
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const container = useRef<HTMLDivElement>(null);
+  const [selectedIndex, setSelectedIndex] = createSignal(0);
+  let container: HTMLDivElement | undefined;
   const { heading, detail } = splitPrompt(props.request.title);
 
-  useEffect(() => {
-    container.current?.focus();
-  }, []);
+  onMount(() => container?.focus());
 
   const respond = (value: string) =>
     props.onRespond({
@@ -45,7 +38,7 @@ export function TrustPrompt(props: TrustPromptProps) {
       cancelled: true,
     });
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === "ArrowUp" || event.key === "k") {
       event.preventDefault();
       setSelectedIndex((index) => Math.max(0, index - 1));
@@ -58,7 +51,7 @@ export function TrustPrompt(props: TrustPromptProps) {
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      respond(options[selectedIndex]);
+      respond(options[selectedIndex()]);
       return;
     }
     if (event.key === "Escape") {
@@ -69,49 +62,52 @@ export function TrustPrompt(props: TrustPromptProps) {
 
   return (
     <div
-      ref={container}
-      className="outline-none"
-      tabIndex={-1}
+      ref={(element) => {
+        container = element;
+      }}
+      class="outline-none"
+      tabindex={-1}
       role="listbox"
-      aria-label={heading}
+      label={heading}
       onKeyDown={handleKeyDown}
     >
-      <div className="pb-2">
-        <div className="text-sm font-medium text-secondary">{heading}</div>
+      <div class="pb-2">
+        <div class="text-sm font-medium text-secondary">{heading}</div>
         {detail && (
-          <div className="mt-1 text-[12px] leading-normal text-dim [white-space:pre-wrap]">
+          <div class="mt-1 text-[12px] leading-normal text-dim [white-space:pre-wrap]">
             {detail}
           </div>
         )}
       </div>
-      <div className="-mx-3 flex flex-col gap-0.5">
-        {options.map((option, index) => (
-          <button
-            key={option}
-            type="button"
-            role="option"
-            aria-selected={index === selectedIndex}
-            className={`flex w-full cursor-pointer items-center gap-2 rounded-xl border-0 px-3 py-2 text-left text-sm ${
-              index === selectedIndex
-                ? "bg-card text-primary"
-                : "bg-transparent text-secondary hover:bg-surface-hover"
-            }`}
-            onMouseEnter={() => setSelectedIndex(index)}
-            onClick={() => respond(option)}
-          >
-            <span
-              className={`codicon codicon-arrow-right w-4 shrink-0 text-[12px] text-accent ${
-                index === selectedIndex ? "opacity-100" : "opacity-0"
+      <div class="-mx-3 flex flex-col gap-0.5">
+        <For each={options}>
+          {(option, index) => (
+            <button
+              type="button"
+              role="option"
+              is-selected={String(index() === selectedIndex())}
+              class={`flex w-full cursor-pointer items-center gap-2 rounded-xl border-0 px-3 py-2 text-left text-sm ${
+                index() === selectedIndex()
+                  ? "bg-card text-primary"
+                  : "bg-transparent text-secondary hover:bg-surface-hover"
               }`}
-              dotbot-hidden="true"
-            />
-            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
-              {option}
-            </span>
-          </button>
-        ))}
+              onMouseEnter={() => setSelectedIndex(index())}
+              onClick={() => respond(option)}
+            >
+              <span
+                class={`codicon codicon-arrow-right w-4 shrink-0 text-[12px] text-accent ${
+                  index() === selectedIndex() ? "opacity-100" : "opacity-0"
+                }`}
+                decorative="true"
+              />
+              <span class="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                {option}
+              </span>
+            </button>
+          )}
+        </For>
       </div>
-      <div className="pt-2.5 text-[11px] text-faint">
+      <div class="pt-2.5 text-[11px] text-faint">
         ↑↓ navigate · Enter select · Esc cancel
       </div>
     </div>

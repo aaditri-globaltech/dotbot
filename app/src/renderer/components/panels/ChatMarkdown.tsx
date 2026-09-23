@@ -1,6 +1,14 @@
 import { marked, Renderer } from "marked";
 import mermaid from "mermaid";
-import { useEffect, useRef, useState } from "react";
+import {
+  createEffect,
+  createSignal,
+  For,
+  Match,
+  onCleanup,
+  Show,
+  Switch,
+} from "solid-js";
 import { CODE_BLOCK_CLASS, CodeHighlight } from "./CodeHighlight";
 import { type ChatBlock, parseChatBlocks } from "./chat-markdown";
 
@@ -62,39 +70,43 @@ mermaid.initialize({
 let mermaidId = 0;
 
 function MermaidDiagram(props: { code: string }) {
-  const [svg, setSvg] = useState("");
-  const revisionRef = useRef(0);
+  const [svg, setSvg] = createSignal("");
+  let revision = 0;
 
-  useEffect(() => {
-    const currentRevision = ++revisionRef.current;
+  createEffect(() => {
+    const code = props.code;
+    const currentRevision = ++revision;
     setSvg("");
     void mermaid
-      .render(`dotbot-mermaid-${++mermaidId}`, props.code)
+      .render(`dotbot-mermaid-${++mermaidId}`, code)
       .then((result) => {
-        if (currentRevision === revisionRef.current) setSvg(result.svg);
+        if (currentRevision === revision) setSvg(result.svg);
       })
       .catch(() => {
-        if (currentRevision === revisionRef.current) setSvg("");
+        if (currentRevision === revision) setSvg("");
       });
 
-    return () => {
-      revisionRef.current += 1;
-    };
-  }, [props.code]);
-
-  if (!svg) {
-    return (
-      <pre className={`${CODE_BLOCK_CLASS} [white-space:pre-wrap]`}>
-        <code>{props.code}</code>
-      </pre>
-    );
-  }
+    onCleanup(() => {
+      revision += 1;
+    });
+  });
 
   return (
-    <div
-      className="max-w-full overflow-auto rounded border border-border bg-surface p-3 [&_svg]:block [&_svg]:h-auto [&_svg]:max-w-full"
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <Show when={svg()} fallback={<FallbackDiagram code={props.code} />}>
+      <div
+        class="max-w-full overflow-auto rounded border border-border bg-surface p-3 [&_svg]:block [&_svg]:h-auto [&_svg]:max-w-full"
+        innerHTML={svg()}
+      />
+    </Show>
+  );
+}
+
+/** The raw block shown while a diagram renders and when it cannot. */
+function FallbackDiagram(props: { code: string }) {
+  return (
+    <pre class={`${CODE_BLOCK_CLASS} [white-space:pre-wrap]`}>
+      <code>{props.code}</code>
+    </pre>
   );
 }
 
@@ -102,34 +114,41 @@ function MermaidDiagram(props: { code: string }) {
 export function MarkdownText(props: { text: string; className?: string }) {
   return (
     <div
-      className={
+      class={
         props.className ??
         // `agent-markdown-text` carries the element styles for generated HTML.
         "agent-markdown-text text-inherit leading-normal [overflow-wrap:anywhere] [white-space:normal]"
       }
-      dangerouslySetInnerHTML={{ __html: renderMarkdown(props.text) }}
+      innerHTML={renderMarkdown(props.text)}
     />
   );
 }
 
 function ChatBlockView(props: { block: ChatBlock }) {
-  const block = props.block;
-  if (block.kind === "text") {
-    return <MarkdownText text={block.text} />;
-  }
-  if (block.kind === "mermaid") {
-    return <MermaidDiagram code={block.code} />;
-  }
-  return <CodeHighlight code={block.code} language={block.language} />;
+  return (
+    <Switch>
+      <Match when={props.block.kind === "text" ? props.block : undefined}>
+        {(block) => <MarkdownText text={block().text} />}
+      </Match>
+      <Match when={props.block.kind === "mermaid" ? props.block : undefined}>
+        {(block) => <MermaidDiagram code={block().code} />}
+      </Match>
+      <Match when={props.block.kind === "code" ? props.block : undefined}>
+        {(block) => (
+          <CodeHighlight code={block().code} language={block().language} />
+        )}
+      </Match>
+    </Switch>
+  );
 }
 
 /** Render chat text with fenced code and Mermaid blocks separated. */
 export function ChatMarkdown(props: { text: string }) {
   return (
-    <div className="flex min-w-0 flex-col gap-2.5 [overflow-wrap:anywhere] empty:after:inline-block empty:after:h-3 empty:after:w-[5px] empty:after:animate-[agent-blink_900ms_steps(2,jump-none)_infinite] empty:after:bg-accent empty:after:content-['']">
-      {parseChatBlocks(props.text).map((block, index) => (
-        <ChatBlockView key={index} block={block} />
-      ))}
+    <div class="flex min-w-0 flex-col gap-2.5 [overflow-wrap:anywhere] empty:after:inline-block empty:after:h-3 empty:after:w-[5px] empty:after:animate-[agent-blink_900ms_steps(2,jump-none)_infinite] empty:after:bg-accent empty:after:content-['']">
+      <For each={parseChatBlocks(props.text)}>
+        {(block) => <ChatBlockView block={block} />}
+      </For>
     </div>
   );
 }

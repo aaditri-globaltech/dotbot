@@ -40,23 +40,5 @@
         "organizeImports": "on"
       }
     }
-  },
-  "overrides": [
-    {
-      "includes": [
-        "app/src/renderer/components/panels/ChatMarkdown.tsx",
-        "app/src/renderer/components/panels/CodeHighlight.tsx"
-      ],
-      "linter": {
-        "rules": {
-          "security": {
-            "noDangerouslySetInnerHtml": "off"
-          },
-          "suspicious": {
-            "noArrayIndexKey": "off"
-          }
-        }
-      }
-    }
-  ]
+  }
 }

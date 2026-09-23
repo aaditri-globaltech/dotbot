@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { createStore } from "solid-js/store";
 
 /** Screens selectable from the primary sidebar. */
 export type Screen = "dashboard" | "workbench" | "manage";
@@ -9,24 +9,29 @@ export type SidebarMode = "sessions" | "files";
 /** Pages selectable from the manage sidebar. */
 export type ManagePage = "general" | "providers";
 
-type NavigationStore = {
+type NavigationState = {
   screen: Screen;
   sidebarMode: SidebarMode;
   managePage: ManagePage;
-  setScreen: (screen: Screen) => void;
-  setSidebarMode: (mode: SidebarMode) => void;
-  setManagePage: (page: ManagePage) => void;
 };
 
 /** Screen and sidebar selection for the app chrome. */
-export const useNavigationStore = create<NavigationStore>((set) => ({
-  screen: "dashboard",
-  sidebarMode: "sessions",
-  managePage: "general",
+export function createNavigationStore() {
+  const [state, setState] = createStore<NavigationState>({
+    screen: "dashboard",
+    sidebarMode: "sessions",
+    managePage: "general",
+  });
 
-  setScreen: (screen) => set({ screen }),
+  return {
+    state,
+    setScreen: (screen: Screen) => setState("screen", screen),
+    setSidebarMode: (sidebarMode: SidebarMode) =>
+      setState("sidebarMode", sidebarMode),
+    setManagePage: (managePage: ManagePage) =>
+      setState("managePage", managePage),
+  };
+}
 
-  setSidebarMode: (mode) => set({ sidebarMode: mode }),
-
-  setManagePage: (page) => set({ managePage: page }),
-}));
+/** Shared navigation store for the running app. */
+export const navigationStore = createNavigationStore();

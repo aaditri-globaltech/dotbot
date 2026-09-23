@@ -1,7 +1,14 @@
 /** Modal for an extension dialog request. */
 
 import type { ExtensionRequest, ExtensionResponse } from "@dotbot/agent-core";
-import { type ReactNode, useEffect, useState } from "react";
+import { Dialog } from "@kobalte/core/dialog";
+import {
+  createEffect,
+  createSignal,
+  type JSX,
+  onCleanup,
+  Show,
+} from "solid-js";
 import { Dropdown } from "./Dropdown";
 import { SECONDARY_BUTTON_CLASS } from "./panel-classes";
 
@@ -17,20 +24,40 @@ export type ExtensionDialogProps = {
   onRespond: (response: ExtensionResponse) => void;
 };
 
+/** The value a request starts with, per method. */
+function initialValue(request: ExtensionRequest): string {
+  return request.method === "editor"
+    ? (request.prefill ?? "")
+    : request.method === "select"
+      ? (request.options[0] ?? "")
+      : "";
+}
+
+/** Placeholder for the text methods; only `input` has one. */
+function placeholderFor(request: ExtensionRequest): string | undefined {
+  return request.method === "input" ? request.placeholder : undefined;
+}
+
+/** Editor requests get the taller box. */
+function rowsFor(request: ExtensionRequest): number {
+  return request.method === "editor" ? 8 : 3;
+}
+
 /** Renders one agent dialog request and reports the chosen answer. */
 export function ExtensionDialog(props: ExtensionDialogProps) {
-  const [value, setValue] = useState("");
-
-  useEffect(() => {
-    const request = props.request;
-    setValue(
-      request.method === "editor"
-        ? (request.prefill ?? "")
-        : request.method === "select"
-          ? (request.options[0] ?? "")
-          : "",
-    );
-  }, [props.request]);
+  const [value, setValue] = createSignal(initialValue(props.request));
+  // The manager can replace a pending request in place while this dialog stays
+  // mounted: start over from the new request's own value, not the old one's.
+  createEffect(() => {
+    setValue(initialValue(props.request));
+  });
+  // The agent opens this card, so there is no trigger to hand focus back to:
+  // remember what had focus and restore it when the card goes away.
+  const previouslyFocused =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : undefined;
+  onCleanup(() => previouslyFocused?.focus());
 
   const cancel = () =>
     props.onRespond({
@@ -39,10 +66,17 @@ export function ExtensionDialog(props: ExtensionDialogProps) {
       cancelled: true,
     });
 
+  const respondWithValue = () =>
+    props.onRespond({
+      type: "extension_ui_response",
+      id: props.request.id,
+      value: value(),
+    });
+
   // Every method answers with Cancel plus its own choice, so the row is shared.
-  const actions = (choice: ReactNode) => (
-    <div className="mt-3.5 flex justify-end gap-1.5">
-      <button className={SECONDARY_BUTTON_CLASS} type="button" onClick={cancel}>
+  const actions = (choice: JSX.Element) => (
+    <div class="mt-3.5 flex justify-end gap-1.5">
+      <button class={SECONDARY_BUTTON_CLASS} type="button" onClick={cancel}>
         Cancel
       </button>
       {choice}
@@ -51,100 +85,122 @@ export function ExtensionDialog(props: ExtensionDialogProps) {
 
   const continueWithValue = (
     <button
-      className={DIALOG_PRIMARY_CLASS}
+      class={DIALOG_PRIMARY_CLASS}
       type="button"
-      onClick={() =>
-        props.onRespond({
-          type: "extension_ui_response",
-          id: props.request.id,
-          value,
-        })
-      }
+      onClick={respondWithValue}
     >
       Continue
     </button>
   );
 
+  const selectRequest = () =>
+    props.request.method === "select" ? props.request : undefined;
+  const confirmRequest = () =>
+    props.request.method === "confirm" ? props.request : undefined;
+  const textRequest = () =>
+    props.request.method === "input" || props.request.method === "editor"
+      ? props.request
+      : undefined;
+
   return (
-    <div className="absolute inset-0 z-5 grid place-items-center bg-black/45 p-5">
-      <section
-        className="w-[min(440px,100%)] rounded-lg border border-border-strong bg-card p-4 shadow-card"
-        role="dialog"
-        dotbot-modal="true"
-      >
-        <div className="mb-3 text-[13px] font-semibold text-secondary [white-space:pre-wrap]">
-          {props.request.title}
-        </div>
-        {props.request.method === "select" && (
-          <>
-            <Dropdown
-              label={props.request.title}
-              value={value}
-              options={props.request.options.map((option) => ({
-                value: option,
-                label: option,
-              }))}
-              onChange={setValue}
-              variant="field"
-            />
-            {actions(continueWithValue)}
-          </>
-        )}
-        {props.request.method === "confirm" && (
-          <>
-            <p className="mt-0 mr-0 mb-3.5 ml-0 text-xs leading-normal text-muted [white-space:pre-wrap]">
-              {props.request.message}
-            </p>
-            {actions(
+    // Rendered inline, not through Dialog.Portal, so the overlay keeps covering
+    // only the view panel instead of the whole window.
+    <Dialog
+      open
+      modal
+      onOpenChange={(open) => {
+        if (!open) cancel();
+      }}
+    >
+      <Dialog.Overlay class="absolute inset-0 z-5 grid place-items-center bg-black/45 p-5">
+        <Dialog.Content
+          class="w-[min(440px,100%)] rounded-lg border border-border-strong bg-card p-4 shadow-card"
+          modal="true"
+          // Focus is restored by this component's own cleanup, not by Kobalte's
+          // trigger lookup (there is no trigger element).
+          onCloseAutoFocus={(event) => event.preventDefault()}
+          // A stray click outside must not answer the agent's request for us.
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <Dialog.Title class="mb-3 text-[13px] font-semibold text-secondary [white-space:pre-wrap]">
+            {props.request.title}
+          </Dialog.Title>
+
+          <Show when={selectRequest()}>
+            {(request) => (
               <>
-                <button
-                  className={SECONDARY_BUTTON_CLASS}
-                  type="button"
-                  onClick={() =>
-                    props.onRespond({
-                      type: "extension_ui_response",
-                      id: props.request.id,
-                      confirmed: false,
-                    })
-                  }
-                >
-                  No
-                </button>
-                <button
-                  className={DIALOG_PRIMARY_CLASS}
-                  type="button"
-                  onClick={() =>
-                    props.onRespond({
-                      type: "extension_ui_response",
-                      id: props.request.id,
-                      confirmed: true,
-                    })
-                  }
-                >
-                  Yes
-                </button>
-              </>,
+                <Dropdown
+                  label={request().title}
+                  value={value()}
+                  options={request().options.map((option) => ({
+                    value: option,
+                    label: option,
+                  }))}
+                  onChange={setValue}
+                  variant="field"
+                />
+                {actions(continueWithValue)}
+              </>
             )}
-          </>
-        )}
-        {(props.request.method === "input" ||
-          props.request.method === "editor") && (
-          <>
-            <textarea
-              className={`${DIALOG_INPUT_CLASS} resize-y p-1.5 text-xs leading-[1.4]`}
-              rows={props.request.method === "editor" ? 8 : 3}
-              placeholder={
-                props.request.method === "input"
-                  ? props.request.placeholder
-                  : undefined
-              }
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-            />
-            {actions(continueWithValue)}
-          </>
-        )}
-      </section>
-    </div>
+          </Show>
+
+          <Show when={confirmRequest()}>
+            {(request) => (
+              <>
+                <Dialog.Description class="mt-0 mr-0 mb-3.5 ml-0 text-xs leading-normal text-muted [white-space:pre-wrap]">
+                  {request().message}
+                </Dialog.Description>
+                {actions(
+                  <>
+                    <button
+                      class={SECONDARY_BUTTON_CLASS}
+                      type="button"
+                      onClick={() =>
+                        props.onRespond({
+                          type: "extension_ui_response",
+                          id: props.request.id,
+                          confirmed: false,
+                        })
+                      }
+                    >
+                      No
+                    </button>
+                    <button
+                      class={DIALOG_PRIMARY_CLASS}
+                      type="button"
+                      onClick={() =>
+                        props.onRespond({
+                          type: "extension_ui_response",
+                          id: props.request.id,
+                          confirmed: true,
+                        })
+                      }
+                    >
+                      Yes
+                    </button>
+                  </>,
+                )}
+              </>
+            )}
+          </Show>
+
+          <Show when={textRequest()}>
+            {(request) => (
+              <>
+                <textarea
+                  class={`${DIALOG_INPUT_CLASS} resize-y p-1.5 text-xs leading-[1.4]`}
+                  rows={rowsFor(request())}
+                  placeholder={placeholderFor(request())}
+                  value={value()}
+                  onInput={(event) => setValue(event.currentTarget.value)}
+                />
+                {actions(continueWithValue)}
+              </>
+            )}
+          </Show>
+        </Dialog.Content>
+      </Dialog.Overlay>
+    </Dialog>
   );
 }

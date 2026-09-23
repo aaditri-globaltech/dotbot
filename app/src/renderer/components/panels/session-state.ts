@@ -81,6 +81,18 @@ export function modelKey(model: ModelSummary) {
   return `${model.provider}/${model.id}`;
 }
 
+/** Split a provider/id key back into its parts. */
+export function parseModelKey(
+  value: string,
+): { provider: string; modelId: string } | undefined {
+  const separator = value.indexOf("/");
+  if (separator === -1) return undefined;
+  return {
+    provider: value.slice(0, separator),
+    modelId: value.slice(separator + 1),
+  };
+}
+
 /** Whether a composer draft is a bash command, even before it has one. */
 export function isBashDraft(draft: string) {
   return draft.trimStart().startsWith("!");

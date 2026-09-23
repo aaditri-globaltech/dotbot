@@ -18,41 +18,41 @@ const iconClass = (
 /** Toolbar for toggling the sidebar and the bottom panel. */
 export function ViewActions(props: ViewActionsProps) {
   return (
-    <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
+    <div class="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
       <button
-        className={ICON_BUTTON_CLASS}
+        class={ICON_BUTTON_CLASS}
         type="button"
-        dotbot-label={
+        label={
           props.primarySidebarCollapsed
             ? "Expand Side Bar"
             : "Collapse Side Bar"
         }
-        dotbot-expanded={String(!props.primarySidebarCollapsed)}
+        expanded={String(!props.primarySidebarCollapsed)}
         onClick={props.onTogglePrimarySidebar}
       >
         <span
-          className={iconClass(
+          class={iconClass(
             props.primarySidebarCollapsed,
             "codicon-layout-sidebar-left",
             "codicon-layout-sidebar-left-off",
           )}
-          dotbot-hidden="true"
+          decorative="true"
         />
       </button>
       <button
-        className={ICON_BUTTON_CLASS}
+        class={ICON_BUTTON_CLASS}
         type="button"
-        dotbot-label={props.panelCollapsed ? "Expand Panel" : "Collapse Panel"}
-        dotbot-expanded={String(!props.panelCollapsed)}
+        label={props.panelCollapsed ? "Expand Panel" : "Collapse Panel"}
+        expanded={String(!props.panelCollapsed)}
         onClick={props.onTogglePanel}
       >
         <span
-          className={iconClass(
+          class={iconClass(
             props.panelCollapsed,
             "codicon-layout-panel",
             "codicon-layout-panel-off",
           )}
-          dotbot-hidden="true"
+          decorative="true"
         />
       </button>
     </div>

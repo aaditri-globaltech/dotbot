@@ -4,13 +4,13 @@
  */
 
 import type { SessionSummary } from "@dotbot/agent-core";
-import { useMemo, useState } from "react";
-import { useProjectDir } from "../../../hooks/useProjectDir";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import { projectDir as currentProjectDir } from "../../../hooks/project-dir";
 import { projectName } from "../../../project-name";
 import { relativeTime } from "../../../relative-time";
-import { useNavigationStore } from "../../../stores/navigation-store";
-import { useSessionStore } from "../../../stores/session-store";
-import { useWorkspaceStore } from "../../../stores/workspace-store";
+import { navigationStore } from "../../../stores/navigation-store";
+import { sessionStore } from "../../../stores/session-store";
+import { workspaceStore } from "../../../stores/workspace-store";
 import { Hero } from "../../panels/Hero";
 import { PanelHeader } from "../../panels/PanelHeader";
 import { UsageStatsPanel } from "./UsageStatsPanel";
@@ -46,26 +46,16 @@ function byRecentActivity(a: SessionSummary, b: SessionSummary) {
 
 /** Home launcher: stats, recent sessions, and recent projects. */
 export function DashboardView() {
-  const sessions = useSessionStore((state) => state.sessions);
-  const startNewSession = useSessionStore((state) => state.startNewSession);
-  const pickProject = useSessionStore((state) => state.pickProject);
-  const openSession = useSessionStore((state) => state.openSession);
-  const projects = useWorkspaceStore((state) => state.projects);
-  const selectProject = useWorkspaceStore((state) => state.selectProject);
-  const setScreen = useNavigationStore((state) => state.setScreen);
-
-  const [busy, setBusy] = useState(false);
-
-  const projectDir = useProjectDir();
+  const [busy, setBusy] = createSignal(false);
 
   // Projects are remembered in open order, so the newest are at the end.
-  const recentProjects = useMemo(
-    () => [...projects].reverse().slice(0, MAX_RECENT_PROJECTS),
-    [projects],
+  const recentProjects = createMemo(() =>
+    [...workspaceStore.state.projects].reverse().slice(0, MAX_RECENT_PROJECTS),
   );
-  const recentSessions = useMemo(
-    () => [...sessions].sort(byRecentActivity).slice(0, MAX_RECENT_SESSIONS),
-    [sessions],
+  const recentSessions = createMemo(() =>
+    [...sessionStore.state.sessions]
+      .sort(byRecentActivity)
+      .slice(0, MAX_RECENT_SESSIONS),
   );
 
   /** Run an action with the page locked, so double clicks cannot race. */
@@ -77,55 +67,55 @@ export function DashboardView() {
   };
 
   const openFolder = async () => {
-    if (!(await pickProject())) return;
-    setScreen("workbench");
+    if (!(await sessionStore.pickProject())) return;
+    navigationStore.setScreen("workbench");
   };
 
   const newSession = async () => {
-    await startNewSession(projectDir);
+    await sessionStore.startNewSession(currentProjectDir());
   };
 
-  const showProject = (projectDir: string) => {
-    selectProject(projectDir);
-    setScreen("workbench");
+  const showProject = (dir: string) => {
+    workspaceStore.selectProject(dir);
+    navigationStore.setScreen("workbench");
   };
 
   const showSession = (id: string) => {
-    openSession(id);
-    setScreen("workbench");
+    sessionStore.openSession(id);
+    navigationStore.setScreen("workbench");
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-surface">
+    <div class="flex h-full min-h-0 w-full flex-col bg-surface">
       <PanelHeader title="Dashboard" />
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div class="min-h-0 flex-1 overflow-y-auto">
         <div
-          className={`mx-auto max-w-[952px] px-8 py-12${
-            busy ? " pointer-events-none opacity-60" : ""
+          class={`mx-auto max-w-[952px] px-8 py-12${
+            busy() ? " pointer-events-none opacity-60" : ""
           }`}
         >
-          <header className="mb-6">
+          <header class="mb-6">
             <Hero
               title="Dotbot"
               hint="Open a project or pick up where you left off."
             />
           </header>
 
-          <div className="mb-6 grid grid-cols-2 gap-3">
+          <div class="mb-6 grid grid-cols-2 gap-3">
             <button
               type="button"
-              className={ACTION_CLASS}
+              class={ACTION_CLASS}
               onClick={() => run(openFolder)}
             >
               <span
-                className={`${ACTION_ICON_CLASS} codicon codicon-folder-opened`}
-                dotbot-hidden="true"
+                class={`${ACTION_ICON_CLASS} codicon codicon-folder-opened`}
+                decorative="true"
               />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-[13px] font-medium text-primary">
+              <span class="flex min-w-0 flex-col">
+                <span class="text-[13px] font-medium text-primary">
                   Open project
                 </span>
-                <span className="truncate text-xs text-muted">
+                <span class="truncate text-xs text-muted">
                   Pick a folder to work in
                 </span>
               </span>
@@ -133,20 +123,20 @@ export function DashboardView() {
 
             <button
               type="button"
-              className={ACTION_CLASS}
+              class={ACTION_CLASS}
               onClick={() => run(newSession)}
             >
               <span
-                className={`${ACTION_ICON_CLASS} codicon codicon-add`}
-                dotbot-hidden="true"
+                class={`${ACTION_ICON_CLASS} codicon codicon-add`}
+                decorative="true"
               />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-[13px] font-medium text-primary">
+              <span class="flex min-w-0 flex-col">
+                <span class="text-[13px] font-medium text-primary">
                   New session
                 </span>
-                <span className="truncate text-xs text-muted">
-                  {projectDir
-                    ? `In ${projectName(projectDir)}`
+                <span class="truncate text-xs text-muted">
+                  {currentProjectDir()
+                    ? `In ${projectName(currentProjectDir() ?? "")}`
                     : "Pick a folder first"}
                 </span>
               </span>
@@ -155,77 +145,81 @@ export function DashboardView() {
 
           <UsageStatsPanel />
 
-          <div className="grid grid-cols-2 items-start gap-6">
+          <div class="grid grid-cols-2 items-start gap-6">
             <section>
-              <h3 className={SECTION_TITLE_CLASS}>Recent sessions</h3>
-              {recentSessions.length === 0 ? (
-                <p className="text-xs text-dim">No sessions yet.</p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {recentSessions.map((session) => (
-                    <button
-                      key={session.id}
-                      type="button"
-                      className={ROW_CLASS}
-                      title={session.name ?? session.title}
-                      onClick={() => showSession(session.id)}
-                    >
-                      <span
-                        className="codicon codicon-clock shrink-0 text-sm text-muted"
-                        dotbot-hidden="true"
-                      />
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-[13px] text-secondary">
-                          {session.name ?? session.title}
+              <h3 class={SECTION_TITLE_CLASS}>Recent sessions</h3>
+              <Show
+                when={recentSessions().length > 0}
+                fallback={<p class="text-xs text-dim">No sessions yet.</p>}
+              >
+                <div class="flex flex-col gap-1.5">
+                  <For each={recentSessions()}>
+                    {(session) => (
+                      <button
+                        type="button"
+                        class={ROW_CLASS}
+                        title={session.name ?? session.title}
+                        onClick={() => showSession(session.id)}
+                      >
+                        <span
+                          class="codicon codicon-clock shrink-0 text-sm text-muted"
+                          decorative="true"
+                        />
+                        <span class="flex min-w-0 flex-1 flex-col">
+                          <span class="truncate text-[13px] text-secondary">
+                            {session.name ?? session.title}
+                          </span>
+                          <span class="truncate text-[11px] text-dim">
+                            {projectName(session.projectDir)}
+                          </span>
                         </span>
-                        <span className="truncate text-[11px] text-dim">
-                          {projectName(session.projectDir)}
+                        <span class="shrink-0 text-[10px] text-faint tabular-nums">
+                          {relativeTime(session.lastActivity)}
                         </span>
-                      </span>
-                      <span className="shrink-0 text-[10px] text-faint tabular-nums">
-                        {relativeTime(session.lastActivity)}
-                      </span>
-                    </button>
-                  ))}
+                      </button>
+                    )}
+                  </For>
                 </div>
-              )}
+              </Show>
             </section>
 
             <section>
-              <h3 className={SECTION_TITLE_CLASS}>Recent projects</h3>
-              {recentProjects.length === 0 ? (
-                <p className="text-xs text-dim">No projects yet.</p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {recentProjects.map((recentProject) => (
-                    <button
-                      key={recentProject}
-                      type="button"
-                      className={ROW_CLASS}
-                      title={recentProject}
-                      onClick={() => showProject(recentProject)}
-                    >
-                      <span
-                        className="codicon codicon-layers shrink-0 text-sm text-muted"
-                        dotbot-hidden="true"
-                      />
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-[13px] text-secondary">
-                          {projectName(recentProject)}
+              <h3 class={SECTION_TITLE_CLASS}>Recent projects</h3>
+              <Show
+                when={recentProjects().length > 0}
+                fallback={<p class="text-xs text-dim">No projects yet.</p>}
+              >
+                <div class="flex flex-col gap-1.5">
+                  <For each={recentProjects()}>
+                    {(recentProject) => (
+                      <button
+                        type="button"
+                        class={ROW_CLASS}
+                        title={recentProject}
+                        onClick={() => showProject(recentProject)}
+                      >
+                        <span
+                          class="codicon codicon-layers shrink-0 text-sm text-muted"
+                          decorative="true"
+                        />
+                        <span class="flex min-w-0 flex-1 flex-col">
+                          <span class="truncate text-[13px] text-secondary">
+                            {projectName(recentProject)}
+                          </span>
+                          <span class="truncate text-[11px] text-dim">
+                            {recentProject}
+                          </span>
                         </span>
-                        <span className="truncate text-[11px] text-dim">
-                          {recentProject}
-                        </span>
-                      </span>
-                      {recentProject === projectDir && (
-                        <span className="shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">
-                          current
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                        <Show when={recentProject === currentProjectDir()}>
+                          <span class="shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">
+                            current
+                          </span>
+                        </Show>
+                      </button>
+                    )}
+                  </For>
                 </div>
-              )}
+              </Show>
             </section>
           </div>
         </div>

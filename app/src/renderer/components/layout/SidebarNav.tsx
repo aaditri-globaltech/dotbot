@@ -1,6 +1,7 @@
 /** Navigation rows for the primary sidebar. */
 
-import { useNavigationStore } from "../../stores/navigation-store";
+import { Show } from "solid-js";
+import { navigationStore } from "../../stores/navigation-store";
 import {
   CHROME_BUTTON_CLASS,
   NAV_ROW_CLASS,
@@ -13,76 +14,61 @@ export function SidebarNav(props: {
   onNewSession: () => void;
   collapsed: boolean;
 }) {
-  const screen = useNavigationStore((state) => state.screen);
-  const setScreen = useNavigationStore((state) => state.setScreen);
-  const onDashboard = screen === "dashboard";
+  const screen = () => navigationStore.state.screen;
+  const dashboardSelected = () => screen() === "dashboard";
 
-  if (props.collapsed) {
-    return (
-      <nav
-        className="flex flex-col items-center gap-1 p-2"
-        dotbot-label="Screens"
-      >
+  return (
+    <Show
+      when={props.collapsed}
+      fallback={
+        <nav class="flex flex-col gap-0.5 p-2" label="Screens">
+          <button
+            class={`${NAV_ROW_CLASS} ${NAV_ROW_IDLE_CLASS}`}
+            type="button"
+            label="New session"
+            onClick={props.onNewSession}
+          >
+            <span class="codicon codicon-add text-[15px]" decorative="true" />
+            New session
+          </button>
+          <button
+            class={`${NAV_ROW_CLASS} ${
+              dashboardSelected() ? NAV_ROW_SELECTED_CLASS : NAV_ROW_IDLE_CLASS
+            }`}
+            type="button"
+            label="Dashboard"
+            is-selected={String(dashboardSelected())}
+            onClick={() => navigationStore.setScreen("dashboard")}
+          >
+            <span class="codicon codicon-home text-[15px]" decorative="true" />
+            Dashboard
+          </button>
+        </nav>
+      }
+    >
+      <nav class="flex flex-col items-center gap-1 p-2" label="Screens">
         <button
-          className={`size-7 ${CHROME_BUTTON_CLASS}`}
+          class={`size-7 ${CHROME_BUTTON_CLASS}`}
           type="button"
-          dotbot-label="New session"
+          label="New session"
           title="New session"
           onClick={props.onNewSession}
         >
-          <span
-            className="codicon codicon-add text-[15px]"
-            dotbot-hidden="true"
-          />
+          <span class="codicon codicon-add text-[15px]" decorative="true" />
         </button>
         <button
-          className={`size-7 ${CHROME_BUTTON_CLASS} ${
-            onDashboard ? "bg-card text-primary" : ""
+          class={`size-7 ${CHROME_BUTTON_CLASS} ${
+            dashboardSelected() ? "bg-card text-primary" : ""
           }`}
           type="button"
-          dotbot-label="Dashboard"
+          label="Dashboard"
           title="Dashboard"
-          dotbot-selected={String(onDashboard)}
-          onClick={() => setScreen("dashboard")}
+          is-selected={String(dashboardSelected())}
+          onClick={() => navigationStore.setScreen("dashboard")}
         >
-          <span
-            className="codicon codicon-home text-[15px]"
-            dotbot-hidden="true"
-          />
+          <span class="codicon codicon-home text-[15px]" decorative="true" />
         </button>
       </nav>
-    );
-  }
-
-  return (
-    <nav className="flex flex-col gap-0.5 p-2" dotbot-label="Screens">
-      <button
-        className={`${NAV_ROW_CLASS} ${NAV_ROW_IDLE_CLASS}`}
-        type="button"
-        dotbot-label="New session"
-        onClick={props.onNewSession}
-      >
-        <span
-          className="codicon codicon-add text-[15px]"
-          dotbot-hidden="true"
-        />
-        New session
-      </button>
-      <button
-        className={`${NAV_ROW_CLASS} ${
-          onDashboard ? NAV_ROW_SELECTED_CLASS : NAV_ROW_IDLE_CLASS
-        }`}
-        type="button"
-        dotbot-label="Dashboard"
-        dotbot-selected={String(onDashboard)}
-        onClick={() => setScreen("dashboard")}
-      >
-        <span
-          className="codicon codicon-home text-[15px]"
-          dotbot-hidden="true"
-        />
-        Dashboard
-      </button>
-    </nav>
+    </Show>
   );
 }
