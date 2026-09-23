@@ -36,8 +36,8 @@ export function FileTreePanel(props: FileTreePanelProps) {
   const [selectedPath, setSelectedPath] = createSignal<string>();
   const [error, setError] = createSignal<string>();
   let loaded = new Set<string>();
-  const gitStatus = createGitStatus(() => props.projectDir);
-  const markers = () => gitMarkers(gitStatus());
+  const git = createGitStatus(() => props.projectDir);
+  const markers = () => gitMarkers(git.status());
 
   // Load folders on demand so large projects do not require a full tree upfront.
   const loadDirectory = async (projectDir: string, path: string) => {

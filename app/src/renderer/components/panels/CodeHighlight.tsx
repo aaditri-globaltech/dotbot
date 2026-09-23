@@ -31,7 +31,7 @@ const htmlEntities: Record<string, string> = {
   "'": "&#39;",
 };
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => htmlEntities[character]);
 }
 
@@ -78,7 +78,6 @@ function highlightedLines(
 export function CodeHighlight(props: CodeHighlightProps) {
   const [html, setHtml] = createSignal("");
   const [lines, setLines] = createSignal<HighlightedLine[]>([]);
-  let revision = 0;
 
   const className = () => props.className ?? CODE_BLOCK_CLASS;
   const withLineNumbers = () => props.lineNumbers === true;
@@ -89,12 +88,11 @@ export function CodeHighlight(props: CodeHighlightProps) {
     const language = props.language;
     const lineNumbers = withLineNumbers();
     const from = start();
-    const currentRevision = ++revision;
     setHtml("");
     setLines(lineNumbers ? highlightedLines(code, from) : []);
+    // Highlighting is deferred one task: a burst of streamed deltas keeps
+    // cancelling the pending timer, so highlighting runs once the stream pauses.
     const timer = setTimeout(() => {
-      if (currentRevision !== revision) return;
-
       const supportedLanguage =
         language && hljs.getLanguage(language) ? language : undefined;
       if (lineNumbers) {
@@ -109,10 +107,7 @@ export function CodeHighlight(props: CodeHighlightProps) {
       }
     }, 0);
 
-    onCleanup(() => {
-      revision += 1;
-      clearTimeout(timer);
-    });
+    onCleanup(() => clearTimeout(timer));
   });
 
   const hasContent = () =>

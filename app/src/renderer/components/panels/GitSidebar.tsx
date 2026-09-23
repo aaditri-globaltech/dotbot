@@ -1,7 +1,8 @@
-import type { GitChange, GitStatus } from "@dotbot/git";
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import type { GitChange } from "@dotbot/git";
+import { createSignal, For, Show } from "solid-js";
 import { api } from "../../api";
 import { errorMessage } from "../../errors";
+import { createGitStatus } from "../../hooks/git-status";
 import {
   DEFAULT_APP_KEYBINDINGS,
   formatKeybinding,
@@ -38,74 +39,19 @@ function isStaged(change: GitChange) {
 
 /** Render Git status, staging actions, and the commit form. */
 export function GitSidebar(props: GitSidebarProps) {
-  const [status, setStatus] = createSignal<GitStatus>();
+  const git = createGitStatus(() => props.projectDir);
+  const status = git.status;
   const [message, setMessage] = createSignal("");
-  const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string>();
-  let requestId = 0;
-  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-
-  const loadStatus = async (projectDir: string) => {
-    const currentRequest = ++requestId;
-    setLoading(true);
-    setError(undefined);
-    try {
-      const next = await api.git.status(projectDir);
-      if (props.projectDir !== projectDir || currentRequest !== requestId) {
-        return;
-      }
-      setStatus(next);
-    } catch (reason) {
-      if (props.projectDir === projectDir && currentRequest === requestId) {
-        setStatus(undefined);
-        setError(errorMessage(reason));
-      }
-    } finally {
-      // Only the latest request may clear the loading state.
-      if (currentRequest === requestId) setLoading(false);
-    }
-  };
-
-  createEffect(() => {
-    const projectDir = props.projectDir;
-    setStatus(undefined);
-    setError(undefined);
-    if (projectDir) void loadStatus(projectDir);
-  });
-
-  // File changes make Git status stale; debounce because edits arrive in bursts.
-  createEffect(() => {
-    const projectDir = props.projectDir;
-    if (!projectDir) return;
-    const unsubscribe = api.files.onChanged((change) => {
-      if (change.projectDir !== projectDir) return;
-      if (refreshTimer) clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => {
-        refreshTimer = undefined;
-        void loadStatus(projectDir);
-      }, 500);
-    });
-    onCleanup(() => {
-      unsubscribe();
-      if (refreshTimer) clearTimeout(refreshTimer);
-    });
-  });
-
-  const refresh = () => {
-    if (props.projectDir) void loadStatus(props.projectDir);
-  };
 
   // Refresh after every mutation to keep the sidebar aligned with Git's state.
   const runAction = async (action: () => Promise<void>) => {
-    setLoading(true);
     setError(undefined);
     try {
       await action();
-      if (props.projectDir) await loadStatus(props.projectDir);
+      git.refresh();
     } catch (reason) {
       setError(errorMessage(reason));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -185,7 +131,7 @@ export function GitSidebar(props: GitSidebarProps) {
             type="button"
             label="Refresh Git"
             title="Refresh Git"
-            onClick={refresh}
+            onClick={git.refresh}
           >
             <span class="codicon codicon-refresh" decorative="true" />
           </button>
@@ -209,7 +155,6 @@ export function GitSidebar(props: GitSidebarProps) {
               value={message()}
               placeholder={`Message (${formatKeybinding(DEFAULT_APP_KEYBINDINGS.commit)} to commit)`}
               rows={2}
-              disabled={loading()}
               onInput={(event) => setMessage(event.currentTarget.value)}
               onKeyDown={(event) => {
                 if (matchesKey(event, DEFAULT_APP_KEYBINDINGS.commit)) {
@@ -220,9 +165,7 @@ export function GitSidebar(props: GitSidebarProps) {
             <button
               class="shrink-0 cursor-pointer self-start rounded-sm bg-button px-2.5 py-1 text-[11px] text-white disabled:cursor-default disabled:bg-elevated disabled:text-dim"
               type="button"
-              disabled={
-                loading() || !message().trim() || stagedChanges().length === 0
-              }
+              disabled={!message().trim() || stagedChanges().length === 0}
               onClick={commit}
             >
               Commit

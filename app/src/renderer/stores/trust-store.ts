@@ -59,7 +59,7 @@ export function createTrustStore() {
     respond,
     applyEvent,
 
-    subscribe: () => api.agent.onEvent((event) => applyEvent(event)),
+    subscribe: () => api.agent.onEvent(applyEvent),
 
     load: async () => {
       try {

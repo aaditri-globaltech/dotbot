@@ -4,41 +4,51 @@ import type { GitStatus } from "@dotbot/git";
 import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import { api } from "../api";
 
-/** Current Git status for one project, or undefined while it loads. */
+export type GitStatusReader = {
+  /** Current Git status for one project, or undefined while it loads. */
+  status: Accessor<GitStatus | undefined>;
+  /** Re-read the status, for example after staging or committing. */
+  refresh: () => void;
+};
+
+/** Track one project's Git status, re-reading it when its files change. */
 export function createGitStatus(
   projectDir: Accessor<string | undefined>,
-): Accessor<GitStatus | undefined> {
+): GitStatusReader {
   const [status, setStatus] = createSignal<GitStatus>();
+  // Directory of the latest effect run, so a slow read for a previous project
+  // cannot overwrite the status of the current one.
+  let current: string | undefined;
+
+  const read = (dir: string) => {
+    void api.git
+      .status(dir)
+      .then((next) => {
+        if (current === dir) setStatus(next);
+      })
+      .catch((error: unknown) => console.error(error));
+  };
 
   createEffect(() => {
     const dir = projectDir();
-    let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
-
+    current = dir;
     if (!dir) {
       setStatus(undefined);
-    } else {
-      const read = () => {
-        void api.git
-          .status(dir)
-          .then((next) => {
-            if (!cancelled) setStatus(next);
-          })
-          .catch((error: unknown) => console.error(error));
-      };
-
-      read();
-      unsubscribe = api.files.onChanged((change) => {
-        // Staging and commits rewrite .git, so read those changes too.
-        if (change.projectDir === dir) read();
-      });
+      return;
     }
 
-    onCleanup(() => {
-      cancelled = true;
-      unsubscribe?.();
+    read(dir);
+    // Staging and commits rewrite .git, so read those changes too.
+    const unsubscribe = api.files.onChanged((change) => {
+      if (change.projectDir === dir) read(dir);
     });
+    onCleanup(unsubscribe);
   });
 
-  return status;
+  return {
+    status,
+    refresh: () => {
+      if (current) read(current);
+    },
+  };
 }

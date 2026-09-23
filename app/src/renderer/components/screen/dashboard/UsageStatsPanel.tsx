@@ -286,10 +286,6 @@ function ModelLegend(props: {
   );
 }
 
-/**
- * Usage overview with a range toggle. Renders nothing until there is
- * activity, so a fresh install shows only the launcher.
- */
 /** One statistics snapshot: range and tab selection with the panels below. */
 function UsageSection(props: { stats: UsageStats }) {
   const [tab, setTab] = createSignal<Tab>("overview");

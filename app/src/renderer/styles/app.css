@@ -399,20 +399,6 @@ body.is-row-resizing {
   opacity: 0.8;
 }
 
-.agent-status {
-  min-height: 18px;
-  margin-bottom: 6px;
-  overflow: hidden;
-  color: #7a828a;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-status-error {
-  color: #f05454;
-}
-
 @keyframes agent-blink {
   50% {
     opacity: 0;

@@ -1,8 +1,8 @@
 /** Session tabs shown in the window's top strip while the workbench is open. */
 
 import { For, Show } from "solid-js";
-import { projectDir } from "../../hooks/project-dir";
 import { sessionStore } from "../../stores/session-store";
+import { workspaceStore } from "../../stores/workspace-store";
 import { ICON_BUTTON_CLASS } from "../panels/panel-classes";
 import { statusDotClass } from "../panels/status-dot";
 
@@ -60,7 +60,11 @@ export function SessionTabs() {
         type="button"
         label="New session"
         title="New session"
-        onClick={() => void sessionStore.startNewSession(projectDir())}
+        onClick={() =>
+          void sessionStore.startNewSession(
+            workspaceStore.state.selectedProject,
+          )
+        }
       >
         <span class="codicon codicon-add text-xs" decorative="true" />
       </button>

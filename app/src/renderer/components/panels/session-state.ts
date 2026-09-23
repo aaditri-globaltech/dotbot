@@ -136,7 +136,7 @@ export function applySessionError(
   return { ...state, transcript: [...state.transcript, notice] };
 }
 
-/** Apply one session event immutably so React can refresh the selected session. */
+/** Apply one session event immutably so the store notifies its subscribers. */
 export function applySessionActivity(
   state: SessionClientState,
   event: AgentSessionEvent,

@@ -38,11 +38,6 @@ function placeholderFor(request: ExtensionRequest): string | undefined {
   return request.method === "input" ? request.placeholder : undefined;
 }
 
-/** Editor requests get the taller box. */
-function rowsFor(request: ExtensionRequest): number {
-  return request.method === "editor" ? 8 : 3;
-}
-
 /** Renders one agent dialog request and reports the chosen answer. */
 export function ExtensionDialog(props: ExtensionDialogProps) {
   const [value, setValue] = createSignal(initialValue(props.request));
@@ -190,7 +185,7 @@ export function ExtensionDialog(props: ExtensionDialogProps) {
               <>
                 <textarea
                   class={`${DIALOG_INPUT_CLASS} resize-y p-1.5 text-xs leading-[1.4]`}
-                  rows={rowsFor(request())}
+                  rows={request().method === "editor" ? 8 : 3}
                   placeholder={placeholderFor(request())}
                   value={value()}
                   onInput={(event) => setValue(event.currentTarget.value)}

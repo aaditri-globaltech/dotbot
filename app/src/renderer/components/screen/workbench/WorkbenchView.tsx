@@ -1,7 +1,6 @@
 /** Workbench screen: the agent viewport plus the Git panel. */
 
 import { Show } from "solid-js";
-import { projectDir } from "../../../hooks/project-dir";
 import type { ResizablePanels } from "../../../hooks/resizable-panels";
 import { sessionStore } from "../../../stores/session-store";
 import { trustStore } from "../../../stores/trust-store";
@@ -27,7 +26,8 @@ export function WorkbenchView(props: WorkbenchViewProps) {
     const id = sessionStore.state.selectedId;
     return id ? sessionStore.state.states[id] : undefined;
   };
-  const noticeProjectDir = () => selectedSession()?.projectDir ?? projectDir();
+  const noticeProjectDir = () =>
+    selectedSession()?.projectDir ?? workspaceStore.state.selectedProject;
   const trustDecision = () => {
     const dir = noticeProjectDir();
     return dir ? trustStore.state.decisions[dir] : undefined;
@@ -43,7 +43,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
         state={sessionStore.state.newSession ?? selectedState()}
         drafting={sessionStore.state.newSession !== undefined}
         projects={workspaceStore.state.projects}
-        projectDir={projectDir()}
+        projectDir={workspaceStore.state.selectedProject}
         trustRequest={trustStore.state.requests[0]}
         onRespondTrust={trustStore.respond}
         untrustedNotice={trustDecision() === false}
@@ -73,7 +73,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
         <PanelHeader title="Git" />
         {/* Only the visible panel reads Git, so a collapsed panel costs nothing. */}
         <Show when={!props.panels.panelCollapsed()}>
-          <GitSidebar projectDir={projectDir()} />
+          <GitSidebar projectDir={workspaceStore.state.selectedProject} />
         </Show>
       </section>
     </div>

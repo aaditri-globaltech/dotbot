@@ -1,7 +1,6 @@
 /** Primary sidebar: navigation, the workspace section, and the model row. */
 
 import { Show } from "solid-js";
-import { projectDir } from "../../hooks/project-dir";
 import { navigationStore } from "../../stores/navigation-store";
 import { sessionStore } from "../../stores/session-store";
 import { workspaceStore } from "../../stores/workspace-store";
@@ -29,7 +28,7 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
   };
 
   const newSession = () => {
-    void sessionStore.startNewSession(projectDir());
+    void sessionStore.startNewSession(workspaceStore.state.selectedProject);
   };
 
   const browseFiles = (dir: string) => {
@@ -77,7 +76,7 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
                 onOpen={showSession}
                 onBrowseFiles={browseFiles}
                 selectedSessionId={sessionStore.state.selectedId}
-                projectDir={projectDir()}
+                projectDir={workspaceStore.state.selectedProject}
               />
             </>
           }
@@ -95,7 +94,7 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
             Back to sessions
           </button>
           <FileTreePanel
-            projectDir={projectDir()}
+            projectDir={workspaceStore.state.selectedProject}
             onPickProject={() => void sessionStore.pickProject()}
           />
         </Show>

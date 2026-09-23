@@ -58,9 +58,6 @@ import {
   toolStatusText,
 } from "./tool-display";
 
-/** Mono type scale shared by tool cards. */
-const MONO_TEXT = "font-mono text-xs leading-[1.45]";
-
 /** Message bubble shared by user and assistant turns. */
 const MESSAGE_CLASS =
   "max-w-full text-sm leading-normal [overflow-wrap:anywhere] " +
@@ -69,14 +66,12 @@ const MESSAGE_CLASS =
 /** Tool card frame and its collapsible command row. */
 const TOOL_CALL_CLASS =
   "group self-start w-[95%] max-w-[95%] min-w-0 rounded border " +
-  `border-border bg-surface ${MONO_TEXT}`;
+  "border-border bg-surface font-mono text-xs leading-[1.45]";
 const TOOL_COMMAND_CLASS =
   "flex cursor-pointer list-none items-start gap-2 px-2 py-[7px] " +
   "select-none [overflow-wrap:anywhere] hover:bg-input focus-visible:ring-1 " +
   "focus-visible:ring-focus before:flex-none before:text-dim " +
   "before:content-['▸'] group-open:before:content-['▾']";
-
-/** Composer controls. */
 
 function statusLabel(session: SessionSummary) {
   if (session.status === "waiting") return "Waiting for input";
@@ -295,10 +290,10 @@ export type SessionViewProps = {
 /** Render session tabs, transcript controls, and the prompt composer. */
 export function SessionView(props: SessionViewProps) {
   const status = () => props.selectedSession?.status;
-  const gitStatus = createGitStatus(() => props.projectDir);
+  const git = createGitStatus(() => props.projectDir);
   // Only a real repository has a branch to show next to the project.
   const branch = () => {
-    const status = gitStatus();
+    const status = git.status();
     return status?.repoRoot ? status.branch : undefined;
   };
   const busy = () =>

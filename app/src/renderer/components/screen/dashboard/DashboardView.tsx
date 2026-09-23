@@ -5,7 +5,6 @@
 
 import type { SessionSummary } from "@dotbot/agent-core";
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { projectDir as currentProjectDir } from "../../../hooks/project-dir";
 import { projectName } from "../../../project-name";
 import { relativeTime } from "../../../relative-time";
 import { navigationStore } from "../../../stores/navigation-store";
@@ -72,7 +71,7 @@ export function DashboardView() {
   };
 
   const newSession = async () => {
-    await sessionStore.startNewSession(currentProjectDir());
+    await sessionStore.startNewSession(workspaceStore.state.selectedProject);
   };
 
   const showProject = (dir: string) => {
@@ -135,8 +134,8 @@ export function DashboardView() {
                   New session
                 </span>
                 <span class="truncate text-xs text-muted">
-                  {currentProjectDir()
-                    ? `In ${projectName(currentProjectDir() ?? "")}`
+                  {workspaceStore.state.selectedProject
+                    ? `In ${projectName(workspaceStore.state.selectedProject)}`
                     : "Pick a folder first"}
                 </span>
               </span>
@@ -210,7 +209,12 @@ export function DashboardView() {
                             {recentProject}
                           </span>
                         </span>
-                        <Show when={recentProject === currentProjectDir()}>
+                        <Show
+                          when={
+                            recentProject ===
+                            workspaceStore.state.selectedProject
+                          }
+                        >
                           <span class="shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">
                             current
                           </span>

@@ -9,20 +9,8 @@ import {
   Show,
   Switch,
 } from "solid-js";
-import { CODE_BLOCK_CLASS, CodeHighlight } from "./CodeHighlight";
+import { CODE_BLOCK_CLASS, CodeHighlight, escapeHtml } from "./CodeHighlight";
 import { type ChatBlock, parseChatBlocks } from "./chat-markdown";
-
-const htmlEntities: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => htmlEntities[character]);
-}
 
 function safeUrl(value: string): string | undefined {
   try {
