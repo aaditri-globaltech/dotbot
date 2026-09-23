@@ -3,17 +3,17 @@
 ## [Unreleased]
 ### Added
 
-- Branded the embedded Pi runtime as "bot" with the `.bot` config directory via an idempotent patch script in `@dotbot/agent-core` (`npm run patch`), run as its postinstall hook and explicitly in CI.
+- Branded the embedded agent runtime as "bot" with the `.bot` config directory via an idempotent patch script in `@dotbot/agent-core` (`npm run patch`), run as its postinstall hook and explicitly in CI.
 
 ### Changed
 
-- Moved the agent data directory rule into the runtime branding so Pi resolves `~/.bot/agent` itself instead of relying on `PI_CODING_AGENT_DIR`.
+- Moved the agent data directory rule into the runtime branding so the runtime resolves `~/.bot/agent` itself instead of relying on its data-directory environment variable.
 
 ## [0.1.5] - 2026-08-27
 ### Added
 
 - Added file-aware Highlight.js coloring for `read`, `edit`, and `write` tool output.
-- Added generic in-progress tool argument and output rendering for streamed Pi events.
+- Added generic in-progress tool argument and output rendering for streamed agent events.
 - Kept large session histories responsive by loading chat items in chunks, rendering the newest messages first, and batching updates per animation frame.
 
 ### Changed
@@ -32,13 +32,13 @@
 - Rendered `read`, `write`, and `edit` output as non-wrapping numbered editor panes and completed shared Markdown styling for user and assistant streams.
 - Kept edit diff numbering from being duplicated, limited long Bash command headers to four wrapped lines, and rendered tool errors as unnumbered red text.
 - Removed the redundant read-range colon and kept tool names intact while wrapping long paths only at natural break points.
-- Restored visible Markdown bullets and numbering after the CSS reset, and changed user-facing Pi labels to assistant.
+- Restored visible Markdown bullets and numbering after the CSS reset, and changed the labels that named the runtime to the assistant role.
 - Kept the selected session workspace header at the top, contained each workspace's session list, widened toolbox padding, reduced toolbox width to 95%, and restored scroll chaining to the chat.
 - Kept read offsets as unwrapped gold labels beside the tool name while allowing the filename area to absorb wrapping.
 
 ### Fixed
 
-- Marked accepted prompts as working immediately while keeping the open Pi session alive after a turn settles.
+- Marked accepted prompts as working immediately while keeping the open session alive after a turn settles.
 - Fixed selected and secondary workspace session lists so the selected list scrolls independently, other lists stay contained, and expanded groups show four sessions before scrolling.
 - Fixed workspace group styling, failed tool coloring, chat tab responsiveness, jump-to-latest placement, and new-session naming.
 - Prevented unlabeled text blocks from receiving incorrect syntax colors.
