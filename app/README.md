@@ -1,6 +1,6 @@
 # Dotbot desktop app
 
-The Electron client for Dotbot. It contains the React/Vite renderer, Electron
+The Electron client for Dotbot. It contains the Solid/Vite renderer, Electron
 main process, and preload bridge. The main process embeds `@dotbot/agent-core`,
 which wraps the agent runtime in-process.
 
@@ -22,7 +22,7 @@ and required for the Git panel. The agent runtime is bundled through
 
 ## Responsibilities
 
-- Render the workspace UI with React and Zustand.
+- Render the workspace UI with SolidJS, Kobalte primitives, and Solid stores.
 - Own windows, custom controls, tray behavior, and native folder selection.
 - Expose the narrow typed `window.dotbot` bridge to the renderer.
 - Run one `AgentManager` and one `ProviderRegistry`, and forward Agent manager events to the renderer.
@@ -92,6 +92,28 @@ Two details worth knowing:
   `var(--color-surface)` is empty until something uses `bg-surface`.
 - Biome needs `css.parser.tailwindDirectives` (set in the repository
   `biome.json`) to parse `@theme` and other Tailwind at-rules.
+
+## Markup attributes
+
+Interactive elements carry plain attributes instead of `aria-*`, so automation and
+styling hooks read one vocabulary across the app:
+
+| Attribute | On | Means |
+| --- | --- | --- |
+| `label` | any control | the accessible name of this element |
+| `decorative` | codicon glyphs | ignore this glyph, it carries no meaning |
+| `is-selected` | nav rows, tree items, options | this row is the current selection |
+| `expanded` | toggles, tree directories, dropdown triggers | what this control opens is open |
+| `modal` | the extension dialog card | this card is a modal |
+| `resizes`, `orientation`, `min-size`, `current-size` | resize handles | which elements the handle resizes, its axis, and its size bounds in pixels |
+| `popup` | dropdown triggers | the kind of popup it opens |
+| `pressed` | toggle buttons | this toggle is active |
+
+Every value is a string. `hidden`, `controls`, `selected` and `size` are real HTML
+attributes and are never used as custom names. Kobalte renders its own `aria-*` and
+`role` attributes inside its primitives; that is the library's output, not markup this
+project writes. Non-hyphenated names are declared once in
+`src/renderer/plain-attributes.d.ts`.
 
 ## Session behavior
 
