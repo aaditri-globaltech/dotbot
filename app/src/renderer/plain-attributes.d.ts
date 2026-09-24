@@ -12,7 +12,6 @@ declare module "solid-js" {
       label?: string | undefined;
       decorative?: string | undefined;
       expanded?: string | undefined;
-      modal?: string | undefined;
       resizes?: string | undefined;
       orientation?: string | undefined;
       popup?: string | undefined;

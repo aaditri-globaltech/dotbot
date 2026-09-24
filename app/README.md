@@ -22,7 +22,7 @@ and required for the Git panel. The agent runtime is bundled through
 
 ## Responsibilities
 
-- Render the workspace UI with SolidJS, Kobalte primitives, and Solid stores.
+- Render the workspace UI with SolidJS and Solid stores.
 - Own windows, custom controls, tray behavior, and native folder selection.
 - Expose the narrow typed `window.dotbot` bridge to the renderer.
 - Run one `AgentManager` and one `ProviderRegistry`, and forward Agent manager events to the renderer.
@@ -104,16 +104,15 @@ styling hooks read one vocabulary across the app:
 | `decorative` | codicon glyphs | ignore this glyph, it carries no meaning |
 | `is-selected` | nav rows, tree items, options | this row is the current selection |
 | `expanded` | toggles, tree directories, dropdown triggers | what this control opens is open |
-| `modal` | the extension dialog card | this card is a modal |
 | `resizes`, `orientation`, `min-size`, `current-size` | resize handles | which elements the handle resizes, its axis, and its size bounds in pixels |
 | `popup` | dropdown triggers | the kind of popup it opens |
 | `pressed` | toggle buttons | this toggle is active |
 
 Every value is a string. `hidden`, `controls`, `selected` and `size` are real HTML
-attributes and are never used as custom names. Kobalte renders its own `aria-*` and
-`role` attributes inside its primitives; that is the library's output, not markup this
-project writes. Non-hyphenated names are declared once in
-`src/renderer/plain-attributes.d.ts`.
+attributes and are never used as custom names. The dropdown and the extension dialog
+are built on native elements, so they also carry the `role` and state attributes their
+widgets need (`aria-haspopup`, `aria-expanded`, `aria-selected`, `aria-labelledby`).
+Non-hyphenated names are declared once in `src/renderer/plain-attributes.d.ts`.
 
 ## Session behavior
 

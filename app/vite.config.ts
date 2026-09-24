@@ -13,5 +13,7 @@ export default defineConfig({
     environment: "node",
     include: ["test/**/*.test.{ts,tsx}"],
     reporters: ["verbose"],
+    // Fills jsdom gaps; inert outside a DOM environment.
+    setupFiles: ["test/setup-dom.ts"],
   },
 });

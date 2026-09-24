@@ -1,7 +1,14 @@
 /** Menu button with a popover list: the app's single dropdown pattern. */
 
-import { Combobox } from "@kobalte/core/combobox";
-import { createSignal, Show } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For,
+  type JSX,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 
 /** One selectable row in a dropdown. */
 export type DropdownOption<T extends string = string> = {
@@ -39,41 +46,48 @@ export type DropdownProps<T extends string = string> = {
 
 const TRIGGER_CLASS =
   "flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md border-0 " +
-  "bg-transparent px-2 py-1 text-[12px] text-secondary hover:bg-surface-hover " +
-  "focus-visible:ring-1 focus-visible:ring-focus disabled:cursor-default " +
+  "bg-transparent px-2 py-1 text-body text-foreground hover:bg-list-hoverBackground " +
+  "focus-visible:ring-1 focus-visible:ring-focusBorder disabled:cursor-default " +
   "disabled:opacity-55";
 
 const FIELD_TRIGGER_CLASS =
   "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md " +
-  "border border-border-strong bg-input px-2.5 py-1.5 text-[13px] " +
-  "text-secondary hover:border-border-strong-hover focus-visible:border-focus " +
+  "border border-input-border bg-input-background px-2.5 py-1.5 text-body " +
+  "text-foreground hover:border-menu-border focus-visible:border-focusBorder " +
   "focus-visible:outline-none disabled:cursor-default disabled:opacity-55";
 
 /** Chevron shown on every trigger. */
 const CHEVRON_CLASS =
-  "codicon codicon-chevron-down shrink-0 text-[12px] text-dim";
+  "codicon codicon-chevron-down shrink-0 text-[12px] text-terminal-ansiBrightBlack";
 
 /** Search field at the top of the menu, full menu width. */
 const MENU_SEARCH_CLASS =
-  "mb-1 w-full shrink-0 rounded-md border border-border-strong bg-input " +
-  "px-2 py-1 text-[12px] text-secondary outline-0 placeholder:text-faint " +
-  "focus:border-focus";
+  "mb-1 w-full shrink-0 rounded-md border border-input-border bg-input-background " +
+  "px-2 py-1 text-body text-foreground outline-0 placeholder:text-disabledForeground " +
+  "focus:border-focusBorder";
 
-/** One row of the menu. Kobalte marks the active row with `data-highlighted`. */
+/** One row of the menu. The active row carries `data-highlighted`. */
 const ITEM_CLASS =
   "flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-2 py-1.5 " +
-  "text-left data-[highlighted]:bg-surface-hover";
+  "text-left data-[highlighted]:bg-list-hoverBackground";
 
+/** Fixed so no panel's scroll or overflow can clip the menu. */
 const MENU_CLASS =
-  "z-30 flex max-h-72 w-max max-w-[min(340px,90vw)] min-w-full flex-col " +
-  "overflow-hidden rounded-xl border border-border-strong bg-card p-1 shadow-card";
+  "fixed z-30 flex max-h-72 w-max max-w-[min(340px,90vw)] flex-col " +
+  "overflow-hidden rounded-xl border border-menu-border bg-menu-background p-1 shadow-card";
 
 const LISTBOX_CLASS = "min-h-0 overflow-y-auto";
 
+/** Gap between the trigger and its menu, in pixels. */
+const MENU_GUTTER = 4;
+
 /** Trailing indicator styling and glyph, as used by the provider selector. */
 const TRAILING_TONE = {
-  success: { className: "text-success", glyph: "✓" },
-  muted: { className: "text-dim", glyph: "•" },
+  success: {
+    className: "text-gitDecoration-untrackedResourceForeground",
+    glyph: "✓",
+  },
+  muted: { className: "text-terminal-ansiBrightBlack", glyph: "•" },
 };
 
 /** Right-aligned credential indicator. */
@@ -82,7 +96,7 @@ function TrailingBadge(props: {
 }) {
   const tone = () => TRAILING_TONE[props.trailing.tone];
   return (
-    <span class={`shrink-0 text-[11px] ${tone().className}`}>
+    <span class={`shrink-0 text-meta ${tone().className}`}>
       {tone().glyph} {props.trailing.label}
     </span>
   );
@@ -95,189 +109,282 @@ function TrailingBadge(props: {
  */
 export function Dropdown<T extends string = string>(props: DropdownProps<T>) {
   const [open, setOpen] = createSignal(false);
+  const [query, setQuery] = createSignal("");
+  const [highlighted, setHighlighted] = createSignal(0);
+  const [position, setPosition] = createSignal<JSX.CSSProperties>({});
+  let root: HTMLDivElement | undefined;
   let trigger: HTMLButtonElement | undefined;
+  let menu: HTMLElement | undefined;
   let searchField: HTMLInputElement | undefined;
 
-  const selected = () =>
-    props.options.find((option) => option.value === props.value);
-  const placement = () =>
-    props.placement === "up"
-      ? props.align === "right"
-        ? ("top-end" as const)
-        : ("top-start" as const)
-      : props.align === "right"
-        ? ("bottom-end" as const)
-        : ("bottom-start" as const);
   // The trigger shows the label and takes its accessible name from that text.
   const triggerLabel = () =>
-    selected()?.label ?? props.placeholder ?? props.label;
+    props.options.find((option) => option.value === props.value)?.label ??
+    props.placeholder ??
+    props.label;
+  /** Options the filter keeps: label, value, and description all match. */
+  const matches = () => {
+    const needle = query().trim().toLowerCase();
+    if (needle === "") return props.options;
+    return props.options.filter(
+      (option) =>
+        option.label.toLowerCase().includes(needle) ||
+        option.value.toLowerCase().includes(needle) ||
+        (option.description ?? "").toLowerCase().includes(needle),
+    );
+  };
+
+  /** Line the menu up with the trigger, which the fixed menu does not follow. */
+  const place = () => {
+    const element = trigger;
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    // A plain menu may grow past its trigger; a field menu matches it, capped
+    // by the menu's own max width.
+    const style: JSX.CSSProperties =
+      props.variant === "field"
+        ? { width: `${rect.width}px` }
+        : { "min-width": `${rect.width}px` };
+    if (props.placement === "up") {
+      style.bottom = `${window.innerHeight - rect.top + MENU_GUTTER}px`;
+    } else {
+      style.top = `${rect.bottom + MENU_GUTTER}px`;
+    }
+    if (props.align === "right") {
+      style.right = `${window.innerWidth - rect.right}px`;
+    } else {
+      style.left = `${rect.left}px`;
+    }
+    setPosition(style);
+  };
+
+  const close = (returnFocus: boolean) => {
+    setOpen(false);
+    setQuery("");
+    if (returnFocus) trigger?.focus();
+  };
 
   const choose = (option: DropdownOption<T> | undefined) => {
     if (option && option.value !== props.value) props.onChange(option.value);
+    close(true);
   };
 
-  // Kobalte handles the keys of whichever element holds focus inside the menu,
-  // and mounts that menu a frame after opening, so focus it on mount: the search
-  // field when there is one, the first option otherwise. The field selects its
-  // text so typing replaces the current value instead of appending to it.
-  const focusWhenOpen = (
-    resolve: () => HTMLElement | null | undefined,
-    select = false,
-  ) => {
-    if (!open()) return;
-    queueMicrotask(() => {
-      if (!open()) return;
-      const element = resolve();
-      if (!element) return;
-      element.focus();
-      if (select && element instanceof HTMLInputElement) element.select();
-    });
+  const openMenu = () => {
+    if (props.disabled) return;
+    place();
+    setQuery("");
+    setHighlighted(
+      Math.max(
+        0,
+        props.options.findIndex((option) => option.value === props.value),
+      ),
+    );
+    setOpen(true);
+    // Solid mounts the menu synchronously, so its ref is set by the time the
+    // focus lands: the search field when there is one, the list otherwise.
+    if (props.searchable) {
+      searchField?.focus();
+      searchField?.select();
+    } else {
+      menu?.focus();
+    }
   };
+
+  const moveHighlight = (step: number) => {
+    const count = matches().length;
+    if (count === 0) return;
+    setHighlighted((current) =>
+      Math.min(count - 1, Math.max(0, current + step)),
+    );
+  };
+
+  /** Keys of both focus holders inside the menu: the list and the filter. */
+  const menuKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close(true);
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveHighlight(1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveHighlight(-1);
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      setHighlighted(0);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      setHighlighted(Math.max(0, matches().length - 1));
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      // A space is text in the filter field; only the list activates on it.
+      if (event.key === " " && event.target instanceof HTMLInputElement) {
+        return;
+      }
+      event.preventDefault();
+      choose(matches()[highlighted()]);
+      return;
+    }
+    // Tab leaves the control; the browser keeps the focus it moves.
+    if (event.key === "Tab") close(false);
+  };
+
+  onMount(() => {
+    // Presses outside the control dismiss it; the trigger toggles below.
+    const onPointerDown = (event: PointerEvent) => {
+      if (!open()) return;
+      const target = event.target;
+      if (target instanceof Node && root?.contains(target)) return;
+      close(false);
+    };
+    const reposition = () => {
+      if (open()) place();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    // Capture, because a panel scrolls without the window scrolling.
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    onCleanup(() => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    });
+  });
+
+  // Keep the highlighted row in view as the keyboard moves it.
+  createEffect(() => {
+    if (!open()) return;
+    const row = highlighted();
+    menu
+      ?.querySelectorAll<HTMLElement>('[role="option"]')
+      [row]?.scrollIntoView({ block: "nearest" });
+  });
 
   return (
-    <Combobox<DropdownOption<T>>
-      open={open()}
-      onOpenChange={setOpen}
-      options={props.options}
-      optionValue={(option) => option.value}
-      optionTextValue={(option) => option.label}
-      // Without a label Kobalte falls back to String(option) for the input
-      // value, which then filters every option away.
-      optionLabel={(option) => option.label}
-      // The filter field starts empty; Kobalte still reports the selected label as
-      // its value before the user types, so treat that text as "no search yet"
-      // and keep the whole list visible.
-      defaultFilter={(option, input) => {
-        const needle = input.trim().toLowerCase();
-        if (needle === "" || input === selected()?.label) return true;
-        return (
-          option.label.toLowerCase().includes(needle) ||
-          option.value.toLowerCase().includes(needle) ||
-          (option.description ?? "").toLowerCase().includes(needle)
-        );
+    <div
+      ref={(element) => {
+        root = element;
       }}
-      onChange={(option) => choose(option ?? undefined)}
-      disabled={props.disabled}
-      placement={placement()}
-      gutter={4}
-      sameWidth={props.variant === "field"}
-      itemComponent={(itemProps) => (
-        <Combobox.Item item={itemProps.item} class={ITEM_CLASS}>
-          <span class="flex min-w-0 flex-1 flex-col">
-            <Combobox.ItemLabel class="truncate text-[12px] text-secondary">
-              {itemProps.item.rawValue.label}
-            </Combobox.ItemLabel>
-            <Show when={itemProps.item.rawValue.description}>
-              <Combobox.ItemDescription class="truncate text-[11px] text-dim">
-                {itemProps.item.rawValue.description}
-              </Combobox.ItemDescription>
-            </Show>
-          </span>
-          <Show when={itemProps.item.rawValue.trailing}>
-            {(trailing) => <TrailingBadge trailing={trailing()} />}
-          </Show>
-          <Combobox.ItemIndicator class="shrink-0">
-            <span
-              class="codicon codicon-check text-[13px] text-secondary"
-              decorative="true"
-            />
-          </Combobox.ItemIndicator>
-        </Combobox.Item>
-      )}
       class={`relative inline-block min-w-0 ${props.className ?? ""}`}
     >
-      {/* Names the list and the filter field for Kobalte; the button above
-          carries its own hidden label. */}
-      <Combobox.Label class="sr-only">{props.label}</Combobox.Label>
-      <Combobox.Control>
-        <button
-          ref={(element) => {
-            trigger = element;
-          }}
-          type="button"
-          class={
-            props.variant === "field" ? FIELD_TRIGGER_CLASS : TRIGGER_CLASS
+      <button
+        ref={(element) => {
+          trigger = element;
+        }}
+        type="button"
+        class={props.variant === "field" ? FIELD_TRIGGER_CLASS : TRIGGER_CLASS}
+        label={props.label}
+        popup="listbox"
+        expanded={String(open())}
+        aria-haspopup="listbox"
+        aria-expanded={open()}
+        disabled={props.disabled}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          if (open()) close(true);
+          else openMenu();
+        }}
+        onKeyDown={(event) => {
+          if (!["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key)) {
+            return;
           }
-          label={props.label}
-          popup="listbox"
-          expanded={String(open())}
-          disabled={props.disabled}
-          // Pointer down, like Kobalte's own trigger: a click would arrive
-          // after the menu mounts and be read as a click outside it.
-          onPointerDown={(event) => {
-            if (!props.disabled && event.button === 0) setOpen(!open());
-          }}
-          onKeyDown={(event) => {
-            if (
-              ["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key) &&
-              !props.disabled
-            ) {
-              event.preventDefault();
-              setOpen(!open());
-            }
-          }}
-        >
-          {/* Names the control as well as its value: "Model gpt-5"
-              reads better than a bare model name. */}
-          <span class="sr-only">{props.label}</span>{" "}
-          <Show when={props.icon}>
-            <span
-              class={`codicon ${props.icon} shrink-0 text-[13px] text-dim`}
-              decorative="true"
-            />
-          </Show>
-          <span class="max-w-[240px] min-w-0 truncate">{triggerLabel()}</span>
-          <span class={CHEVRON_CLASS} decorative="true" />
-        </button>
-      </Combobox.Control>
-      <Combobox.Portal>
-        <Combobox.Content
-          class={MENU_CLASS}
-          // Closing hands focus back to the trigger, its only control.
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            trigger?.focus();
-          }}
-        >
+          event.preventDefault();
+          openMenu();
+        }}
+      >
+        {/* Names the control as well as its value: "Model gpt-5"
+            reads better than a bare model name. */}
+        <span class="sr-only">{props.label}</span>{" "}
+        <Show when={props.icon}>
+          <span
+            class={`codicon ${props.icon} shrink-0 text-[13px] text-terminal-ansiBrightBlack`}
+            decorative="true"
+          />
+        </Show>
+        <span class="max-w-[240px] min-w-0 truncate">{triggerLabel()}</span>
+        <span class={CHEVRON_CLASS} decorative="true" />
+      </button>
+
+      <Show when={open()}>
+        <div class={MENU_CLASS} style={position()}>
           {/* The search field lives inside the menu so the trigger keeps its
               size and position while the menu is open. */}
           <Show when={props.searchable}>
-            <Combobox.Input
+            <input
               ref={(element) => {
                 searchField = element;
-                focusWhenOpen(() => searchField, true);
               }}
               class={MENU_SEARCH_CLASS}
               label={`Search ${props.label}`}
+              aria-label={`Search ${props.label}`}
               placeholder={`Search ${props.label}`}
+              value={query()}
+              onInput={(event) => {
+                setQuery(event.currentTarget.value);
+                setHighlighted(0);
+              }}
+              onKeyDown={menuKeyDown}
             />
           </Show>
-          <Combobox.Listbox
+          <div
             ref={(element) => {
-              if (!props.searchable) focusWhenOpen(() => element);
+              menu = element;
             }}
+            role="listbox"
             tabindex={-1}
-            // Kobalte selects on Enter only through its own input, so a menu
-            // without a filter field activates the highlighted row here.
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setOpen(false);
-                return;
-              }
-              if (event.key !== "Enter" && event.key !== " ") return;
-              const highlighted =
-                event.currentTarget.querySelector<HTMLElement>(
-                  "[data-highlighted]",
-                );
-              if (!highlighted) return;
-              event.preventDefault();
-              highlighted.click();
-            }}
+            label={props.label}
+            aria-label={props.label}
             class={LISTBOX_CLASS}
-          />
-        </Combobox.Content>
-      </Combobox.Portal>
-    </Combobox>
+            onKeyDown={menuKeyDown}
+          >
+            <For each={matches()}>
+              {(option, index) => (
+                <button
+                  type="button"
+                  role="option"
+                  tabindex={-1}
+                  // The description stays visible text, not part of the name.
+                  aria-label={option.label}
+                  aria-selected={option.value === props.value}
+                  data-highlighted={index() === highlighted() ? "" : undefined}
+                  class={ITEM_CLASS}
+                  onPointerEnter={() => setHighlighted(index())}
+                  onClick={() => choose(option)}
+                >
+                  <span class="flex min-w-0 flex-1 flex-col">
+                    <span class="truncate text-body text-foreground">
+                      {option.label}
+                    </span>
+                    <Show when={option.description}>
+                      <span class="truncate text-meta text-terminal-ansiBrightBlack">
+                        {option.description}
+                      </span>
+                    </Show>
+                  </span>
+                  <Show when={option.trailing}>
+                    {(trailing) => <TrailingBadge trailing={trailing()} />}
+                  </Show>
+                  <Show when={option.value === props.value}>
+                    <span
+                      class="codicon codicon-check shrink-0 text-[13px] text-foreground"
+                      decorative="true"
+                    />
+                  </Show>
+                </button>
+              )}
+            </For>
+          </div>
+        </div>
+      </Show>
+    </div>
   );
 }

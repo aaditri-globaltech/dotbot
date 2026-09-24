@@ -59,7 +59,7 @@ describe("ExtensionDialog", () => {
     ));
 
     const dialog = screen.getByRole("dialog");
-    // Kobalte moves focus into the content after mount.
+    // The dialog moves focus into its own card after mount.
     await waitFor(() =>
       expect(dialog.contains(document.activeElement)).toBe(true),
     );

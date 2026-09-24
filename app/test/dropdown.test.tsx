@@ -35,7 +35,7 @@ async function clickTrigger(name: RegExp | string = /Project/) {
   });
 }
 
-/** The option Kobalte moved focus to after the menu opened. */
+/** The element the menu moved focus to after opening. */
 function focusedOption(): Element {
   const active = document.activeElement;
   if (!(active instanceof Element)) throw new Error("no focused element");
@@ -95,7 +95,7 @@ describe("Dropdown", () => {
     expect(document.activeElement).toBe(button);
     fireEvent.keyDown(button, { key: "ArrowDown" });
     await screen.findByRole("listbox");
-    // The menu takes focus when it mounts, so its keys reach Kobalte.
+    // The menu takes focus when it mounts, so its keys reach the list.
     fireEvent.keyDown(focusedOption(), { key: "ArrowDown" });
     fireEvent.keyDown(focusedOption(), { key: "Enter" });
 
@@ -169,7 +169,7 @@ describe("Dropdown", () => {
         />
       ));
 
-    it("names the trigger after the control, not Kobalte's default", async () => {
+    it("names the trigger after the control and its value", async () => {
       renderSearchable();
 
       // The hidden label joins the visible value in the accessible name.
@@ -200,6 +200,18 @@ describe("Dropdown", () => {
 
       expect(screen.queryByPlaceholderText("Search Provider")).toBeNull();
       expect((await trigger(/Provider/)).textContent).toContain("Beta");
+    });
+
+    it("types a space into the filter instead of choosing the highlighted row", async () => {
+      renderSearchable();
+
+      await clickTrigger(/Provider/);
+      const field = await screen.findByPlaceholderText("Search Provider");
+      fireEvent.keyDown(field, { key: " " });
+
+      // A space is text here, so the menu stays open on the field.
+      expect(screen.getByRole("listbox")).toBeTruthy();
+      expect(document.activeElement).toBe(field);
     });
 
     it("lists every option until the text is edited", async () => {
