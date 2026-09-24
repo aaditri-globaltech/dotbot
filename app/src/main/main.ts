@@ -23,8 +23,10 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  shell,
   Tray,
 } from "electron";
+import { guardExternalLinks } from "./external-links";
 import { createFileWatch } from "./file-watch";
 import { UsageStatsStore } from "./usage-stats";
 
@@ -130,6 +132,13 @@ function createWindow() {
   window.webContents.on("did-finish-load", syncMaximizedState);
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+
+  // Links open in the system browser; the window never navigates away.
+  guardExternalLinks(window.webContents, (url) => {
+    void shell
+      .openExternal(url)
+      .catch((error: unknown) => console.error("Failed to open link:", error));
+  });
 
   if (devServerUrl) {
     void window.loadURL(devServerUrl);
