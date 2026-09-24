@@ -49,7 +49,7 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
         <div class="flex h-full min-h-0 w-full flex-col">
           <SidebarNav onNewSession={newSession} collapsed />
           <div class="min-h-0 flex-1" />
-          <div class="flex min-h-[34px] shrink-0 items-center justify-center border-t border-border">
+          <div class="flex min-h-[34px] shrink-0 items-center justify-center border-t border-widget-border">
             <button
               class={`size-7 ${CHROME_BUTTON_CLASS}`}
               type="button"
@@ -82,7 +82,7 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
           }
         >
           <button
-            class="mx-1.5 mt-2 flex min-h-[30px] cursor-pointer items-center gap-2 rounded-md border-0 px-2 text-left text-[13px] text-secondary hover:bg-surface-hover focus-visible:bg-surface-hover"
+            class="mx-1.5 mt-2 flex min-h-[30px] cursor-pointer items-center gap-2 rounded-md border-0 px-2 text-left text-body text-foreground hover:bg-list-hoverBackground focus-visible:bg-list-hoverBackground"
             type="button"
             label="Back to sessions"
             onClick={() => navigationStore.setSidebarMode("sessions")}
@@ -99,8 +99,8 @@ export function PrimarySidebar(props: { collapsed: boolean }) {
           />
         </Show>
 
-        <div class="flex min-h-[34px] shrink-0 items-center gap-2 border-t border-border px-2.5">
-          <span class="min-w-0 flex-1 truncate text-[11px] text-muted">
+        <div class="flex min-h-[34px] shrink-0 items-center gap-2 border-t border-widget-border px-2.5">
+          <span class="min-w-0 flex-1 truncate text-meta text-descriptionForeground">
             {modelName() ?? "Dotbot"}
           </span>
           <button

@@ -19,24 +19,25 @@ const MAX_RECENT_SESSIONS = 5;
 
 /** Shared presentation for recent project and session rows. */
 const ROW_CLASS =
-  "flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border " +
-  "bg-card px-3 py-2 text-left hover:border-border-strong-hover " +
-  "hover:bg-surface-hover focus-visible:border-border-strong-hover " +
-  "focus-visible:bg-surface-hover";
+  "flex w-full cursor-pointer items-center gap-3 rounded-lg border border-widget-border " +
+  "bg-editorWidget-background px-3 py-2 text-left hover:border-menu-border " +
+  "hover:bg-list-hoverBackground focus-visible:border-menu-border " +
+  "focus-visible:bg-list-hoverBackground";
 
 /** Shared presentation for the two launcher actions. */
 const ACTION_CLASS =
-  "flex cursor-pointer items-center gap-3 rounded-xl border border-border-strong " +
-  "bg-card px-4 py-3.5 text-left hover:border-border-strong-hover " +
-  "hover:bg-surface-hover focus-visible:border-border-strong-hover " +
-  "focus-visible:bg-surface-hover";
+  "flex cursor-pointer items-center gap-3 rounded-xl border border-input-border " +
+  "bg-editorWidget-background px-4 py-4 text-left hover:border-menu-border " +
+  "hover:bg-list-hoverBackground focus-visible:border-menu-border " +
+  "focus-visible:bg-list-hoverBackground";
 
 /** Icon chip used by the launcher actions. */
 const ACTION_ICON_CLASS =
-  "grid size-8 shrink-0 place-items-center rounded-lg bg-elevated text-base text-secondary";
+  "grid size-8 shrink-0 place-items-center rounded-lg bg-list-inactiveSelectionBackground text-base text-foreground";
 
 /** Small muted heading above the recent lists. */
-const SECTION_TITLE_CLASS = "mb-2 text-[11px] font-medium text-muted";
+const SECTION_TITLE_CLASS =
+  "mb-2 text-meta font-medium text-descriptionForeground";
 
 /** Newest activity first. */
 function byRecentActivity(a: SessionSummary, b: SessionSummary) {
@@ -85,7 +86,7 @@ export function DashboardView() {
   };
 
   return (
-    <div class="flex h-full min-h-0 w-full flex-col bg-surface">
+    <div class="flex h-full min-h-0 w-full flex-col bg-editor-background">
       <PanelHeader title="Dashboard" />
       <div class="min-h-0 flex-1 overflow-y-auto">
         <div
@@ -111,10 +112,10 @@ export function DashboardView() {
                 decorative="true"
               />
               <span class="flex min-w-0 flex-col">
-                <span class="text-[13px] font-medium text-primary">
+                <span class="text-body font-medium text-strongForeground">
                   Open project
                 </span>
-                <span class="truncate text-xs text-muted">
+                <span class="truncate text-meta text-descriptionForeground">
                   Pick a folder to work in
                 </span>
               </span>
@@ -130,10 +131,10 @@ export function DashboardView() {
                 decorative="true"
               />
               <span class="flex min-w-0 flex-col">
-                <span class="text-[13px] font-medium text-primary">
+                <span class="text-body font-medium text-strongForeground">
                   New session
                 </span>
-                <span class="truncate text-xs text-muted">
+                <span class="truncate text-meta text-descriptionForeground">
                   {workspaceStore.state.selectedProject
                     ? `In ${projectName(workspaceStore.state.selectedProject)}`
                     : "Pick a folder first"}
@@ -149,7 +150,11 @@ export function DashboardView() {
               <h3 class={SECTION_TITLE_CLASS}>Recent sessions</h3>
               <Show
                 when={recentSessions().length > 0}
-                fallback={<p class="text-xs text-dim">No sessions yet.</p>}
+                fallback={
+                  <p class="text-meta text-terminal-ansiBrightBlack">
+                    No sessions yet.
+                  </p>
+                }
               >
                 <div class="flex flex-col gap-1.5">
                   <For each={recentSessions()}>
@@ -161,18 +166,18 @@ export function DashboardView() {
                         onClick={() => showSession(session.id)}
                       >
                         <span
-                          class="codicon codicon-clock shrink-0 text-sm text-muted"
+                          class="codicon codicon-clock shrink-0 text-sm text-descriptionForeground"
                           decorative="true"
                         />
                         <span class="flex min-w-0 flex-1 flex-col">
-                          <span class="truncate text-[13px] text-secondary">
+                          <span class="truncate text-body text-foreground">
                             {session.name ?? session.title}
                           </span>
-                          <span class="truncate text-[11px] text-dim">
+                          <span class="truncate text-meta text-terminal-ansiBrightBlack">
                             {projectName(session.projectDir)}
                           </span>
                         </span>
-                        <span class="shrink-0 text-[10px] text-faint tabular-nums">
+                        <span class="shrink-0 text-meta text-disabledForeground tabular-nums">
                           {relativeTime(session.lastActivity)}
                         </span>
                       </button>
@@ -186,7 +191,11 @@ export function DashboardView() {
               <h3 class={SECTION_TITLE_CLASS}>Recent projects</h3>
               <Show
                 when={recentProjects().length > 0}
-                fallback={<p class="text-xs text-dim">No projects yet.</p>}
+                fallback={
+                  <p class="text-meta text-terminal-ansiBrightBlack">
+                    No projects yet.
+                  </p>
+                }
               >
                 <div class="flex flex-col gap-1.5">
                   <For each={recentProjects()}>
@@ -198,14 +207,14 @@ export function DashboardView() {
                         onClick={() => showProject(recentProject)}
                       >
                         <span
-                          class="codicon codicon-layers shrink-0 text-sm text-muted"
+                          class="codicon codicon-layers shrink-0 text-sm text-descriptionForeground"
                           decorative="true"
                         />
                         <span class="flex min-w-0 flex-1 flex-col">
-                          <span class="truncate text-[13px] text-secondary">
+                          <span class="truncate text-body text-foreground">
                             {projectName(recentProject)}
                           </span>
-                          <span class="truncate text-[11px] text-dim">
+                          <span class="truncate text-meta text-terminal-ansiBrightBlack">
                             {recentProject}
                           </span>
                         </span>
@@ -215,7 +224,7 @@ export function DashboardView() {
                             workspaceStore.state.selectedProject
                           }
                         >
-                          <span class="shrink-0 rounded-sm bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">
+                          <span class="shrink-0 rounded-sm bg-list-inactiveSelectionBackground px-1.5 py-0.5 text-meta text-foreground">
                             current
                           </span>
                         </Show>

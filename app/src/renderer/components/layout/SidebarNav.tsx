@@ -58,7 +58,9 @@ export function SidebarNav(props: {
         </button>
         <button
           class={`size-7 ${CHROME_BUTTON_CLASS} ${
-            dashboardSelected() ? "bg-card text-primary" : ""
+            dashboardSelected()
+              ? "bg-list-activeSelectionBackground text-list-activeSelectionForeground"
+              : ""
           }`}
           type="button"
           label="Dashboard"

@@ -113,9 +113,11 @@ export function ProvidersPage() {
       }
     >
       <section class="flex max-w-[560px] flex-col gap-3">
-        <h2 class="text-base font-semibold">Providers</h2>
+        <h2 class="text-title font-semibold">Providers</h2>
         <Show when={providers().length === 0 && !error()}>
-          <p class="text-muted">No API-key providers were found.</p>
+          <p class="text-descriptionForeground">
+            No API-key providers were found.
+          </p>
         </Show>
         <div class={CARD_CLASS}>
           <div class={CARD_TITLE_CLASS}>Provider</div>
@@ -194,11 +196,15 @@ export function ProvidersPage() {
           )}
         </Show>
         <Show when={notice()}>
-          {(message) => <p class="text-success">{message()}</p>}
+          {(message) => (
+            <p class="text-gitDecoration-untrackedResourceForeground">
+              {message()}
+            </p>
+          )}
         </Show>
         <Show when={error()}>
           {(failure) => (
-            <p class="text-error" role="alert">
+            <p class="text-errorForeground" role="alert">
               {failure()}
             </p>
           )}

@@ -72,9 +72,9 @@ export function TrustPrompt(props: TrustPromptProps) {
       onKeyDown={handleKeyDown}
     >
       <div class="pb-2">
-        <div class="text-sm font-medium text-secondary">{heading}</div>
+        <div class="text-read font-medium text-foreground">{heading}</div>
         {detail && (
-          <div class="mt-1 text-[12px] leading-normal text-dim [white-space:pre-wrap]">
+          <div class="mt-1 text-body leading-normal text-terminal-ansiBrightBlack [white-space:pre-wrap]">
             {detail}
           </div>
         )}
@@ -86,16 +86,16 @@ export function TrustPrompt(props: TrustPromptProps) {
               type="button"
               role="option"
               is-selected={String(index() === selectedIndex())}
-              class={`flex w-full cursor-pointer items-center gap-2 rounded-xl border-0 px-3 py-2 text-left text-sm ${
+              class={`flex w-full cursor-pointer items-center gap-2 rounded-xl border-0 px-3 py-2 text-left text-read ${
                 index() === selectedIndex()
-                  ? "bg-card text-primary"
-                  : "bg-transparent text-secondary hover:bg-surface-hover"
+                  ? "bg-list-activeSelectionBackground text-list-activeSelectionForeground"
+                  : "bg-transparent text-foreground hover:bg-list-hoverBackground"
               }`}
               onMouseEnter={() => setSelectedIndex(index())}
               onClick={() => respond(option)}
             >
               <span
-                class={`codicon codicon-arrow-right w-4 shrink-0 text-[12px] text-accent ${
+                class={`codicon codicon-arrow-right w-4 shrink-0 text-[12px] text-textLink-foreground ${
                   index() === selectedIndex() ? "opacity-100" : "opacity-0"
                 }`}
                 decorative="true"
@@ -107,7 +107,7 @@ export function TrustPrompt(props: TrustPromptProps) {
           )}
         </For>
       </div>
-      <div class="pt-2.5 text-[11px] text-faint">
+      <div class="pt-2.5 text-meta text-disabledForeground">
         ↑↓ navigate · Enter select · Esc cancel
       </div>
     </div>

@@ -9,16 +9,18 @@ type HeroProps = {
 /** Render the shared empty-state headline used by the dashboard and the agent view. */
 export function Hero(props: HeroProps) {
   return (
-    <div class="grid min-h-0 flex-1 place-items-center overflow-hidden px-6 py-10 text-center">
+    <div class="grid min-h-0 flex-1 place-items-center overflow-hidden px-6 py-8 text-center">
       <div class="flex max-w-[520px] flex-col items-center gap-4">
         <span
-          class="codicon codicon-hubot text-[112px] text-primary/[0.05]"
+          class="codicon codicon-hubot text-[112px] text-strongForeground/[0.05]"
           decorative="true"
         />
-        <h2 class="font-serif text-[32px] leading-snug text-secondary">
+        <h2 class="font-serif text-hero leading-snug text-foreground">
           {props.title}
         </h2>
-        <p class="text-[13px] leading-normal text-dim">{props.hint}</p>
+        <p class="text-body leading-normal text-descriptionForeground">
+          {props.hint}
+        </p>
       </div>
     </div>
   );

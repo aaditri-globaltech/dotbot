@@ -179,7 +179,7 @@ export function FileTreePanel(props: FileTreePanelProps) {
     <Show
       when={props.projectDir}
       fallback={
-        <p class="mx-3 my-4.5 text-[11px] leading-normal text-dim">
+        <p class="mx-3 my-4 text-meta leading-normal text-terminal-ansiBrightBlack">
           Open a project to browse files.
         </p>
       }
@@ -188,7 +188,7 @@ export function FileTreePanel(props: FileTreePanelProps) {
         <div class="flex min-h-0 flex-1 flex-col">
           <div class="flex min-h-[32px] shrink-0 items-center gap-1 px-2.5">
             <span
-              class="min-w-0 flex-1 truncate text-[13px] text-secondary"
+              class="min-w-0 flex-1 truncate text-body text-foreground"
               title={projectDir()}
             >
               {projectName(projectDir())}
@@ -221,7 +221,7 @@ export function FileTreePanel(props: FileTreePanelProps) {
             <Show
               when={!error()}
               fallback={
-                <p class="mx-2 my-4 text-[11px] leading-normal text-error">
+                <p class="mx-2 my-4 text-meta leading-normal text-errorForeground">
                   {error()}
                 </p>
               }
@@ -244,10 +244,10 @@ export function FileTreePanel(props: FileTreePanelProps) {
 
                       return (
                         <button
-                          class={`flex min-h-[30px] w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent py-0.5 pr-2 text-left text-[12px] text-secondary ${
+                          class={`flex min-h-[30px] w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent py-0.5 pr-2 text-left text-body text-foreground ${
                             selected()
-                              ? "outline-1 outline-border-strong"
-                              : "hover:bg-surface-hover focus-visible:bg-surface-hover"
+                              ? "outline-1 outline-input-border"
+                              : "hover:bg-list-hoverBackground focus-visible:bg-list-hoverBackground"
                           }`}
                           type="button"
                           role="treeitem"
@@ -267,7 +267,7 @@ export function FileTreePanel(props: FileTreePanelProps) {
                             when={!directory()}
                             fallback={
                               <span
-                                class={`codicon shrink-0 text-dim ${isExpanded() ? "codicon-chevron-down" : "codicon-chevron-right"}`}
+                                class={`codicon shrink-0 text-terminal-ansiBrightBlack ${isExpanded() ? "codicon-chevron-down" : "codicon-chevron-right"}`}
                                 decorative="true"
                               />
                             }
@@ -276,14 +276,14 @@ export function FileTreePanel(props: FileTreePanelProps) {
                               when={badge()}
                               fallback={
                                 <span
-                                  class="codicon codicon-file shrink-0 text-[13px] text-dim"
+                                  class="codicon codicon-file shrink-0 text-[13px] text-terminal-ansiBrightBlack"
                                   decorative="true"
                                 />
                               }
                             >
                               {(file) => (
                                 <span
-                                  class={`grid size-4 shrink-0 place-items-center rounded-sm text-[8px] leading-none font-semibold ${file().className}`}
+                                  class={`grid size-4 shrink-0 place-items-center rounded-sm text-meta leading-none font-semibold ${file().className}`}
                                   decorative="true"
                                 >
                                   {file().label}
@@ -292,20 +292,20 @@ export function FileTreePanel(props: FileTreePanelProps) {
                             </Show>
                           </Show>
                           <span
-                            class={`min-w-0 flex-1 truncate ${changedDirectory() || letter() ? "text-success" : ""}`}
+                            class={`min-w-0 flex-1 truncate ${changedDirectory() || letter() ? "text-gitDecoration-untrackedResourceForeground" : ""}`}
                           >
                             {row().entry.name}
                           </span>
                           <Show when={changedDirectory()}>
                             <span
-                              class="size-1.5 shrink-0 rounded-full bg-success"
+                              class="size-1.5 shrink-0 rounded-full bg-gitDecoration-untrackedResourceForeground"
                               decorative="true"
                               title="Contains changes"
                             />
                           </Show>
                           <Show when={letter()}>
                             {(mark) => (
-                              <span class="shrink-0 text-[11px] font-medium text-success">
+                              <span class="shrink-0 text-meta font-medium text-gitDecoration-untrackedResourceForeground">
                                 {mark()}
                               </span>
                             )}

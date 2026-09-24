@@ -68,7 +68,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
 
       <section
         id="panel"
-        class={`panel bottom-panel border-t border-border bg-app ${props.panels.panelCollapsed() ? "is-collapsed" : ""}`}
+        class={`panel bottom-panel border-t border-widget-border bg-sideBar-background ${props.panels.panelCollapsed() ? "is-collapsed" : ""}`}
       >
         <PanelHeader title="Git" />
         {/* Only the visible panel reads Git, so a collapsed panel costs nothing. */}

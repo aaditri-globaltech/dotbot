@@ -24,7 +24,7 @@ export function GeneralPage() {
 
   return (
     <section class="flex max-w-[520px] flex-col gap-3">
-      <h2 class="text-base font-semibold">General</h2>
+      <h2 class="text-title font-semibold">General</h2>
 
       <div class={CARD_CLASS}>
         <label class={CARD_TITLE_CLASS} for="trust-default">
@@ -62,18 +62,24 @@ export function GeneralPage() {
           <ul class="mt-2 flex flex-col gap-1.5">
             <For each={trustStore.state.entries}>
               {(entry) => (
-                <li class="flex items-center gap-2 text-[12px]">
+                <li class="flex items-center gap-2 text-body">
                   <span
-                    class="min-w-0 flex-1 truncate text-secondary"
+                    class="min-w-0 flex-1 truncate text-foreground"
                     title={entry.path}
                   >
                     {entry.path}
                   </span>
-                  <span class={entry.decision ? "text-muted" : "text-warning"}>
+                  <span
+                    class={
+                      entry.decision
+                        ? "text-descriptionForeground"
+                        : "text-gitDecoration-modifiedResourceForeground"
+                    }
+                  >
                     {entry.decision ? "Trusted" : "Untrusted"}
                   </span>
                   <button
-                    class="cursor-pointer rounded-md border border-border-strong bg-surface-hover px-2 py-0.5 text-[11px] text-secondary hover:bg-elevated"
+                    class="cursor-pointer rounded-md border border-input-border bg-list-hoverBackground px-2 py-0.5 text-meta text-foreground hover:bg-inputOption-activeBackground"
                     type="button"
                     onClick={() => void trustStore.revoke(entry.path)}
                   >
@@ -87,7 +93,7 @@ export function GeneralPage() {
       </div>
 
       <Show when={trustStore.state.error}>
-        {(failure) => <p class="text-[12px] text-error">{failure()}</p>}
+        {(failure) => <p class="text-body text-errorForeground">{failure()}</p>}
       </Show>
     </section>
   );

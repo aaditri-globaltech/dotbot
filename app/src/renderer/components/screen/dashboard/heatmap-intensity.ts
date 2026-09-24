@@ -4,11 +4,11 @@
  */
 
 const CELL_CLASSES = [
-  "bg-surface-hover",
-  "bg-accent/30",
-  "bg-accent/50",
-  "bg-accent/75",
-  "bg-accent",
+  "bg-list-hoverBackground",
+  "bg-textLink-foreground/30",
+  "bg-textLink-foreground/50",
+  "bg-textLink-foreground/75",
+  "bg-textLink-foreground",
 ];
 
 const BUSIEST_LEVEL = CELL_CLASSES.length - 1;

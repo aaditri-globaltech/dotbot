@@ -80,7 +80,9 @@ export function ManageSidebar(props: {
             <button
               type="button"
               class={`size-7 ${CHROME_BUTTON_CLASS} ${
-                managePage() === item.id ? "bg-card text-primary" : ""
+                managePage() === item.id
+                  ? "bg-list-activeSelectionBackground text-list-activeSelectionForeground"
+                  : ""
               }`}
               label={item.label}
               title={item.label}

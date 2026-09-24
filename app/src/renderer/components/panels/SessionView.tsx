@@ -60,17 +60,17 @@ import {
 
 /** Message bubble shared by user and assistant turns. */
 const MESSAGE_CLASS =
-  "max-w-full text-sm leading-normal [overflow-wrap:anywhere] " +
+  "max-w-full text-read leading-normal [overflow-wrap:anywhere] " +
   "[white-space:pre-wrap]";
 
 /** Tool card frame and its collapsible command row. */
 const TOOL_CALL_CLASS =
   "group self-start w-[95%] max-w-[95%] min-w-0 rounded border " +
-  "border-border bg-surface font-mono text-xs leading-[1.45]";
+  "border-widget-border bg-editor-background font-mono text-mono";
 const TOOL_COMMAND_CLASS =
-  "flex cursor-pointer list-none items-start gap-2 px-2 py-[7px] " +
-  "select-none [overflow-wrap:anywhere] hover:bg-input focus-visible:ring-1 " +
-  "focus-visible:ring-focus before:flex-none before:text-dim " +
+  "flex cursor-pointer list-none items-start gap-2 px-2 py-1.5 " +
+  "select-none [overflow-wrap:anywhere] hover:bg-list-hoverBackground focus-visible:ring-1 " +
+  "focus-visible:ring-focusBorder before:flex-none before:text-terminal-ansiBrightBlack " +
   "before:content-['▸'] group-open:before:content-['▾']";
 
 function statusLabel(session: SessionSummary) {
@@ -83,9 +83,10 @@ function statusLabel(session: SessionSummary) {
 
 /** Status text color, so waiting and failures stand out from idle. */
 function statusTextClass(status: SessionSummary["status"]) {
-  if (status === "waiting") return "text-warning";
-  if (status === "error") return "text-error";
-  return "text-dim";
+  if (status === "waiting")
+    return "text-gitDecoration-modifiedResourceForeground";
+  if (status === "error") return "text-errorForeground";
+  return "text-terminal-ansiBrightBlack";
 }
 
 /** Keep the latest transcript window responsive; older items load on demand. */
@@ -93,7 +94,7 @@ const MAX_TRANSCRIPT_ITEMS = 80;
 
 /** Diff markers and line numbers hidden when a tool card shows an edit. */
 const EDIT_OUTPUT_CLASS =
-  "text-muted [&_[data-line-number]]:hidden [&_.hljs-addition]:px-px " +
+  "text-descriptionForeground [&_[data-line-number]]:hidden [&_.hljs-addition]:px-px " +
   "[&_.hljs-addition]:bg-[#243a29] [&_.hljs-addition]:text-[#9cdc9c] " +
   "[&_.hljs-deletion]:px-px [&_.hljs-deletion]:bg-[#3a2424] " +
   "[&_.hljs-deletion]:text-[#d49a92]";
@@ -107,9 +108,9 @@ function ToolOutput(props: { tool: ToolCall }) {
   const failure = () => props.tool.status === "error";
   const outputClass = () =>
     failure()
-      ? "max-h-[234px] overflow-auto px-3 py-[7px] text-error " +
+      ? "max-h-[234px] overflow-auto px-3 py-1.5 text-errorForeground " +
         "[overflow-wrap:anywhere] [white-space:pre-wrap]"
-      : "max-h-[234px] overflow-auto px-3 py-[7px] " +
+      : "max-h-[234px] overflow-auto px-3 py-1.5 " +
         "[overflow-wrap:anywhere] [white-space:pre-wrap]";
   return (
     <CodeHighlight
@@ -154,7 +155,7 @@ function ChatItem(props: {
       <Show when={errorNotice()}>
         {(notice) => (
           <div
-            class="max-w-full self-start rounded border border-error/35 bg-error/10 px-2.5 py-1.5 text-[13px] leading-[1.45] text-error [overflow-wrap:anywhere] [white-space:pre-wrap]"
+            class="max-w-full self-start rounded border border-errorForeground/35 bg-errorForeground/10 px-2.5 py-1.5 text-body leading-[1.45] text-errorForeground [overflow-wrap:anywhere] [white-space:pre-wrap]"
             role="alert"
           >
             {notice().text}
@@ -164,7 +165,7 @@ function ChatItem(props: {
 
       <Show when={thinking()}>
         {(block) => (
-          <div class="max-w-full self-start px-2 text-[13px] leading-[1.45] text-muted italic [overflow-wrap:anywhere] [white-space:pre-wrap]">
+          <div class="max-w-full self-start px-2 text-body leading-[1.45] text-descriptionForeground italic [overflow-wrap:anywhere] [white-space:pre-wrap]">
             <MarkdownText text={block().text} />
           </div>
         )}
@@ -205,10 +206,10 @@ function ChatItem(props: {
                 }`}
               >
                 <Show when={showPrompt()}>
-                  <span class="shrink-0 font-semibold text-secondary">$</span>
+                  <span class="shrink-0 font-semibold text-foreground">$</span>
                 </Show>
                 <Show when={showToolName()}>
-                  <span class="shrink-0 font-semibold whitespace-nowrap text-code">
+                  <span class="shrink-0 font-semibold whitespace-nowrap text-textPreformat-foreground">
                     {call().name}
                   </span>
                 </Show>
@@ -219,7 +220,7 @@ function ChatItem(props: {
                         {call().name === "read" && path() ? path() : value()}
                       </span>
                       <Show when={call().name === "read" && range()}>
-                        <span class="ml-1 shrink-0 text-[10px] font-semibold whitespace-nowrap text-code">
+                        <span class="ml-1 shrink-0 text-meta font-semibold whitespace-nowrap text-textPreformat-foreground">
                           {range()}
                         </span>
                       </Show>
@@ -227,7 +228,7 @@ function ChatItem(props: {
                   )}
                 </Show>
                 <span
-                  class={`${statusDotClass(toolStatusColor(call().status))} mt-[5px] ml-auto`}
+                  class={`${statusDotClass(toolStatusColor(call().status))} mt-1 ml-auto`}
                   role="img"
                   label={`Tool ${toolStatusText(call().status)}`}
                   title={`Tool ${toolStatusText(call().status)}`}
@@ -245,7 +246,7 @@ function ChatItem(props: {
         {(item) => {
           const roleClass = () =>
             item().role === "user"
-              ? "self-end max-w-[min(80%,720px)] rounded border border-border bg-input px-2.5 py-2 [white-space:normal]"
+              ? "self-end max-w-[min(80%,720px)] rounded border border-chat-requestBorder bg-chat-requestBubbleBackground px-2.5 py-2 [white-space:normal]"
               : "self-start px-2";
           return (
             <article class={`${MESSAGE_CLASS} ${roleClass()}`}>
@@ -421,10 +422,10 @@ export function SessionView(props: SessionViewProps) {
   return (
     <section
       id="view"
-      class="panel view-panel relative flex flex-col overflow-hidden bg-surface"
+      class="panel view-panel relative flex flex-col overflow-hidden bg-editor-background"
     >
       <Show when={props.untrustedNotice}>
-        <div class="shrink-0 border-b border-border bg-card px-5 py-1.5 text-[11px] text-muted">
+        <div class="shrink-0 border-b border-widget-border bg-editorWidget-background px-6 py-1.5 text-meta text-descriptionForeground">
           Project resources and packages are ignored because this folder is not
           trusted.
         </div>
@@ -453,7 +454,7 @@ export function SessionView(props: SessionViewProps) {
           <div class="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <div
               ref={messageScroll.setElement}
-              class="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-5 py-4"
+              class="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-6 py-4"
               onScroll={messageScroll.onScroll}
             >
               <Show
@@ -467,7 +468,7 @@ export function SessionView(props: SessionViewProps) {
               >
                 <Show when={olderItemCount() > 0}>
                   <button
-                    class="cursor-pointer self-center rounded-md border border-border-strong bg-card px-2.5 py-1 text-[11px] text-muted hover:border-focus hover:text-secondary"
+                    class={`${SECONDARY_BUTTON_CLASS} self-center`}
                     type="button"
                     onClick={loadOlderItems}
                   >
@@ -490,7 +491,7 @@ export function SessionView(props: SessionViewProps) {
               }
             >
               <button
-                class="absolute bottom-3 left-1/2 z-2 grid size-[26px] -translate-x-1/2 cursor-pointer place-items-center rounded-full border border-border-strong bg-card text-secondary shadow-[0_2px_8px_rgb(0_0_0/35%)] hover:border-focus hover:text-primary focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-offset-2"
+                class="absolute bottom-3 left-1/2 z-2 grid size-[26px] -translate-x-1/2 cursor-pointer place-items-center rounded-full border border-input-border bg-editorWidget-background text-foreground shadow-[0_2px_8px_rgb(0_0_0/35%)] hover:border-focusBorder hover:text-strongForeground focus-visible:ring-1 focus-visible:ring-focusBorder focus-visible:ring-offset-2"
                 type="button"
                 label="Jump to latest message"
                 title="Jump to latest message"
@@ -502,7 +503,7 @@ export function SessionView(props: SessionViewProps) {
           </div>
         </Match>
         <Match when={props.selectedSession}>
-          <div class="grid flex-1 place-items-center text-xs text-dim">
+          <div class="grid flex-1 place-items-center text-meta text-terminal-ansiBrightBlack">
             Starting session…
           </div>
         </Match>
@@ -510,7 +511,7 @@ export function SessionView(props: SessionViewProps) {
 
       <Show when={composerState()}>
         {(state) => (
-          <div class="shrink-0 px-5 pt-1.5 pb-4">
+          <div class="shrink-0 px-6 pt-1.5 pb-4">
             <Show when={pendingBashItem()}>
               {(item) => (
                 <div class="mx-auto mb-2 flex w-full max-w-[860px] flex-col gap-2">
@@ -519,13 +520,13 @@ export function SessionView(props: SessionViewProps) {
               )}
             </Show>
             {/* The dialogue is a layer behind the composer card: it tucks 24px
-                behind the card's rounded top corners (its rounded-3xl radius) and
+                behind the card's rounded top corners (its rounded-xl radius) and
                 pads that 24px plus a 12px gap back, so its content stays above the
                 card and it grows upward without moving the composer. */}
             <div class="relative mx-auto w-full max-w-[860px]">
               <Show when={trustSelect() || props.drafting}>
                 <div
-                  class={`absolute inset-x-0 bottom-[calc(100%_-_24px)] rounded-3xl bg-card px-5 pt-4 pb-9 ${trustSelect() ? "trust-prompt" : ""}`}
+                  class={`absolute inset-x-0 bottom-[calc(100%_-_24px)] rounded-xl bg-editorWidget-background px-6 pt-4 pb-8 ${trustSelect() ? "trust-prompt" : ""}`}
                 >
                   <Show when={trustSelect()} keyed>
                     {(request) => (
@@ -536,7 +537,7 @@ export function SessionView(props: SessionViewProps) {
                     )}
                   </Show>
                   <Show when={!trustSelect() && props.drafting}>
-                    <div class="flex min-w-0 items-center gap-2 text-sm text-secondary">
+                    <div class="flex min-w-0 items-center gap-2 text-read text-foreground">
                       <Dropdown
                         label="Project"
                         icon="codicon-folder"
@@ -552,10 +553,10 @@ export function SessionView(props: SessionViewProps) {
                       />
                       <Show when={branch()}>
                         <span
-                          class="codicon codicon-git-branch ml-1 shrink-0 text-[13px] text-dim"
+                          class="codicon codicon-git-branch ml-1 shrink-0 text-[13px] text-terminal-ansiBrightBlack"
                           decorative="true"
                         />
-                        <span class="min-w-0 truncate text-muted">
+                        <span class="min-w-0 truncate text-descriptionForeground">
                           {branch()}
                         </span>
                       </Show>
@@ -564,10 +565,10 @@ export function SessionView(props: SessionViewProps) {
                 </div>
               </Show>
               <form
-                class={`relative rounded-3xl border bg-elevated px-4 pt-3.5 pb-2.5 transition-colors focus-within:ring-1 ${
+                class={`relative rounded-xl border bg-agentsChatInput-background px-4 pt-3 pb-2.5 transition-colors focus-within:ring-1 ${
                   bashMode()
                     ? "border-bash focus-within:ring-bash/40"
-                    : "border-border-strong focus-within:ring-border-strong"
+                    : "border-agentsChatInput-border focus-within:ring-agentsChatInput-focusBorder"
                 }`}
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -578,7 +579,7 @@ export function SessionView(props: SessionViewProps) {
                   ref={(element) => {
                     composer = element;
                   }}
-                  class="block field-sizing-content max-h-[220px] min-h-[52px] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-[13px] leading-[1.5] text-secondary outline-0 placeholder:text-faint focus:outline-none disabled:opacity-60"
+                  class="block field-sizing-content max-h-[220px] min-h-[52px] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-body leading-[1.5] text-foreground outline-0 placeholder:text-disabledForeground focus:outline-none disabled:opacity-60"
                   label="Send message"
                   placeholder="Ask Dotbot…"
                   rows={3}
@@ -591,7 +592,7 @@ export function SessionView(props: SessionViewProps) {
                   <Show when={props.selectedSession}>
                     {(session) => (
                       <span
-                        class={`shrink-0 text-[11px] whitespace-nowrap ${statusTextClass(session().status)}`}
+                        class={`shrink-0 text-meta whitespace-nowrap ${statusTextClass(session().status)}`}
                       >
                         {statusLabel(session())}
                       </span>
@@ -599,7 +600,7 @@ export function SessionView(props: SessionViewProps) {
                   </Show>
                   <Show when={running() || bashRunning()}>
                     <button
-                      class={`${SECONDARY_BUTTON_CLASS} shrink-0 border-error/50 text-error`}
+                      class={`${SECONDARY_BUTTON_CLASS} shrink-0 border-errorForeground/50 text-errorForeground`}
                       type="button"
                       onClick={props.onAbort}
                     >
@@ -607,7 +608,7 @@ export function SessionView(props: SessionViewProps) {
                     </button>
                   </Show>
                   <Show when={running()}>
-                    <span class="flex shrink-0 items-center gap-1 text-[11px] whitespace-nowrap text-dim">
+                    <span class="flex shrink-0 items-center gap-1 text-meta whitespace-nowrap text-terminal-ansiBrightBlack">
                       Send as
                       <Dropdown
                         label="Streaming behavior"
@@ -622,7 +623,7 @@ export function SessionView(props: SessionViewProps) {
                       />
                     </span>
                   </Show>
-                  <span class="min-w-0 flex-1 truncate text-[11px] text-faint">
+                  <span class="min-w-0 flex-1 truncate text-meta text-disabledForeground">
                     {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.submit)} sends
                     · {formatKeybinding(DEFAULT_EDITOR_KEYBINDINGS.newline)}{" "}
                     adds a line · ! runs a command
@@ -668,7 +669,7 @@ export function SessionView(props: SessionViewProps) {
                     }))}
                   />
                   <button
-                    class="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-secondary text-app disabled:cursor-default disabled:bg-elevated disabled:text-dim"
+                    class="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-foreground text-sideBar-background disabled:cursor-default disabled:bg-list-inactiveSelectionBackground disabled:text-disabledForeground"
                     type="submit"
                     label="Send message"
                     title="Send message"

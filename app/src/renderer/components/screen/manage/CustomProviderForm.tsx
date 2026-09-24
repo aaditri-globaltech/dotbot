@@ -52,7 +52,7 @@ export function CustomProviderForm(props: CustomProviderFormProps) {
         });
       }}
     >
-      <h2 class="text-base font-semibold">Add custom provider</h2>
+      <h2 class="text-title font-semibold">Add custom provider</h2>
       <div class={CARD_CLASS}>
         <div class={CARD_TITLE_CLASS}>Connection</div>
         <p class={CARD_HINT_CLASS}>
@@ -126,7 +126,7 @@ export function CustomProviderForm(props: CustomProviderFormProps) {
       </div>
       <Show when={props.error}>
         {(failure) => (
-          <p class="text-error" role="alert">
+          <p class="text-errorForeground" role="alert">
             {failure()}
           </p>
         )}

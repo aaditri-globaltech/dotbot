@@ -12,15 +12,15 @@ export function SidebarBrand(props: { collapsed: boolean }) {
   return (
     <div
       class={`app-drag flex min-h-[34px] shrink-0 items-center gap-2 ${
-        props.collapsed ? "justify-center px-0" : "px-3.5"
+        props.collapsed ? "justify-center px-0" : "px-3"
       }`}
     >
       <span
-        class="codicon codicon-hubot text-[15px] text-accent"
+        class="codicon codicon-hubot text-[15px] text-textLink-foreground"
         decorative="true"
       />
       <Show when={!props.collapsed}>
-        <span class="text-[13px] font-medium text-secondary">Dotbot</span>
+        <span class="text-body font-medium text-foreground">Dotbot</span>
       </Show>
     </div>
   );
@@ -71,7 +71,7 @@ export function MainTopBar(
           />
         </button>
         <button
-          class={`${WINDOW_BUTTON_CLASS} hover:bg-window-close hover:text-primary`}
+          class={`${WINDOW_BUTTON_CLASS} hover:bg-window-close hover:text-strongForeground`}
           type="button"
           label="Close window"
           onClick={() => api.window.close()}

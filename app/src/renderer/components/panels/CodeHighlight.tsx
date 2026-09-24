@@ -3,8 +3,8 @@ import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 
 /** Bordered block for code, mermaid fallbacks, and plain tool output. */
 export const CODE_BLOCK_CLASS =
-  "max-w-full overflow-auto rounded border border-border bg-surface p-3 " +
-  "[white-space:pre] font-mono text-xs leading-[1.45]";
+  "max-w-full overflow-auto rounded border border-widget-border bg-editor-background p-3 " +
+  "[white-space:pre] font-mono text-mono";
 
 /** Inputs for a plain or syntax-highlighted code block. */
 export type CodeHighlightProps = {
@@ -139,14 +139,14 @@ export function CodeHighlight(props: CodeHighlightProps) {
       >
         <div
           ref={(element) => props.setElement?.(element)}
-          class={`${className()} py-[7px] [overflow-wrap:normal] [white-space:pre]`}
+          class={`${className()} py-1.5 [overflow-wrap:normal] [white-space:pre]`}
           onScroll={props.onScroll}
         >
           <For each={lines()}>
             {(line) => (
               <span class="flex min-h-[1.45em] min-w-max">
                 <span
-                  class="shrink-0 basis-[50px] px-3 text-right text-faint select-none"
+                  class="shrink-0 basis-[50px] px-3 text-right text-disabledForeground select-none"
                   data-line-number="true"
                   decorative="true"
                 >

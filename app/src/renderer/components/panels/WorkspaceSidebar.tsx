@@ -48,13 +48,13 @@ function ProjectSessions(props: ProjectSessionsProps) {
   return (
     <div class="flex flex-col">
       <div
-        class={`flex min-h-[30px] items-center gap-2 rounded-md px-2 text-[13px] ${
-          props.active ? "text-secondary" : "text-muted"
+        class={`flex min-h-[30px] items-center gap-2 rounded-md px-2 text-body ${
+          props.active ? "text-foreground" : "text-descriptionForeground"
         }`}
         title={props.projectDir}
       >
         <span
-          class="codicon codicon-folder shrink-0 text-[15px] text-dim"
+          class="codicon codicon-folder shrink-0 text-[15px] text-terminal-ansiBrightBlack"
           decorative="true"
         />
         <span class="min-w-0 flex-1 truncate">
@@ -74,9 +74,9 @@ function ProjectSessions(props: ProjectSessionsProps) {
       <For each={visible()}>
         {(session) => (
           <button
-            class={`flex min-h-[30px] w-full cursor-pointer items-center gap-2 rounded-md border-0 py-0.5 pr-2 pl-7 text-left text-muted hover:bg-surface-hover hover:text-secondary ${
+            class={`flex min-h-[30px] w-full cursor-pointer items-center gap-2 rounded-md border-0 py-0.5 pr-2 pl-6 text-left text-descriptionForeground hover:bg-list-hoverBackground hover:text-foreground ${
               props.openTabIds.includes(session.id)
-                ? "bg-card text-secondary"
+                ? "bg-list-activeSelectionBackground text-list-activeSelectionForeground"
                 : ""
             }`}
             type="button"
@@ -84,15 +84,15 @@ function ProjectSessions(props: ProjectSessionsProps) {
             title={`${session.title}\n${session.projectDir}`}
           >
             <span class={statusDotClass(session.status)} />
-            <span class="min-w-0 flex-1 truncate text-[13px]">
+            <span class="min-w-0 flex-1 truncate text-body">
               {session.name ?? session.title}
             </span>
-            <span class="shrink-0 text-[11px] text-faint tabular-nums">
+            <span class="shrink-0 text-meta text-disabledForeground tabular-nums">
               {relativeTime(session.lastActivity)}
             </span>
             <Show when={session.unread}>
               <span
-                class="size-1.5 shrink-0 rounded-full bg-accent"
+                class="size-1.5 shrink-0 rounded-full bg-textLink-foreground"
                 decorative="true"
               />
             </Show>
@@ -102,7 +102,7 @@ function ProjectSessions(props: ProjectSessionsProps) {
 
       <Show when={hidden() > 0}>
         <button
-          class="min-h-[28px] w-full cursor-pointer rounded-md border-0 pr-2 pl-7 text-left text-[12px] text-dim hover:bg-surface-hover hover:text-secondary"
+          class="min-h-[28px] w-full cursor-pointer rounded-md border-0 pr-2 pl-6 text-left text-meta text-terminal-ansiBrightBlack hover:bg-list-hoverBackground hover:text-foreground"
           type="button"
           onClick={() => setExpanded((current) => !current)}
         >
@@ -133,12 +133,14 @@ export function WorkspaceSidebar(props: WorkspaceSidebarProps) {
 
   return (
     <>
-      <h2 class="px-3.5 pt-3 pb-1 text-[12px] text-muted">Workspace</h2>
+      <h2 class="px-3 pt-3 pb-1 text-meta text-descriptionForeground">
+        Workspace
+      </h2>
       <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2">
         <Show
           when={projects().length > 0}
           fallback={
-            <p class="px-1.5 py-3 text-[12px] leading-normal text-dim">
+            <p class="px-1.5 py-3 text-meta leading-normal text-terminal-ansiBrightBlack">
               Open a project to start a session.
             </p>
           }

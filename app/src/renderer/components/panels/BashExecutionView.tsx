@@ -15,13 +15,16 @@ function accentClasses(item: BashExecution) {
 /** Trailing status for a finished command; running commands show a loader. */
 function completion(item: BashExecution) {
   if (item.status === "cancelled") {
-    return { text: "(cancelled)", className: "text-warning" };
+    return {
+      text: "(cancelled)",
+      className: "text-gitDecoration-modifiedResourceForeground",
+    };
   }
   if (item.status === "error") {
     return {
       text:
         item.exitCode === undefined ? "(failed)" : `(exit ${item.exitCode})`,
-      className: "text-error",
+      className: "text-errorForeground",
     };
   }
   return undefined;
@@ -39,7 +42,7 @@ export function BashExecutionView(props: { item: BashExecution }) {
     // shrink-0 keeps the block at its content height inside the transcript's
     // scrollable flex column.
     <div
-      class={`w-full max-w-full min-w-0 shrink-0 self-start border-t border-b px-2.5 py-1.5 font-mono text-xs leading-[1.45] ${accent().border}`}
+      class={`w-full max-w-full min-w-0 shrink-0 self-start border-t border-b px-2.5 py-1.5 font-mono text-mono ${accent().border}`}
     >
       <div
         class={`font-semibold [overflow-wrap:anywhere] [white-space:pre-wrap] ${accent().header}`}
@@ -50,13 +53,13 @@ export function BashExecutionView(props: { item: BashExecution }) {
         <CodeHighlight
           code={props.item.output}
           language=""
-          className="max-h-[180px] overflow-auto text-muted [overflow-wrap:anywhere] [white-space:pre-wrap]"
+          className="max-h-[180px] overflow-auto text-descriptionForeground [overflow-wrap:anywhere] [white-space:pre-wrap]"
           setElement={scroll.setElement}
           onScroll={scroll.onScroll}
         />
       </Show>
       <Show when={props.item.status === "running"}>
-        <div class="flex items-center gap-1.5 pt-0.5 text-[11px] text-muted">
+        <div class="flex items-center gap-1.5 pt-0.5 text-meta text-descriptionForeground">
           <span
             class={`codicon codicon-loading codicon-modifier-spin ${accent().header}`}
             decorative="true"
@@ -65,12 +68,12 @@ export function BashExecutionView(props: { item: BashExecution }) {
         </div>
       </Show>
       <Show when={hasStatus()}>
-        <div class="flex flex-wrap items-center gap-x-2 pt-0.5 text-[11px]">
+        <div class="flex flex-wrap items-center gap-x-2 pt-0.5 text-meta">
           <Show when={status()}>
             {(state) => <span class={state().className}>{state().text}</span>}
           </Show>
           <Show when={props.item.truncated}>
-            <span class="min-w-0 text-warning [overflow-wrap:anywhere]">
+            <span class="min-w-0 text-gitDecoration-modifiedResourceForeground [overflow-wrap:anywhere]">
               Output truncated
               {props.item.fullOutputPath
                 ? `. Full output: ${props.item.fullOutputPath}`

@@ -4,55 +4,6 @@
    override them (unlayered rules always beat layered ones). The app's own
    stylesheet stays unlayered and therefore keeps winning over utilities. */
 @import "@vscode/codicons/dist/codicon.css" layer(base);
-@import "highlight.js/styles/github-dark.css" layer(base);
+@import "highlight.js/styles/vs2015.css" layer(base);
+@import "./styles/theme.css";
 @import "./styles/app.css";
-
-/* Semantic tokens for the palette in styles/app.css, so components can use
-   utilities such as `bg-surface`, `text-primary`, or `border-border` instead
-   of repeating hex values.
-
-   Measured from the reference screenshots: the sidebar and panels are a raised
-   blue-grey (#1a1e23) while the main view is near-black (#111113), so the
-   content reads as recessed and the chrome as lifted. Colour is reserved for
-   state (status dots, git status, accents) rather than chrome. */
-@theme {
-  --color-app: #1a1e23;
-  --color-surface: #111113;
-  --color-input: #2b2f34;
-  --color-surface-hover: #262b31;
-  --color-card: #22262b;
-  --color-elevated: #2d3238;
-  --color-primary: #eef2f7;
-  --color-secondary: #c8ced6;
-  --color-muted: #9aa2ab;
-  --color-dim: #767e87;
-  --color-faint: #5b636b;
-  --color-border: #2a2f35;
-  --color-border-strong: #383d44;
-  --color-border-strong-hover: #4a5057;
-  --color-focus: #4c9aff;
-  --color-accent: #4c9aff;
-  --color-button: #2f6fd0;
-  --color-control: #262b31;
-  --color-code: #d7ba7d;
-  --color-window-close: #c42b1c;
-  --color-success: #3cc060;
-  --color-warning: #e8c15f;
-  --color-error: #f05454;
-  /* Bash mode and its excluded-from-context dim. */
-  --color-bash: #b5bd68;
-  --color-bash-dim: #666666;
-
-  /* Corner scale from the reference: 17px cards, 10px panels and rows, 8px controls. */
-  --radius: 8px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
-  --radius-2xl: 17px;
-
-  /* Display serif, used for headline copy such as the new-session hero. */
-  --font-serif: ui-serif, Georgia, "Noto Serif", "Liberation Serif", serif;
-
-  --shadow-card: 0 8px 30px rgb(0 0 0 / 35%);
-}

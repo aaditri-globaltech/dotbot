@@ -8,12 +8,14 @@ export type StatusDotState = SessionStatus | "success";
  * Tailwind emits them; the states come from runtime values.
  */
 const DOT_CLASSES: Record<StatusDotState, string> = {
-  idle: "bg-faint",
-  starting: "bg-accent shadow-[0_0_0_2px_rgb(76_154_255/18%)]",
-  running: "bg-accent shadow-[0_0_0_2px_rgb(76_154_255/18%)]",
-  waiting: "bg-warning shadow-[0_0_0_2px_rgb(232_193_95/18%)]",
-  error: "bg-error",
-  success: "bg-success shadow-[0_0_0_2px_rgb(60_192_96/18%)]",
+  idle: "bg-disabledForeground",
+  starting: "bg-textLink-foreground shadow-[0_0_0_2px_rgb(72_160_199/18%)]",
+  running: "bg-textLink-foreground shadow-[0_0_0_2px_rgb(72_160_199/18%)]",
+  waiting:
+    "bg-gitDecoration-modifiedResourceForeground shadow-[0_0_0_2px_rgb(229_186_125/18%)]",
+  error: "bg-errorForeground",
+  success:
+    "bg-gitDecoration-untrackedResourceForeground shadow-[0_0_0_2px_rgb(115_201_145/18%)]",
 };
 
 /** Base dot shape plus the color for one state. */

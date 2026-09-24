@@ -47,7 +47,8 @@ const MODEL_COLORS = [
   "bg-[#8b949e]",
 ];
 
-const TAB_CLASS = "cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium";
+const TAB_CLASS =
+  "cursor-pointer rounded-full px-2.5 py-1 text-meta font-medium";
 
 /** Compact token and message counts: 6600000 -> "6.6M", 847 -> "847". */
 function formatCompact(value: number): string {
@@ -105,10 +106,10 @@ function bucketTokens(days: UsageStatsDay[]): TokenBucket[] {
 
 function StatCard(props: { label: string; value: string }) {
   return (
-    <div class="min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5">
-      <div class="text-[11px] text-muted">{props.label}</div>
+    <div class="min-w-0 rounded-lg border border-widget-border bg-editor-background px-3 py-2.5">
+      <div class="text-meta text-descriptionForeground">{props.label}</div>
       <div
-        class="mt-0.5 truncate text-lg font-semibold text-primary"
+        class="mt-0.5 truncate text-display font-semibold text-strongForeground"
         title={props.value}
       >
         {props.value}
@@ -166,13 +167,13 @@ function TokenChart(props: {
     <Show
       when={buckets().length > 0}
       fallback={
-        <p class="py-6 text-center text-xs text-muted">
+        <p class="py-6 text-center text-body text-descriptionForeground">
           No token usage in this range.
         </p>
       }
     >
       <div class="flex gap-2">
-        <div class="flex h-40 shrink-0 basis-[46px] flex-col justify-between text-right text-[10px] text-faint tabular-nums">
+        <div class="flex h-40 shrink-0 basis-[46px] flex-col justify-between text-right text-meta text-disabledForeground tabular-nums">
           <Index each={ticks()}>
             {(tick) => <span>{formatCompact(Math.round(tick()))}</span>}
           </Index>
@@ -183,13 +184,13 @@ function TokenChart(props: {
             <Index each={ticks()}>
               {(_, index) => (
                 <div
-                  class="absolute inset-x-0 border-t border-border"
+                  class="absolute inset-x-0 border-t border-widget-border"
                   style={{ top: `${(index / CHART_TICKS) * 100}%` }}
                 />
               )}
             </Index>
 
-            <div class="absolute inset-0 flex items-end gap-[3px]">
+            <div class="absolute inset-0 flex items-end gap-0.5">
               <For each={buckets()}>
                 {(bucket) => (
                   <div
@@ -223,7 +224,7 @@ function TokenChart(props: {
             </div>
           </div>
 
-          <div class="mt-1 flex gap-[3px] text-[10px] text-faint">
+          <div class="mt-1 flex gap-1 text-meta text-disabledForeground">
             <Index each={buckets()}>
               {(bucket, index) => (
                 <div class="min-w-[2px] flex-1 text-center">
@@ -251,30 +252,30 @@ function ModelLegend(props: {
     <Show
       when={props.models.length > 0}
       fallback={
-        <p class="py-6 text-center text-xs text-muted">
+        <p class="py-6 text-center text-body text-descriptionForeground">
           No model usage in this range.
         </p>
       }
     >
-      <div class="mt-4 flex flex-col gap-1.5 border-t border-border pt-3">
+      <div class="mt-4 flex flex-col gap-1.5 border-t border-widget-border pt-3">
         <For each={props.models}>
           {(model) => {
             const total = () => model.input + model.output;
             const percent = () =>
               grandTotal() > 0 ? (total() / grandTotal()) * 100 : 0;
             return (
-              <div class="flex items-center gap-2 text-xs">
+              <div class="flex items-center gap-2 text-meta">
                 <span
                   class={`size-2 shrink-0 rounded-full ${props.modelColor.get(model.model)}`}
                 />
-                <span class="min-w-0 flex-1 truncate text-secondary">
+                <span class="min-w-0 flex-1 truncate text-foreground">
                   {model.model}
                 </span>
-                <span class="shrink-0 text-muted tabular-nums">
+                <span class="shrink-0 text-descriptionForeground tabular-nums">
                   {formatCompact(model.input)} in ·{" "}
                   {formatCompact(model.output)} out
                 </span>
-                <span class="w-[46px] shrink-0 text-right text-faint tabular-nums">
+                <span class="w-[46px] shrink-0 text-right text-disabledForeground tabular-nums">
                   {percent().toFixed(1)}%
                 </span>
               </div>
@@ -309,7 +310,7 @@ function UsageSection(props: { stats: UsageStats }) {
     );
 
   return (
-    <section class="mb-6 rounded-xl border border-border bg-card p-4">
+    <section class="mb-6 rounded-xl border border-widget-border bg-editorWidget-background p-4">
       <div class="mb-4 flex items-center justify-between gap-3">
         <div class="flex gap-0.5">
           <For each={["overview", "models"] as Tab[]}>
@@ -319,8 +320,8 @@ function UsageSection(props: { stats: UsageStats }) {
                 pressed={String(tab() === name)}
                 class={`${TAB_CLASS} ${
                   tab() === name
-                    ? "bg-elevated text-primary"
-                    : "bg-transparent text-muted hover:bg-surface-hover hover:text-primary"
+                    ? "bg-inputOption-activeBackground text-strongForeground"
+                    : "bg-transparent text-descriptionForeground hover:bg-list-hoverBackground hover:text-strongForeground"
                 }`}
                 onClick={() => setTab(name)}
               >
@@ -330,7 +331,7 @@ function UsageSection(props: { stats: UsageStats }) {
           </For>
         </div>
 
-        <div class="flex gap-0.5 rounded-full bg-surface p-0.5">
+        <div class="flex gap-0.5 rounded-full bg-editor-background p-0.5">
           <For each={RANGE_LABELS}>
             {({ key, label }) => (
               <button
@@ -338,8 +339,8 @@ function UsageSection(props: { stats: UsageStats }) {
                 pressed={String(range() === key)}
                 class={`${TAB_CLASS} ${
                   range() === key
-                    ? "bg-elevated text-primary"
-                    : "bg-transparent text-muted hover:bg-surface-hover hover:text-primary"
+                    ? "bg-inputOption-activeBackground text-strongForeground"
+                    : "bg-transparent text-descriptionForeground hover:bg-list-hoverBackground hover:text-strongForeground"
                 }`}
                 onClick={() => setRange(key)}
               >
@@ -425,7 +426,11 @@ export function UsageStatsPanel() {
   return (
     <Show
       when={!failed()}
-      fallback={<p class="text-muted">Usage statistics are unavailable.</p>}
+      fallback={
+        <p class="text-descriptionForeground">
+          Usage statistics are unavailable.
+        </p>
+      }
     >
       <Show when={stats()}>
         {(loaded) => (

@@ -84,8 +84,8 @@ export function GitSidebar(props: GitSidebarProps) {
   const changeList = (changes: GitChange[], staged: boolean) => (
     <For each={changes}>
       {(change) => (
-        <div class="group flex min-h-[25px] items-center gap-1.5 py-0.5 pr-1.5 pl-2.5 text-[11px] text-secondary hover:bg-surface-hover">
-          <span class="shrink-0 basis-3 text-center font-semibold text-warning">
+        <div class="group flex min-h-[25px] items-center gap-1.5 py-0.5 pr-1.5 pl-2.5 text-meta text-foreground hover:bg-list-hoverBackground">
+          <span class="shrink-0 basis-3 text-center font-semibold text-gitDecoration-modifiedResourceForeground">
             {changeLabel(change)[0]}
           </span>
           <span class="min-w-0 truncate" title={change.path}>
@@ -113,12 +113,12 @@ export function GitSidebar(props: GitSidebarProps) {
       <Show
         when={props.projectDir}
         fallback={
-          <p class="mx-3 my-4.5 text-[11px] leading-normal text-dim">
+          <p class="mx-3 my-4 text-meta leading-normal text-terminal-ansiBrightBlack">
             Open a project for Git.
           </p>
         }
       >
-        <div class="flex min-h-[30px] shrink-0 items-center gap-1.5 border-b border-border px-2.5 text-[11px] text-muted">
+        <div class="flex min-h-[30px] shrink-0 items-center gap-1.5 border-b border-widget-border px-2.5 text-meta text-descriptionForeground">
           <span class="codicon codicon-git-branch" decorative="true" />
           <span
             class="min-w-0 flex-1 truncate"
@@ -138,19 +138,19 @@ export function GitSidebar(props: GitSidebarProps) {
         </div>
 
         <Show when={error()}>
-          <p class="mx-3 my-4.5 text-[11px] leading-normal text-error">
+          <p class="mx-3 my-4 text-meta leading-normal text-errorForeground">
             {error()}
           </p>
         </Show>
         <Show when={status()?.error}>
           {(failure) => (
-            <p class="mx-3 my-4.5 text-[11px] leading-normal text-error">
+            <p class="mx-3 my-4 text-meta leading-normal text-errorForeground">
               {failure()}
             </p>
           )}
         </Show>
         <Show when={status()?.repoRoot && !status()?.error}>
-          <div class="flex shrink-0 flex-col gap-1.5 border-b border-border p-2.5">
+          <div class="flex shrink-0 flex-col gap-1.5 border-b border-widget-border p-2.5">
             <textarea
               value={message()}
               placeholder={`Message (${formatKeybinding(DEFAULT_APP_KEYBINDINGS.commit)} to commit)`}
@@ -163,7 +163,7 @@ export function GitSidebar(props: GitSidebarProps) {
               }}
             />
             <button
-              class="shrink-0 cursor-pointer self-start rounded-sm bg-button px-2.5 py-1 text-[11px] text-white disabled:cursor-default disabled:bg-elevated disabled:text-dim"
+              class="shrink-0 cursor-pointer self-start rounded-sm bg-button-background px-2.5 py-1 text-meta text-white disabled:cursor-default disabled:bg-list-inactiveSelectionBackground disabled:text-disabledForeground"
               type="button"
               disabled={!message().trim() || stagedChanges().length === 0}
               onClick={commit}
@@ -172,15 +172,17 @@ export function GitSidebar(props: GitSidebarProps) {
             </button>
           </div>
 
-          <section class="border-b border-border">
-            <h2 class="flex justify-between p-[7px_10px] text-[10px] font-medium tracking-[0.04em] text-muted uppercase">
+          <section class="border-b border-widget-border">
+            <h2 class="flex justify-between px-2.5 py-1.5 text-meta font-medium text-descriptionForeground">
               Staged Changes{" "}
-              <span class="text-dim">{stagedChanges().length}</span>
+              <span class="text-terminal-ansiBrightBlack">
+                {stagedChanges().length}
+              </span>
             </h2>
             <Show
               when={stagedChanges().length > 0}
               fallback={
-                <p class="mx-2.5 mt-1 mb-2.5 text-[11px] text-dim">
+                <p class="mx-2.5 mt-1 mb-2.5 text-meta text-terminal-ansiBrightBlack">
                   No staged changes
                 </p>
               }
@@ -188,14 +190,17 @@ export function GitSidebar(props: GitSidebarProps) {
               {changeList(stagedChanges(), true)}
             </Show>
           </section>
-          <section class="border-b border-border">
-            <h2 class="flex justify-between p-[7px_10px] text-[10px] font-medium tracking-[0.04em] text-muted uppercase">
-              Changes <span class="text-dim">{unstagedChanges().length}</span>
+          <section class="border-b border-widget-border">
+            <h2 class="flex justify-between px-2.5 py-1.5 text-meta font-medium text-descriptionForeground">
+              Changes{" "}
+              <span class="text-terminal-ansiBrightBlack">
+                {unstagedChanges().length}
+              </span>
             </h2>
             <Show
               when={unstagedChanges().length > 0}
               fallback={
-                <p class="mx-2.5 mt-1 mb-2.5 text-[11px] text-dim">
+                <p class="mx-2.5 mt-1 mb-2.5 text-meta text-terminal-ansiBrightBlack">
                   No changes
                 </p>
               }

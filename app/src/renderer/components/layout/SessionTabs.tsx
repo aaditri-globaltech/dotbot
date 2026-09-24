@@ -23,13 +23,13 @@ export function SessionTabs() {
           return (
             <Show when={session()}>
               {(entry) => (
-                <div class="flex max-w-[220px] shrink-0 items-stretch border-r border-border">
+                <div class="flex max-w-[220px] shrink-0 items-stretch border-r border-widget-border">
                   <button
                     type="button"
-                    class={`flex min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden border-0 px-2 text-[11px] ${
+                    class={`flex min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden border-t-2 px-2 text-meta ${
                       entry().id === sessionStore.state.selectedId
-                        ? "bg-surface text-secondary"
-                        : "bg-transparent text-dim"
+                        ? "border-tab-activeBorderTop bg-tab-activeBackground text-tab-activeForeground"
+                        : "border-transparent bg-tab-inactiveBackground text-tab-inactiveForeground"
                     }`}
                     onClick={() => sessionStore.selectSession(entry().id)}
                   >

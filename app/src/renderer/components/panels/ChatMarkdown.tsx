@@ -82,7 +82,7 @@ function MermaidDiagram(props: { code: string }) {
   return (
     <Show when={svg()} fallback={<FallbackDiagram code={props.code} />}>
       <div
-        class="max-w-full overflow-auto rounded border border-border bg-surface p-3 [&_svg]:block [&_svg]:h-auto [&_svg]:max-w-full"
+        class="max-w-full overflow-auto rounded border border-widget-border bg-editor-background p-3 [&_svg]:block [&_svg]:h-auto [&_svg]:max-w-full"
         innerHTML={svg()}
       />
     </Show>
@@ -133,7 +133,7 @@ function ChatBlockView(props: { block: ChatBlock }) {
 /** Render chat text with fenced code and Mermaid blocks separated. */
 export function ChatMarkdown(props: { text: string }) {
   return (
-    <div class="flex min-w-0 flex-col gap-2.5 [overflow-wrap:anywhere] empty:after:inline-block empty:after:h-3 empty:after:w-[5px] empty:after:animate-[agent-blink_900ms_steps(2,jump-none)_infinite] empty:after:bg-accent empty:after:content-['']">
+    <div class="flex min-w-0 flex-col gap-2.5 [overflow-wrap:anywhere] empty:after:inline-block empty:after:h-3 empty:after:w-[5px] empty:after:animate-[agent-blink_900ms_steps(2,jump-none)_infinite] empty:after:bg-textLink-foreground empty:after:content-['']">
       <For each={parseChatBlocks(props.text)}>
         {(block) => <ChatBlockView block={block} />}
       </For>
