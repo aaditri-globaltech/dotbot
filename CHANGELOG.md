@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-09-25
 ### Breaking Changes
 
 - Migrated the workspace from Bun to npm, including the lockfile, package scripts, Husky hooks, and CI.

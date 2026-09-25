@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-09-25
 ### Added
 
 - Added Dashboard, Workbench, and Manage screens behind a project sidebar that replaces the activity rail, menu bar, and status bar.

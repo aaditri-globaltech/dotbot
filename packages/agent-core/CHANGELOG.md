@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-09-25
 ### Added
 
 - Added `@dotbot/agent-core` as the app's Pi containment boundary: named Pi SDK re-exports plus Dotbot's in-process `AgentManager`, `ProviderRegistry`, and `TrustManager`.
