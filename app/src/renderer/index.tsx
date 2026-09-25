@@ -2,7 +2,7 @@ import { render } from "solid-js/web";
 import App from "./App";
 import "./index.css";
 
-// The HTML shell must provide exactly one mount point for the Solid app.
+// The HTML shell must provide exactly one mount point for the renderer.
 const root = document.getElementById("root");
 
 if (!root) {

@@ -1,0 +1,168 @@
+import { describe, expect, it } from "vitest";
+import { buildTranscript } from "../src/transcript";
+
+describe("buildTranscript", () => {
+  it("keeps user and assistant text, thinking, and tool calls in order", () => {
+    const items = buildTranscript([
+      { role: "user", content: [{ type: "text", text: "run it" }] },
+      {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "thinking about it" },
+          { type: "text", text: "on it" },
+          {
+            type: "toolCall",
+            id: "call-1",
+            name: "bash",
+            arguments: { command: "ls" },
+          },
+        ],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "call-1",
+        toolName: "bash",
+        content: [{ type: "text", text: "a.txt" }],
+        isError: false,
+      },
+    ]);
+
+    expect(items).toEqual([
+      { id: "transcript-0", role: "user", text: "run it" },
+      {
+        kind: "thinking",
+        id: "transcript-thinking-1-0",
+        text: "thinking about it",
+        status: "done",
+      },
+      { id: "transcript-1-text-1", role: "assistant", text: "on it" },
+      {
+        kind: "tool",
+        id: "transcript-tool-call-1",
+        name: "bash",
+        arguments: '{\n  "command": "ls"\n}',
+        output: "a.txt",
+        status: "done",
+      },
+    ]);
+  });
+
+  it("marks failed tool results and preserves Pi diffs", () => {
+    const items = buildTranscript([
+      {
+        role: "assistant",
+        content: [
+          { type: "toolCall", id: "call-2", name: "edit", arguments: {} },
+        ],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "call-2",
+        content: [],
+        details: { diff: "- old\n+ new" },
+        isError: true,
+      },
+    ]);
+
+    expect(items).toEqual([
+      {
+        kind: "tool",
+        id: "transcript-tool-call-2",
+        name: "edit",
+        arguments: "{}",
+        output: "- old\n+ new",
+        status: "error",
+      },
+    ]);
+  });
+
+  it("renders persisted bash executions as tool cards", () => {
+    const items = buildTranscript([
+      {
+        role: "bashExecution",
+        command: "ls -la",
+        output: "a.txt",
+        exitCode: 0,
+        cancelled: false,
+        truncated: false,
+        excludeFromContext: true,
+        timestamp: 0,
+      },
+      {
+        role: "bashExecution",
+        command: "exit 1",
+        output: "boom",
+        exitCode: 1,
+        cancelled: false,
+        truncated: false,
+      },
+      {
+        role: "bashExecution",
+        command: "sleep 10",
+        output: "",
+        exitCode: undefined,
+        cancelled: true,
+        truncated: false,
+      },
+      {
+        role: "bashExecution",
+        command: "yes",
+        output: "y\ny",
+        exitCode: 0,
+        cancelled: false,
+        truncated: true,
+        fullOutputPath: "/tmp/full.txt",
+      },
+    ]);
+
+    expect(items).toEqual([
+      {
+        kind: "bash",
+        id: "transcript-bash-0",
+        command: "ls -la",
+        excludeFromContext: true,
+        output: "a.txt",
+        truncated: false,
+        exitCode: 0,
+        status: "done",
+      },
+      {
+        kind: "bash",
+        id: "transcript-bash-1",
+        command: "exit 1",
+        excludeFromContext: false,
+        output: "boom",
+        truncated: false,
+        exitCode: 1,
+        status: "error",
+      },
+      {
+        kind: "bash",
+        id: "transcript-bash-2",
+        command: "sleep 10",
+        excludeFromContext: false,
+        output: "",
+        truncated: false,
+        status: "cancelled",
+      },
+      {
+        kind: "bash",
+        id: "transcript-bash-3",
+        command: "yes",
+        excludeFromContext: false,
+        output: "y\ny",
+        truncated: true,
+        fullOutputPath: "/tmp/full.txt",
+        exitCode: 0,
+        status: "done",
+      },
+    ]);
+  });
+
+  it("ignores non-conversation messages", () => {
+    expect(buildTranscript([{ role: "system", content: "hidden" }])).toEqual(
+      [],
+    );
+    expect(buildTranscript(undefined)).toEqual([]);
+  });
+});

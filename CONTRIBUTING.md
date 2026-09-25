@@ -1,55 +1,59 @@
-# Contributing to Aria
+# Contributing to Dotbot
 
 ## Before contributing
 
-Aria is a Bun workspace monorepo containing an Electron client, a reusable extension runtime, and a generic Bun extension host. Read the root `README.md` and `AGENTS.md` before making changes.
+Dotbot is an npm workspace monorepo containing an Electron client and three
+support packages. Read the root `README.md`, `AGENTS.md`, and `GLOSSARY.md`
+before making changes.
 
 Keep changes focused and understand the behavior and interactions of every change, including changes produced with AI assistance.
 
 ## Development setup
 
-Use Bun 1.4.0 or a compatible version, then install dependencies without running lifecycle scripts:
+Use Node 24 or a compatible version, then install dependencies without running lifecycle scripts:
 
 ```sh
-bun install --ignore-scripts
-bun run prepare
-bun run dev
+npm install --ignore-scripts
+npm run prepare
+npm run patch
+npm run dev
 ```
 
-Running the desktop app also requires Pi to be installed separately and available on `PATH`. Git is required for Source Control features.
+Git is required for the Git panel. The agent runtime is provided by
+`packages/agent-core`; no separate install is required.
 
 ## Repository structure
 
-- `app/` — Electron main process, host client, preload bridge, and Solid renderer.
-- `packages/core/` — reusable, generic extension runtime.
-- `packages/host/` — reusable Bun extension host process.
-- `packages/protocol/` — generic app-to-host wire contract.
-- `packages/extensions/*` — feature capabilities and their schemas.
+- `app/` — Electron main process, preload bridge, and Solid renderer.
+- `packages/agent-core/` — agent runtime re-exports, the in-process agent manager, and the provider registry.
+- `packages/files/` — project filesystem access and the file watcher.
+- `packages/git/` — Git status, staging, and commit operations.
 
-Keep application capabilities in extensions rather than in the extension runtime or the Electron renderer.
+Keep agent session behavior in `agent-core` and filesystem or Git behavior in
+the matching package rather than in Electron or the renderer.
 
 ## Validation
 
 Run the root check before opening a pull request:
 
 ```sh
-bun run check
+npm run check
 ```
 
-This formats and lints with warnings treated as errors, typechecks, and runs the tests in that order. For renderer or bundling changes, also run:
+This formats and lints with warnings treated as errors, then typechecks. Run
+the tests with:
 
 ```sh
-bun run check:browser-smoke
+npm test
 ```
 
-Build commands are for packaging validation, not routine changes. To prepare a release, run the repository-level command from a clean tree:
+For renderer or bundling changes, also run:
 
 ```sh
-bun run release -- patch   # or minor / major / x.y.z
-git push origin main --follow-tags
+npm run check:browser-smoke
 ```
 
-The command runs the checks, updates `app/package.json` and package changelogs, and creates the release commit and tag. It does not push automatically.
+Build commands are for packaging validation, not routine changes.
 
 ## Issues
 
@@ -61,5 +65,5 @@ Use the structured issue forms. Bug reports should include concise reproduction 
 - List the validation commands you ran.
 - Include screenshots or recordings for renderer and UI changes.
 - Add an entry to the affected package's `CHANGELOG.md` under `Unreleased` when required by `AGENTS.md`.
-- Keep dependency versions pinned and review any `bun.lock` changes.
+- Keep dependency versions pinned and review any `package-lock.json` changes.
 - Do not include generated release artifacts, credentials, or unrelated formatting changes.

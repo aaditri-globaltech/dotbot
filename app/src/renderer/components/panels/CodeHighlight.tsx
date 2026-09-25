@@ -1,15 +1,20 @@
 import hljs from "highlight.js/lib/common";
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 
+/** Bordered block for code, mermaid fallbacks, and plain tool output. */
+export const CODE_BLOCK_CLASS =
+  "max-w-full overflow-auto rounded border border-widget-border bg-editor-background p-3 " +
+  "[white-space:pre] font-mono text-mono";
+
 /** Inputs for a plain or syntax-highlighted code block. */
 export type CodeHighlightProps = {
-  code: () => string;
-  language: () => string;
-  className?: string | (() => string);
-  lineNumbers?: boolean | (() => boolean);
-  lineNumberStart?: () => number;
-  onScroll?: (event: Event) => void;
-  setElement?: (element: HTMLElement) => void;
+  code: string;
+  language: string;
+  className?: string;
+  lineNumbers?: boolean;
+  lineNumberStart?: number;
+  onScroll?: (event: Event & { currentTarget: HTMLElement }) => void;
+  setElement?: (element: HTMLElement | undefined) => void;
 };
 
 type HighlightedLine = {
@@ -26,17 +31,8 @@ const htmlEntities: Record<string, string> = {
   "'": "&#39;",
 };
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => htmlEntities[character]);
-}
-
-/** Map a tool file path to a Highlight.js language alias. */
-export function languageForFile(path: string): string {
-  const filename = path.replaceAll("\\", "/").split("/").pop() ?? "";
-  if (filename.toLowerCase() === "dockerfile") return "dockerfile";
-
-  const extension = filename.split(".").pop()?.toLowerCase();
-  return extension && extension !== filename ? extension : "";
 }
 
 function lineStart(value: number | undefined) {
@@ -78,39 +74,29 @@ function highlightedLines(
     });
 }
 
-/** Highlight only explicitly identified languages; plain text stays plain. */
 /** Render code with optional line numbers and language highlighting. */
 export function CodeHighlight(props: CodeHighlightProps) {
   const [html, setHtml] = createSignal("");
   const [lines, setLines] = createSignal<HighlightedLine[]>([]);
-  const className = () =>
-    typeof props.className === "function"
-      ? props.className()
-      : (props.className ?? "agent-code-block");
-  const withLineNumbers = () =>
-    typeof props.lineNumbers === "function"
-      ? props.lineNumbers()
-      : props.lineNumbers === true;
-  let revision = 0;
+
+  const className = () => props.className ?? CODE_BLOCK_CLASS;
+  const withLineNumbers = () => props.lineNumbers === true;
+  const start = () => lineStart(props.lineNumberStart);
 
   createEffect(() => {
-    const code = props.code();
-    const language = props.language();
-    const withLineNumbers =
-      typeof props.lineNumbers === "function"
-        ? props.lineNumbers()
-        : props.lineNumbers === true;
-    const start = lineStart(props.lineNumberStart?.());
-    const currentRevision = ++revision;
+    const code = props.code;
+    const language = props.language;
+    const lineNumbers = withLineNumbers();
+    const from = start();
     setHtml("");
-    setLines(withLineNumbers ? highlightedLines(code, start) : []);
+    setLines(lineNumbers ? highlightedLines(code, from) : []);
+    // Highlighting is deferred one task: a burst of streamed deltas keeps
+    // cancelling the pending timer, so highlighting runs once the stream pauses.
     const timer = setTimeout(() => {
-      if (currentRevision !== revision) return;
-
       const supportedLanguage =
         language && hljs.getLanguage(language) ? language : undefined;
-      if (withLineNumbers) {
-        setLines(highlightedLines(code, start, supportedLanguage));
+      if (lineNumbers) {
+        setLines(highlightedLines(code, from, supportedLanguage));
         return;
       }
       if (!supportedLanguage) return;
@@ -121,20 +107,22 @@ export function CodeHighlight(props: CodeHighlightProps) {
       }
     }, 0);
 
-    onCleanup(() => {
-      revision += 1;
-      clearTimeout(timer);
-    });
+    onCleanup(() => clearTimeout(timer));
   });
 
-  const setElement = (element: HTMLElement) => props.setElement?.(element);
+  const hasContent = () =>
+    withLineNumbers() ? lines().length > 0 : Boolean(html());
 
   return (
     <Show
-      when={withLineNumbers() ? lines().length > 0 : html()}
+      when={hasContent()}
       fallback={
-        <pre ref={setElement} class={className()} on:scroll={props.onScroll}>
-          <code>{props.code()}</code>
+        <pre
+          ref={(element) => props.setElement?.(element)}
+          class={className()}
+          onScroll={props.onScroll}
+        >
+          <code>{props.code}</code>
         </pre>
       }
     >
@@ -142,27 +130,31 @@ export function CodeHighlight(props: CodeHighlightProps) {
         when={withLineNumbers()}
         fallback={
           <div
-            ref={setElement}
+            ref={(element) => props.setElement?.(element)}
             class={className()}
-            on:scroll={props.onScroll}
+            onScroll={props.onScroll}
             innerHTML={html()}
           />
         }
       >
         <div
-          ref={setElement}
-          class={`${className()} agent-editor-output`}
-          on:scroll={props.onScroll}
+          ref={(element) => props.setElement?.(element)}
+          class={`${className()} py-1.5 [overflow-wrap:normal] [white-space:pre]`}
+          onScroll={props.onScroll}
         >
           <For each={lines()}>
             {(line) => (
-              <span class="agent-tool-line">
-                <span class="agent-tool-line-number" aria-hidden="true">
+              <span class="flex min-h-[1.45em] min-w-max">
+                <span
+                  class="shrink-0 basis-[50px] px-3 text-right text-disabledForeground select-none"
+                  data-line-number="true"
+                  decorative="true"
+                >
                   {line.number}
                 </span>
-                <span class="agent-tool-line-content">
+                <span class="min-w-0 shrink-0 px-3 [white-space:pre]">
                   <Show when={line.html !== undefined} fallback={line.text}>
-                    <span innerHTML={line.html ?? ""} />
+                    <span innerHTML={line.html} />
                   </Show>
                 </span>
               </span>

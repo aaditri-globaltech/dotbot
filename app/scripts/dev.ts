@@ -3,51 +3,36 @@ import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { createJiti } from "jiti";
-import { createServer, type UserConfig } from "vite";
+import { createServer } from "vite";
 
 const appDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(appDirectory, "..");
 const outputDirectory = resolve(appDirectory, "dist");
-const hostSourcePath = resolve(
-  repositoryRoot,
-  "packages",
-  "host",
-  "src",
-  "main.ts",
-);
-const extensionSources = [
-  resolve(repositoryRoot, "packages", "extensions", "agent"),
-  resolve(repositoryRoot, "packages", "extensions", "workspace"),
-];
-const extensionSourceSeparator = process.platform === "win32" ? ";" : ":";
-const jiti = createJiti(import.meta.url);
-const viteConfig = await jiti.import<UserConfig>(
-  resolve(appDirectory, "vite.config.ts"),
-  { default: true },
-);
 
 // The main process is bundled separately because Electron is provided at runtime.
 await build({
-  entryPoints: [
-    resolve(appDirectory, "src/main/main.ts"),
-    resolve(appDirectory, "src/preload/preload.ts"),
-  ],
+  entryPoints: [resolve(appDirectory, "src/main/main.ts")],
+  bundle: true,
+  external: ["electron", "@earendil-works/*", "@parcel/watcher"],
+  format: "esm",
+  platform: "node",
+  outfile: resolve(outputDirectory, "main/main.js"),
+});
+
+await build({
+  entryPoints: [resolve(appDirectory, "src/preload/preload.ts")],
   bundle: true,
   external: ["electron"],
   format: "cjs",
-  outdir: outputDirectory,
-  outExtension: { ".js": ".cjs" },
   platform: "node",
+  outfile: resolve(outputDirectory, "preload/preload.cjs"),
 });
 
 // Renderer assets remain hot-reloadable while Electron uses the dev URL.
 const server = await createServer({
-  ...viteConfig,
-  configFile: false,
+  configFile: resolve(appDirectory, "vite.config.ts"),
   root: appDirectory,
   server: {
-    ...viteConfig.server,
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
@@ -58,27 +43,18 @@ await server.listen();
 server.printUrls();
 
 const electronCommand = resolve(
-  appDirectory,
+  repositoryRoot,
   "node_modules",
   ".bin",
   process.platform === "win32" ? "electron.cmd" : "electron",
 );
-const hostRuntime =
-  process.env.ARIA_HOST_RUNTIME ??
-  (process.versions.bun ? process.execPath : "bun");
 const electron = spawn(
   electronCommand,
-  [resolve(outputDirectory, "main/main.cjs")],
+  [resolve(outputDirectory, "main/main.js")],
   {
     cwd: appDirectory,
     env: {
       ...process.env,
-      ARIA_HOST_CWD: repositoryRoot,
-      ARIA_HOST_RUNTIME: hostRuntime,
-      ARIA_HOST_SOURCE_PATH: hostSourcePath,
-      ARIA_HOST_EXTENSION_SOURCES: extensionSources.join(
-        extensionSourceSeparator,
-      ),
       ELECTRON_PRELOAD_PATH: resolve(outputDirectory, "preload/preload.cjs"),
       VITE_DEV_SERVER_URL:
         server.resolvedUrls?.local[0] ?? "http://127.0.0.1:5173",

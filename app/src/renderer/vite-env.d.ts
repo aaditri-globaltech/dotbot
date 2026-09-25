@@ -1,9 +1,9 @@
 /// <reference types="vite/client" />
 
-import type { AriaApi } from "./api";
+import type { BotApi } from "./api";
 
 declare global {
   interface Window {
-    aria: AriaApi;
+    dotbot: BotApi;
   }
 }

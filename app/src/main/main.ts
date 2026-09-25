@@ -1,12 +1,21 @@
-import { join } from "node:path";
-import type { AgentManagerEvent, AgentSession } from "@aria/extension-agent";
-import type { ExplorerEntry, GitStatus } from "@aria/extension-workspace";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
-  createElectronHostClient,
-  type ElectronHostClient,
-} from "@aria/host/examples/electron";
-import type { JsonValue, RuntimeEvent } from "@aria/protocol";
-import { isJsonValue } from "@aria/protocol";
+  AgentManager,
+  type AgentManagerEvent,
+  getSessionsDir,
+  ProviderRegistry,
+  TrustManager,
+} from "@dotbot/agent-core";
+import { asRecord } from "@dotbot/agent-core/text";
+import { readDirectory, watchDirectory } from "@dotbot/files";
+import {
+  type GitStatus,
+  gitCommit,
+  gitStage,
+  gitStatus,
+  gitUnstage,
+} from "@dotbot/git";
 import {
   app,
   BrowserWindow,
@@ -14,93 +23,44 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  shell,
   Tray,
 } from "electron";
+import { guardExternalLinks } from "./external-links";
+import { createFileWatch } from "./file-watch";
+import { UsageStatsStore } from "./usage-stats";
 
-const directory = typeof __dirname === "undefined" ? process.cwd() : __dirname;
+const directory = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
-let host: ElectronHostClient | undefined;
 let isQuitting = false;
-let quitAfterHostStop = false;
-let quitPromise: Promise<void> | undefined;
 
-/** Forward Agent manager events only while a renderer window is available. */
-function sendManagerEvent(event: AgentManagerEvent) {
+const trustManager = new TrustManager();
+const agentManager = new AgentManager({ onEvent: sendEvent, trustManager });
+const providers = new ProviderRegistry(() => agentManager.getModelRuntime());
+
+const usageStats = new UsageStatsStore({
+  sessionsRoot: getSessionsDir(),
+  storePath: join(app.getPath("userData"), "usage-stats.json"),
+});
+
+const fileWatch = createFileWatch(watchDirectory);
+
+/** Forward a message only while a renderer window is available. */
+function sendToRenderer(channel: string, payload: unknown) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.send("agent:event", event);
+  mainWindow.webContents.send(channel, payload);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function sendEvent(event: AgentManagerEvent) {
+  sendToRenderer("agent:event", event);
 }
 
-function isAgentManagerEvent(value: unknown): value is AgentManagerEvent {
-  if (!isRecord(value) || typeof value.type !== "string") return false;
-  switch (value.type) {
-    case "sessions":
-      return Array.isArray(value.sessions);
-    case "session_update":
-      return isRecord(value.session);
-    case "session_event":
-      return typeof value.sessionId === "string" && isRecord(value.event);
-    case "session_history":
-      return typeof value.sessionId === "string" && Array.isArray(value.items);
-    case "feedback_request":
-      return typeof value.sessionId === "string" && isRecord(value.request);
-    default:
-      return false;
-  }
-}
-
-type ProcessWithResourcesPath = NodeJS.Process & {
-  resourcesPath?: string;
-};
-
-function hostExtensionSources(): string[] {
-  const configured = process.env.ARIA_HOST_EXTENSION_SOURCES;
-  if (configured !== undefined) {
-    return configured
-      .split(process.platform === "win32" ? ";" : ":")
-      .filter(Boolean);
-  }
-
-  const resourcesPath = (process as ProcessWithResourcesPath).resourcesPath;
-  if (!resourcesPath) return [];
-  return [
-    join(resourcesPath, "extensions", "agent.cjs"),
-    join(resourcesPath, "extensions", "workspace.cjs"),
-  ];
-}
-
-function handleRuntimeEvent(event: RuntimeEvent) {
-  if (
-    event.type !== "extension_event" ||
-    event.event.source !== "agent" ||
-    event.event.type !== "agent.manager"
-  ) {
-    return;
-  }
-  if (isAgentManagerEvent(event.event.payload)) {
-    sendManagerEvent(event.event.payload);
-  }
-}
-
-function jsonPayload(value: unknown): JsonValue {
-  if (!isJsonValue(value)) throw new Error("Payload must be a JSON value");
-  return value;
-}
-
-function requireHost(): ElectronHostClient {
-  if (!host) throw new Error("Extension host is not ready");
-  return host;
-}
-
-/** Embedded PNG keeps the tray icon visible on Linux Electron builds. */
-const trayIcon = nativeImage.createFromDataURL(
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAZklEQVR4nO3TyxEAEBADUJVoQ1eqUY/WKAAj2LE+yUxuyLsw1sekWXMMwIW0tQQQsAyohYA/AK3BUQgBwwB0AD13NwCNCEAi7wDQn4Lc6wJmh9F3CGgCpIZ7kHMBu0oAAQVAq+qADE+tTCWSUYUnAAAAAElFTkSuQmCC",
-);
+/** The app icon doubles as the tray icon, resized for the tray. */
+const trayIcon = nativeImage
+  .createFromPath(join(directory, "../../resources/icon.png"))
+  .resize({ width: 32, height: 32 });
 
 function showMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -129,10 +89,10 @@ function toggleMainWindow() {
 /** Keep the process alive while the window is hidden and expose restore/quit actions. */
 function createTray() {
   tray = new Tray(trayIcon);
-  tray.setToolTip("Aria");
+  tray.setToolTip("Dotbot");
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "Show Aria", click: showMainWindow },
+      { label: "Show Dotbot", click: showMainWindow },
       { type: "separator" },
       { label: "Quit", click: () => app.quit() },
     ]),
@@ -146,6 +106,8 @@ function createWindow() {
     width: 1200,
     height: 800,
     frame: false,
+    // Taskbar and window-list icon; packaged builds ship resources/icon.png.
+    icon: join(directory, "../../resources/icon.png"),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -173,6 +135,13 @@ function createWindow() {
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 
+  // Links open in the system browser; the window never navigates away.
+  guardExternalLinks(window.webContents, (url) => {
+    void shell
+      .openExternal(url)
+      .catch((error: unknown) => console.error("Failed to open link:", error));
+  });
+
   if (devServerUrl) {
     void window.loadURL(devServerUrl);
   } else {
@@ -180,7 +149,6 @@ function createWindow() {
   }
 }
 
-// Electron remains the adapter for the existing renderer-facing channels.
 ipcMain.on("window:minimize", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize();
 });
@@ -197,119 +165,171 @@ ipcMain.on("window:close", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close();
 });
 
-ipcMain.handle("agent:list", () =>
-  requireHost().request<AgentSession[]>("agent.list"),
+ipcMain.handle("agent:list", () => agentManager.list());
+ipcMain.handle("agent:controls", (_event, value: unknown) =>
+  agentManager.getSessionControls(value),
+);
+ipcMain.handle("agent:create", (_event, value: unknown) => {
+  const input = asRecord(value);
+  // Custom tools carry functions and cannot cross IPC; forward only the
+  // serializable selection fields.
+  return agentManager.create(input?.projectDir, {
+    tools: input?.tools,
+    excludeTools: input?.excludeTools,
+    noTools: input?.noTools,
+  });
+});
+ipcMain.handle("agent:open", (_event, id: unknown) => agentManager.open(id));
+ipcMain.handle("agent:close", (_event, id: unknown) => {
+  agentManager.close(id);
+});
+ipcMain.handle("agent:discard", (_event, id: unknown) => {
+  agentManager.discard(id);
+});
+ipcMain.handle("agent:prompt", (_event, value: unknown) =>
+  agentManager.prompt(value),
+);
+ipcMain.handle("agent:abort", (_event, id: unknown) => {
+  agentManager.abort(id);
+});
+ipcMain.handle("agent:set-model", (_event, value: unknown) =>
+  agentManager.setModel(value),
+);
+ipcMain.handle("agent:set-thinking-level", (_event, value: unknown) =>
+  agentManager.setThinkingLevel(value),
+);
+ipcMain.handle("agent:respond", (_event, value: unknown) => {
+  agentManager.respond(value);
+});
+ipcMain.handle("agent:respond-trust", (_event, value: unknown) => {
+  agentManager.respondTrust(value);
+});
+ipcMain.handle("agent:set-session-name", (_event, value: unknown) =>
+  agentManager.setSessionName(value),
+);
+ipcMain.handle("agent:compact", (_event, value: unknown) =>
+  agentManager.compact(value),
+);
+ipcMain.handle("agent:abort-compaction", (_event, id: unknown) => {
+  agentManager.abortCompaction(id);
+});
+ipcMain.handle("agent:stats", (_event, id: unknown) =>
+  agentManager.getSessionStats(id),
+);
+ipcMain.handle("agent:context-usage", (_event, id: unknown) =>
+  agentManager.getContextUsage(id),
+);
+ipcMain.handle("agent:execute-bash", (_event, value: unknown) =>
+  agentManager.executeBash(value),
+);
+ipcMain.handle("agent:abort-bash", (_event, id: unknown) => {
+  agentManager.abortBash(id);
+});
+ipcMain.handle("agent:set-active-tools", (_event, value: unknown) =>
+  agentManager.setActiveTools(value),
+);
+ipcMain.handle("agent:send-custom-message", (_event, value: unknown) =>
+  agentManager.sendCustomMessage(value),
+);
+ipcMain.handle("agent:queue", (_event, id: unknown) =>
+  agentManager.getQueue(id),
+);
+ipcMain.handle("agent:clear-queue", (_event, id: unknown) =>
+  agentManager.clearQueue(id),
 );
 
-ipcMain.handle("agent:create", (_event, cwd: unknown) =>
-  requireHost().request<AgentSession>("agent.create", jsonPayload({ cwd })),
+ipcMain.handle("trust:get-default", () => trustManager.getDefault());
+ipcMain.handle("trust:set-default", (_event, value: unknown) =>
+  trustManager.setDefault(value),
 );
-ipcMain.handle("agent:open", (_event, id: unknown) =>
-  requireHost().request<AgentSession>(
-    "agent.open",
-    jsonPayload({ sessionId: id }),
-  ),
-);
-ipcMain.handle("agent:close", async (_event, id: unknown) => {
-  await requireHost().request("agent.close", jsonPayload({ sessionId: id }));
-});
-ipcMain.handle("agent:prompt", async (_event, value: unknown) => {
-  await requireHost().request("agent.prompt", jsonPayload(value));
-});
-ipcMain.handle("agent:abort", async (_event, id: unknown) => {
-  await requireHost().request("agent.abort", jsonPayload({ sessionId: id }));
-});
-ipcMain.handle("agent:command", async (_event, value: unknown) => {
-  await requireHost().request("agent.command", jsonPayload(value));
-});
-ipcMain.handle("agent:respond", async (_event, value: unknown) => {
-  await requireHost().request("agent.respond", jsonPayload(value));
+ipcMain.handle("trust:list", () => trustManager.list());
+ipcMain.handle("trust:revoke", (_event, path: unknown) => {
+  if (typeof path !== "string" || !path.trim()) {
+    throw new Error("Trust path is invalid");
+  }
+  const trustPath = path.trim();
+  trustManager.revoke(trustPath);
+  agentManager.forgetTrust(trustPath);
 });
 
-// Workspace picking and native window/tray lifecycle remain Electron-only.
-ipcMain.handle("workspace:pick", async () => {
+ipcMain.handle("providers:list", () => providers.list());
+ipcMain.handle("providers:set-key", (_event, value: unknown) =>
+  providers.setApiKey(value),
+);
+ipcMain.handle("providers:remove", (_event, id: unknown) =>
+  providers.removeApiKey(id),
+);
+ipcMain.handle("providers:add", (_event, value: unknown) =>
+  providers.addCustom(value),
+);
+
+ipcMain.handle("stats:get", () => usageStats.computeStats());
+
+// Project picking uses the native dialog; file reads and Git stay in packages.
+ipcMain.handle("project:pick", async () => {
   const result = await dialog.showOpenDialog({
-    title: "Open workspace",
+    title: "Open project",
     properties: ["openDirectory"],
   });
   return result.canceled ? undefined : result.filePaths[0];
 });
 
-ipcMain.handle("workspace:read-directory", (_event, value: unknown) =>
-  requireHost().request<ExplorerEntry[]>(
-    "workspace.readDirectory",
-    jsonPayload(value),
+// Only the active project is watched; fileWatch serializes replacement.
+ipcMain.handle("files:watch", (_event, projectDir: unknown) =>
+  fileWatch.watch(
+    projectDir,
+    (paths) => sendToRenderer("files:changed", { projectDir, paths }),
+    (error: unknown) => {
+      // Watch failures leave the manual refresh buttons as the fallback.
+      console.error("File watcher failed:", error);
+    },
   ),
 );
 
-ipcMain.handle("workspace:git-status", (_event, cwd: unknown) =>
-  requireHost().request<GitStatus>("workspace.gitStatus", jsonPayload({ cwd })),
+ipcMain.handle("files:unwatch", () => fileWatch.stop());
+
+ipcMain.handle("files:read-directory", (_event, value: unknown) => {
+  const input = asRecord(value);
+  return readDirectory(input?.projectDir, input?.path);
+});
+
+ipcMain.handle(
+  "git:status",
+  (_event, projectDir: unknown): Promise<GitStatus> => gitStatus(projectDir),
 );
 
-ipcMain.handle("workspace:git-stage", async (_event, value: unknown) => {
-  await requireHost().request("workspace.gitStage", jsonPayload(value));
+ipcMain.handle("git:stage", (_event, value: unknown) => {
+  const input = asRecord(value);
+  return gitStage(input?.projectDir, input?.path);
 });
 
-ipcMain.handle("workspace:git-unstage", async (_event, value: unknown) => {
-  await requireHost().request("workspace.gitUnstage", jsonPayload(value));
+ipcMain.handle("git:unstage", (_event, value: unknown) => {
+  const input = asRecord(value);
+  return gitUnstage(input?.projectDir, input?.path);
 });
 
-ipcMain.handle("workspace:git-commit", async (_event, value: unknown) => {
-  await requireHost().request("workspace.gitCommit", jsonPayload(value));
+ipcMain.handle("git:commit", (_event, value: unknown) => {
+  const input = asRecord(value);
+  return gitCommit(input?.projectDir, input?.message);
 });
 
-app.on("before-quit", (event) => {
-  if (quitAfterHostStop) return;
-  event.preventDefault();
+app.on("before-quit", () => {
   isQuitting = true;
-  if (quitPromise) return;
-
-  const currentHost = host;
-  if (!currentHost) {
-    quitAfterHostStop = true;
-    app.quit();
-    return;
-  }
-
-  quitPromise = currentHost
-    .stop()
-    .catch((error) => {
-      console.error("Failed to shut down extension host:", error);
-    })
-    .finally(() => {
-      quitAfterHostStop = true;
-      app.quit();
-    });
+  void fileWatch.stop();
+  // Agent sessions run in-process, so shutdown only needs to dispose them.
+  agentManager.stopAll();
 });
 
 void app
   .whenReady()
-  .then(async () => {
-    if (isQuitting) return;
-    host = createElectronHostClient(app, {
-      onEvent: handleRuntimeEvent,
-      hostSourcePath: process.env.ARIA_HOST_SOURCE_PATH,
-      hostRuntime: process.env.ARIA_HOST_RUNTIME,
-      hostCwd: process.env.ARIA_HOST_CWD,
-      extensionSources: hostExtensionSources(),
-    });
-    try {
-      await requireHost().start();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(message);
-      dialog.showErrorBox("Extension host failed to start", message);
-      app.exit(1);
-      return;
-    }
-
+  .then(() => {
     createTray();
     createWindow();
     app.on("activate", showMainWindow);
   })
-  .catch((error) => {
+  .catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("Aria failed to start:", message);
+    console.error("Dotbot failed to start:", message);
     app.exit(1);
   });
 

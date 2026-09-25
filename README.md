@@ -1,153 +1,97 @@
-# Aria
+# Dotbot
 
-Electron workspace UI with streamed Pi sessions.
+Dotbot is a desktop app for coding-agent sessions. Open the projects you work
+in, run a session for each piece of work, and review the code, files, and Git
+state in one window. The agent runtime runs inside the app process, so there is
+no separate service to start.
 
-## Project metadata
-
-- License: [MIT](LICENSE)
-- Author: Kumar Rahul Anand
-- Maintainer: Aaditri GlobalTech
-- Homepage: [Aria](https://github.com/Aaditri-GlobalTech/aria#Aria)
-
-## Architecture
-
-Aria is a Bun workspace monorepo. The Electron client launches a reusable Bun extension host process, which embeds the generic extension runtime.
-
-- `app/` — Electron shell, host client, Solid/Vite renderer, and preload bridge.
-- `packages/core/` — generic extension runtime, lifecycle, routing, and execution boundaries.
-- `packages/host/` — reusable Bun extension host process.
-- `packages/protocol/` — generic JSON-RPC contract between the app and host.
-- `packages/extensions/*` — Agent/Pi and Workspace feature extensions.
-
-### Runtime flow
-
-1. Electron starts `@aria/host` through the typed `HostClient`.
-2. The host passes its explicit `extensionSources` to `@aria/core`.
-3. The extension runtime discovers and validates extension definitions, then starts providers lazily.
-4. `capability.request` carries opaque JSON payloads; the owning extension validates them.
-5. Extension events return through the generic `runtime.event` notification.
-
-Hosts have no built-in feature list. The desktop app supplies the Agent and
-Workspace extensions in development and from `app/resources/extensions/` in
-packaged builds.
-
-See the package documentation:
-
-- [`app/README.md`](app/README.md)
-- [`packages/core/README.md`](packages/core/README.md)
-- [`packages/host/README.md`](packages/host/README.md)
-- [`packages/protocol/README.md`](packages/protocol/README.md)
-- [`packages/extensions/agent/README.md`](packages/extensions/agent/README.md)
-- [`packages/extensions/workspace/README.md`](packages/extensions/workspace/README.md)
-- [`packages/host/examples/README.md`](packages/host/examples/README.md) — full client and embedding examples.
-
-Before contributing, read [`CONTRIBUTING.md`](CONTRIBUTING.md).
+![The Dotbot workbench with a session transcript and the Git panel](docs/images/workbench.png)
 
 ## Features
 
-- Workspace-based Pi sessions grouped in the session sidebar, with session tabs and streamed assistant output.
-- Inline thinking, user prompts, tool calls, status updates, and extension feedback dialogs.
-- Model and thinking-level selection, stop controls, and steer/follow-up prompts while a turn is running.
-- Open sessions reuse their Pi process after a turn settles; the selected and other workspace session lists scroll independently.
-- VS Code-style activity views with an expandable Explorer and local Git Source Control for the active workspace.
-- Resizable workbench panels, system-tray minimize/restore, and Linux AppImage/deb and Windows NSIS packaging.
+- **Projects and sessions**: open any folder as a project and keep one session
+  per piece of work. Sessions persist between runs; opening one reloads its
+  transcript.
+- **Live session transcripts**: streamed answers, inline thinking, collapsible
+  tool cards with diffs and file previews, and steer or follow-up messages while
+  a turn is running.
+- **Model control**: pick the model and thinking level per session, and stop a
+  running turn at any time.
+- **Dashboard**: usage statistics computed from your session history, including
+  messages, tokens, active days, streaks, peak hour, a daily heatmap, and a
+  model breakdown.
+- **Files and Git**: browse the project tree from the sidebar and watch changes
+  appear as they happen. The Git panel stages, unstages, and commits.
+- **Providers**: save an API key for a built-in provider such as Anthropic,
+  OpenAI, or Google, or add a custom provider for OpenAI Completions or
+  Responses, Anthropic Messages, or Google Generative AI.
+- **Project trust**: decide whether the agent may use a project's local
+  resources, such as its settings, extensions, skills, prompts, or themes.
+  Dotbot asks when a project has them, remembers the answer, and falls back to a
+  global default set in **Manage → General**.
+- **Bash mode**: type `!command` in the composer to add shell output to the
+  model's context, or `!!command` to keep it out.
 
-### Keyboard defaults
+| Dashboard | Providers |
+|:---:|:---:|
+| ![Usage statistics on the Dashboard](docs/images/dashboard.png) | ![Provider settings in Manage](docs/images/providers.png) |
 
-- `Enter` submits a prompt; `Shift+Enter` inserts a newline.
-- `Ctrl+Enter` commits a Source Control message.
-- Arrow keys resize the focused panel.
+## Install
 
-### Transcript rendering
+Download the latest release from the
+[Releases page](https://github.com/aaditri-globaltech/dotbot/releases):
 
-- Assistant prose is left-aligned; fenced code uses Highlight.js syntax highlighting and `mermaid` fences render diagrams.
-- Thinking is inline italic text and user prompts are right-aligned dark bubbles.
-- Bash and other generic tools render as `$` command blocks with streamed arguments and output.
-- Every tool card is collapsible; `read`, `edit`, and `write` render without `$` and show the workspace path.
-- `read` shows its requested line range; `edit` displays Pi's line-numbered diff; `write` displays the content written.
-- The transcript and tool output follow streamed content until the user scrolls away, while older session history loads in pages.
+- **Linux**: AppImage (runs anywhere) or `.deb` package.
+- **Windows**: installer.
+- **macOS**: `.dmg` for Apple silicon or Intel.
 
-### Session behavior
-
-- A new session starts with the label `new session` and adopts its first prompt as the fallback title.
-- An accepted prompt is shown as working immediately. While a turn is running, `Steer` sends input before the next provider request; `Follow up` waits until the current turn finishes.
-- A completed turn marks the session idle but does not close an open Pi process. Closing the session allows that process to stop after the turn settles.
-
-## Prerequisite
-
-Install Pi separately:
-
-```sh
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.84.2
-```
-
-Make sure `pi` is available on `PATH` for the packaged app. Git is optional for
-the Explorer but required for Source Control; install Git and put it on `PATH`
-if you want branch, status, staging, and commit actions.
-
-## Use Aria
-
-From the repository root, install dependencies and start the development app:
+Or run from source with Node 24 or newer:
 
 ```sh
-bun install --ignore-scripts
-bun run prepare
-bun run dev
+npm install --ignore-scripts
+npm run prepare   # install the Git hooks
+npm run patch     # brand the embedded agent runtime
+npm run dev
 ```
 
-Choose a workspace in Explorer, create a session, and send prompts to Pi. The
-packaged app uses the same extension capabilities and host configuration as
-development.
+`prepare` and `patch` run automatically during a plain `npm install`.
+
+Release builds are unsigned; macOS and Windows may show a security warning on
+first launch.
+
+## First run
+
+1. Open a project from the Dashboard or the sidebar folder action.
+2. Add a provider API key in **Manage → Providers**.
+3. Start a session and send a prompt.
+
+Settings, credentials, and sessions live in `~/.bot/agent`
+(`%USERPROFILE%\.bot\agent` on Windows). API keys are stored there as plain
+text. Git is optional and only needed for the Git panel; install it and put it
+on `PATH` to use it.
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Enter` | Send a prompt |
+| `Shift+Enter` | Insert a newline |
+| `Ctrl+Enter` | Commit in the Git panel |
+| Arrow keys | Resize the sidebar or bottom panel when its edge has focus |
+| `Esc` | Close a menu or dialog |
 
 ## Development
 
-The development script passes these extension package directories to the Bun
-host:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, validation, and pull request
+rules. Run the formatter, linter, and type checker with `npm run check`, and the
+tests with `npm test`.
 
-- `packages/extensions/agent`
-- `packages/extensions/workspace`
+## Documentation
 
-Run the local checks with:
+- [GLOSSARY.md](GLOSSARY.md) — every term Dotbot uses and what it means here.
+- [app/README.md](app/README.md) — the Electron client and its renderer.
+- [docs/superpowers](docs/superpowers) — design documents for larger changes.
 
-```sh
-bun run check
-```
+## License
 
-For renderer or bundling changes, also run:
-
-```sh
-bun run check:browser-smoke
-```
-
-Build locally when validating packaging:
-
-```sh
-bun run build
-```
-
-This compiles the Bun host and bundles the built-in extensions into
-`app/resources/host/` and `app/resources/extensions/` before building the
-Electron app. Validate the generated host and extension resources with:
-
-```sh
-bun run build:host
-bun run check:host
-```
-
-## Releases
-
-The repository-level release command requires a clean tree, bumps `app/package.json`, runs the checks, promotes package changelogs, and creates the release commit and tag:
-
-```sh
-bun run release -- patch   # or minor / major / x.y.z
-git push origin main --follow-tags
-```
-
-Pushing the tag builds Linux and Windows artifacts in GitHub Actions and attaches them to the GitHub release. The release command does not push automatically. Every pushed commit runs the CI build, while local commits run the validation check through Husky's pre-commit hook.
-
-For a local artifact build on the matching host:
-
-```sh
-bun run release:linux    # app/release/*.AppImage and app/release/*.deb
-bun run release:windows  # app/release/*Setup*.exe
-```
+[Apache-2.0](LICENSE)

@@ -1,38 +1,33 @@
 {
-  "name": "aria-monorepo",
-  "description": "Electron workspace UI with streamed Pi sessions.",
-  "homepage": "https://github.com/Aaditri-GlobalTech/aria#Aria",
+  "name": "dotbot-monorepo",
+  "description": "Electron workspace UI with in-process agent sessions.",
+  "homepage": "https://github.com/Aaditri-GlobalTech/dotbot#Dotbot",
   "author": "Kumar Rahul Anand",
   "maintainer": "Aaditri GlobalTech",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "private": true,
   "workspaces": [
     "app",
-    "packages/*",
-    "packages/extensions/*"
+    "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --cwd app dev",
-    "build:host": "bun run scripts/build-host.ts",
-    "check:host": "bun run scripts/check-host.ts",
-    "build": "bun run build:host && bun run --cwd app build",
-    "release:linux": "bun run build:host && bun run check:host && bun run --cwd app release:linux",
-    "release:windows": "bun run build:host && bun run check:host && bun run --cwd app release:windows",
-    "release": "bun run scripts/release.ts",
-    "start": "bun run --cwd app start",
-    "test": "bun test scripts/release.test.ts && bun run --cwd packages/protocol test && bun run --cwd packages/core test && bun run --cwd packages/host test && bun run --cwd packages/extensions/agent test && bun run --cwd packages/extensions/workspace test && bun run --cwd app test",
-    "check:browser-smoke": "bun run --cwd app check:browser-smoke",
-    "typecheck": "bun run --cwd packages/protocol typecheck && bun run --cwd packages/core typecheck && bun run --cwd packages/host typecheck && bun run --cwd packages/extensions/agent typecheck && bun run --cwd packages/extensions/workspace typecheck && bun run --cwd app typecheck",
-    "check": "biome check --write --error-on-warnings app packages scripts package.json tsconfig.base.json biome.json && bun run typecheck && bun run test",
+    "dev": "npm run --workspace app dev",
+    "build": "npm run --workspace app build",
+    "start": "npm run --workspace app start",
+    "release:linux": "npm run --workspace app release:linux",
+    "release:windows": "npm run --workspace app release:windows",
+    "release:mac": "npm run --workspace app release:mac",
+    "check:browser-smoke": "npm run --workspace app check:browser-smoke",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "check": "biome check --write --error-on-warnings app packages package.json tsconfig.base.json biome.json && npm run typecheck",
+    "patch": "npm run patch --workspace @dotbot/agent-core",
     "prepare": "husky"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "bun-types": "1.4.0",
-    "husky": "9.1.7"
-  },
-  "dependencies": {
-    "typebox": "1.3.19"
+    "husky": "9.1.7",
+    "vitest": "4.1.11"
   }
 }

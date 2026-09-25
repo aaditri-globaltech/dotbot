@@ -7,14 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": [
-      "**",
-      "!**/dist",
-      "!**/release",
-      "!**/resources/host",
-      "!**/resources/extensions",
-      "!node_modules"
-    ]
+    "includes": ["**", "!**/dist", "!**/release", "!node_modules"]
   },
   "formatter": {
     "enabled": true,
@@ -33,6 +26,11 @@
       "quoteStyle": "double",
       "semicolons": "always",
       "trailingCommas": "all"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
     }
   },
   "assist": {

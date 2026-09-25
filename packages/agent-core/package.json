@@ -1,0 +1,29 @@
+{
+  "name": "@dotbot/agent-core",
+  "version": "0.0.0",
+  "description": "Named re-exports of the Pi SDK plus Dotbot's in-process session manager.",
+  "homepage": "https://github.com/Aaditri-GlobalTech/dotbot#Dotbot",
+  "author": "Kumar Rahul Anand",
+  "maintainer": "Aaditri GlobalTech",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./text": "./src/text.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "patch": "node scripts/patch.ts",
+    "postinstall": "node scripts/patch.ts",
+    "test": "vitest --run",
+    "typecheck": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.85.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0"
+  }
+}

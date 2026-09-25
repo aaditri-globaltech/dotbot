@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "esbuild";
 
-const outputPath = join(tmpdir(), "aria-browser-smoke.js");
-const errorLogPath = join(tmpdir(), "aria-browser-smoke-errors.log");
+const outputPath = join(tmpdir(), "dotbot-browser-smoke.js");
+const errorLogPath = join(tmpdir(), "dotbot-browser-smoke-errors.log");
 
 try {
   // Keep the output outside the repository; only failures need a persistent log.
