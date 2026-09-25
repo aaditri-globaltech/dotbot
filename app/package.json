@@ -15,6 +15,7 @@
     "build": "npm run typecheck && shx rm -rf dist && vite build && esbuild src/main/main.ts --bundle --platform=node --format=esm --external:electron --external:@earendil-works/* --external:@parcel/watcher --outfile=dist/main/main.js && esbuild src/preload/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/preload/preload.cjs",
     "release:linux": "npm run build && electron-builder --linux AppImage deb --publish never",
     "release:windows": "npm run build && electron-builder --win nsis --publish never",
+    "release:mac": "npm run build && electron-builder --mac dmg --publish never",
     "start": "electron .",
     "test": "vitest --run --passWithNoTests",
     "check:browser-smoke": "node scripts/check-browser-smoke.mjs",
@@ -48,11 +49,13 @@
   "build": {
     "appId": "com.aaditri.dotbot",
     "productName": "Dotbot",
+    "icon": "resources/icon.png",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
+      "resources/icon.png",
       "package.json"
     ],
     "asarUnpack": [

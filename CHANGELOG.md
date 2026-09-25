@@ -1,6 +1,28 @@
 # Changelog
 
 ## [Unreleased]
+### Breaking Changes
+
+- Migrated the workspace from Bun to npm, including the lockfile, package scripts, Husky hooks, and CI.
+- Removed the extension host and its `core`, `host`, `protocol`, and extension packages; the agent runtime now runs in the Electron main process instead of a separate host.
+- Renamed Aria to Dotbot, including the `@dotbot` package scope, the `window.dotbot` bridge, and the `com.aaditri.dotbot` application id.
+- Moved the agent data directory to `~/.bot/agent`; sessions recorded under `~/.pi/agent` are no longer found automatically.
+
+### Added
+
+- Added the `@dotbot/agent-core`, `@dotbot/files`, and `@dotbot/git` workspace packages.
+- Added `GLOSSARY.md` as the vocabulary every package, document, and changelog follows.
+
+### Changed
+
+- Split `npm run check` into format, lint, and typecheck, with `npm test` as its own command; CI now installs, patches the runtime, builds, checks, tests, and runs the browser smoke check.
+- Moved release versioning to `app/package.json`, which the release workflow verifies against the pushed tag before building the Linux and Windows artifacts.
+- Relicensed the repository from MIT to Apache-2.0.
+- Aligned the READMEs and `CONTRIBUTING.md` with the in-process runtime, the package names, and the session vocabulary, and renamed the issue forms and documentation links to Dotbot.
+
+### Removed
+
+- Removed the Bun lockfile, the Bun runtime adapters, the repository release script, and the host build and smoke-check scripts.
 
 ## [0.1.5] - 2026-08-27
 ### Added

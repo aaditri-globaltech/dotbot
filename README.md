@@ -1,123 +1,97 @@
 # Dotbot
 
-Electron workspace UI with in-process agent sessions.
+Dotbot is a desktop app for coding-agent sessions. Open the projects you work
+in, run a session for each piece of work, and review the code, files, and Git
+state in one window. The agent runtime runs inside the app process, so there is
+no separate service to start.
 
-## Project metadata
-
-- License: [Apache-2.0](LICENSE)
-- Author: Kumar Rahul Anand
-- Maintainer: Aaditri GlobalTech
-- Homepage: [Dotbot](https://github.com/Aaditri-GlobalTech/dotbot#Dotbot)
-
-## Architecture
-
-Dotbot is an npm workspace monorepo. The Electron main process embeds the agent
-runtime directly; there is no separate host process.
-
-- `app/` — Electron shell, preload bridge, and React/Vite renderer.
-- `packages/agent-core/` — named re-exports of the agent runtime plus Dotbot's in-process agent manager and provider registry.
-- `packages/files/` — project filesystem access and the file watcher.
-- `packages/git/` — Git status, staging, and commit operations.
-
-### Runtime flow
-
-1. Electron starts and creates one `AgentManager` and one `ProviderRegistry` in the main process.
-2. The renderer asks the preload bridge to create or open a session.
-3. The manager creates an `AgentSession` in-process with the project directory as its `cwd`.
-4. Agent events stream through the manager to the renderer over `agent:event` IPC.
-5. Files and Git calls run against the files and git packages through validated IPC.
-
-Renderer code is type-only when it imports from the packages; all Node and
-agent-runtime work stays in the main process. The main bundle keeps the agent
-runtime external and resolves it from `node_modules`.
-
-Before contributing, read [`CONTRIBUTING.md`](CONTRIBUTING.md).
+![The Dotbot workbench with a session transcript and the Git panel](docs/images/workbench.png)
 
 ## Features
 
-- Workspace-based agent sessions grouped in the session sidebar, with session tabs and streamed assistant output.
-- Inline thinking, user prompts, tool calls, status updates, and extension dialogs.
-- Model and thinking-level selection, stop controls, and steer/follow-up prompts while a turn is running.
-- Open sessions reuse their in-process agent session after a turn settles; the selected and other workspace session lists scroll independently.
-- Dashboard, Workbench, and Manage screens with an expandable file tree and local Git for the active project.
-- Resizable workbench panels, system-tray minimize/restore, and Linux AppImage/deb and Windows NSIS packaging.
+- **Projects and sessions**: open any folder as a project and keep one session
+  per piece of work. Sessions persist between runs; opening one reloads its
+  transcript.
+- **Live session transcripts**: streamed answers, inline thinking, collapsible
+  tool cards with diffs and file previews, and steer or follow-up messages while
+  a turn is running.
+- **Model control**: pick the model and thinking level per session, and stop a
+  running turn at any time.
+- **Dashboard**: usage statistics computed from your session history, including
+  messages, tokens, active days, streaks, peak hour, a daily heatmap, and a
+  model breakdown.
+- **Files and Git**: browse the project tree from the sidebar and watch changes
+  appear as they happen. The Git panel stages, unstages, and commits.
+- **Providers**: save an API key for a built-in provider such as Anthropic,
+  OpenAI, or Google, or add a custom provider for OpenAI Completions or
+  Responses, Anthropic Messages, or Google Generative AI.
+- **Project trust**: decide whether the agent may use a project's local
+  resources, such as its settings, extensions, skills, prompts, or themes.
+  Dotbot asks when a project has them, remembers the answer, and falls back to a
+  global default set in **Manage → General**.
+- **Bash mode**: type `!command` in the composer to add shell output to the
+  model's context, or `!!command` to keep it out.
 
-### Keyboard defaults
+| Dashboard | Providers |
+|:---:|:---:|
+| ![Usage statistics on the Dashboard](docs/images/dashboard.png) | ![Provider settings in Manage](docs/images/providers.png) |
 
-- `Enter` submits a prompt; `Shift+Enter` inserts a newline.
-- `Ctrl+Enter` commits a Git message.
-- Arrow keys resize the focused panel.
+## Install
 
-### Transcript rendering
+Download the latest release from the
+[Releases page](https://github.com/aaditri-globaltech/dotbot/releases):
 
-- Assistant prose is left-aligned; fenced code uses Highlight.js syntax highlighting and `mermaid` fences render diagrams.
-- Thinking is inline italic text and user prompts are right-aligned dark bubbles.
-- Bash and other generic tools render as `$` command blocks with streamed arguments and output.
-- Every tool card is collapsible; `read`, `edit`, and `write` render without `$` and show the workspace path.
-- `read` shows its requested line range; `edit` displays the agent's line-numbered diff; `write` displays the content written.
-- The transcript and tool output follow streamed content until the user scrolls away, while older transcript items load in pages.
+- **Linux**: AppImage (runs anywhere) or `.deb` package.
+- **Windows**: installer.
+- **macOS**: `.dmg` for Apple silicon or Intel.
 
-### Session behavior
-
-- A new session starts with the label `new session` and adopts its first prompt as the fallback title.
-- An accepted prompt is shown as working immediately. While a turn is running, `Steer` sends input before the next provider request; `Follow up` waits until the current turn finishes.
-- A completed turn marks the session idle but keeps its in-process agent session open. Closing the session disposes that session.
-
-## Prerequisite
-
-Git is optional for Files but required for the Git panel; install Git
-and put it on `PATH` if you want branch, status, staging, and commit actions.
-The agent runtime is a dependency of `packages/agent-core`; no separate install
-is required.
-
-## Use Dotbot
-
-From the repository root, install dependencies and start the development app:
+Or run from source with Node 24 or newer:
 
 ```sh
 npm install --ignore-scripts
-npm run prepare
-npm run patch
+npm run prepare   # install the Git hooks
+npm run patch     # brand the embedded agent runtime
 npm run dev
 ```
 
-`prepare` and `patch` are skipped when installing with lifecycle scripts
-enabled; plain `npm install` runs them automatically.
+`prepare` and `patch` run automatically during a plain `npm install`.
 
-Open a project in Files, create a session, and send prompts. Sessions
-persist between runs.
+Release builds are unsigned; macOS and Windows may show a security warning on
+first launch.
+
+## First run
+
+1. Open a project from the Dashboard or the sidebar folder action.
+2. Add a provider API key in **Manage → Providers**.
+3. Start a session and send a prompt.
+
+Settings, credentials, and sessions live in `~/.bot/agent`
+(`%USERPROFILE%\.bot\agent` on Windows). API keys are stored there as plain
+text. Git is optional and only needed for the Git panel; install it and put it
+on `PATH` to use it.
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Enter` | Send a prompt |
+| `Shift+Enter` | Insert a newline |
+| `Ctrl+Enter` | Commit in the Git panel |
+| Arrow keys | Resize the sidebar or bottom panel when its edge has focus |
+| `Esc` | Close a menu or dialog |
 
 ## Development
 
-Run the local checks with:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, validation, and pull request
+rules. Run the formatter, linter, and type checker with `npm run check`, and the
+tests with `npm test`.
 
-```sh
-npm run check
-```
+## Documentation
 
-`check` formats and lints with warnings treated as errors, then typechecks.
-Run the tests with:
+- [GLOSSARY.md](GLOSSARY.md) — every term Dotbot uses and what it means here.
+- [app/README.md](app/README.md) — the Electron client and its renderer.
+- [docs/superpowers](docs/superpowers) — design documents for larger changes.
 
-```sh
-npm test
-```
+## License
 
-For renderer or bundling changes, also run:
-
-```sh
-npm run check:browser-smoke
-```
-
-## Releases
-
-Build artifacts locally on the matching host:
-
-```sh
-npm run release:linux    # app/release/*.AppImage and app/release/*.deb
-npm run release:windows  # app/release/*Setup*.exe
-```
-
-Bump `app/package.json`, commit, and push a `v<version>` tag. Pushing the tag
-builds Linux and Windows artifacts in GitHub Actions and attaches them to the
-GitHub release. Every pushed commit runs the CI build and checks, while local
-commits run the validation check through Husky's pre-commit hook.
+[Apache-2.0](LICENSE)

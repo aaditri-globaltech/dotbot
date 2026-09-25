@@ -24,7 +24,7 @@ Git is required for the Git panel. The agent runtime is provided by
 
 ## Repository structure
 
-- `app/` — Electron main process, preload bridge, and React/Zustand renderer.
+- `app/` — Electron main process, preload bridge, and Solid renderer.
 - `packages/agent-core/` — agent runtime re-exports, the in-process agent manager, and the provider registry.
 - `packages/files/` — project filesystem access and the file watcher.
 - `packages/git/` — Git status, staging, and commit operations.

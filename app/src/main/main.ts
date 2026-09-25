@@ -57,10 +57,10 @@ function sendEvent(event: AgentManagerEvent) {
   sendToRenderer("agent:event", event);
 }
 
-/** Embedded PNG keeps the tray icon visible on Linux Electron builds. */
-const trayIcon = nativeImage.createFromDataURL(
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAZklEQVR4nO3TyxEAEBADUJVoQ1eqUY/WKAAj2LE+yUxuyLsw1sekWXMMwIW0tQQQsAyohYA/AK3BUQgBwwB0AD13NwCNCEAi7wDQn4Lc6wJmh9F3CGgCpIZ7kHMBu0oAAQVAq+qADE+tTCWSUYUnAAAAAElFTkSuQmCC",
-);
+/** The app icon doubles as the tray icon, resized for the tray. */
+const trayIcon = nativeImage
+  .createFromPath(join(directory, "../../resources/icon.png"))
+  .resize({ width: 32, height: 32 });
 
 function showMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -106,6 +106,8 @@ function createWindow() {
     width: 1200,
     height: 800,
     frame: false,
+    // Taskbar and window-list icon; packaged builds ship resources/icon.png.
+    icon: join(directory, "../../resources/icon.png"),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

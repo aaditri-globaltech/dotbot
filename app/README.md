@@ -151,6 +151,7 @@ The complete packaging commands are:
 npm run build
 npm run release:linux
 npm run release:windows
+npm run release:mac
 ```
 
 ## Development checks

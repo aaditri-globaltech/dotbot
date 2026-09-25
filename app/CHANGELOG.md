@@ -3,11 +3,32 @@
 ## [Unreleased]
 ### Added
 
-- Branded the embedded agent runtime as "bot" with the `.bot` config directory via an idempotent patch script in `@dotbot/agent-core` (`npm run patch`), run as its postinstall hook and explicitly in CI.
+- Added Dashboard, Workbench, and Manage screens behind a project sidebar that replaces the activity rail, menu bar, and status bar.
+- Added usage stats on the Dashboard: message and token totals, a daily activity heatmap, streaks, and tokens per model, computed from persisted session files and cached under the app's user data.
+- Added project trust prompts, with remembered per-project decisions and a global default and revoke in Manage.
+- Added provider management in Manage: provider status, API key save and removal, and custom provider entries.
+- Added a new-session pane where the first keystroke starts the session, applying its model and thinking choices before the first prompt.
+- Added per-project model and thinking defaults, read without creating a session.
+- Added `!` and `!!` composer commands that run in the session and render as bash transcript items with streamed output and completion status.
+- Added workspace file watching so the file tree and Git panel refresh on changes, with Git-internal paths ignored and bursts debounced.
 
 ### Changed
 
-- Moved the agent data directory rule into the runtime branding so the runtime resolves `~/.bot/agent` itself instead of relying on its data-directory environment variable.
+- Moved renderer state from hooks into solid-js/store factories whose actions are the only writers, coalescing streamed events per animation frame.
+- Rebuilt the shell around a raised sidebar with the brand, screen rows, and every project with its sessions, plus a top strip with session tabs and window controls and an icon rail when the sidebar is collapsed.
+- Moved the file tree into the sidebar as a project mode that owns the workspace watcher.
+- Restyled the app with Tailwind v4 utilities over the VS Code Dark 2026 token set, with role-based semantic tokens and type and spacing scales.
+- Replaced the renderer's `aria-*` automation attributes with plain attribute names declared once in `plain-attributes.d.ts`.
+- The main process now runs one AgentManager and one ProviderRegistry and exposes them through the typed `window.dotbot` bridge.
+- Replaced the Kobalte dropdown and dialog with the app's own dropdown and a native `<dialog>` modal, dropping the dependency.
+- Renamed app-facing `cwd` fields to `projectDir` and renamed the app's panels to the file tree and Git panel.
+
+### Fixed
+
+- Opened markdown links in the system browser instead of replacing the app window.
+- Kept the composer visible in tight layouts and kept a searchable dropdown's trigger in place while searching.
+- Fixed dashboard scrolling and button typography after the Tailwind conversion.
+- Prevented a space key press from activating the highlighted option in a searchable dropdown.
 
 ## [0.1.5] - 2026-08-27
 ### Added
